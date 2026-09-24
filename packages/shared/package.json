@@ -1,0 +1,22 @@
+{
+  "name": "@qrabbit/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Types, ids and the renderer/main API contract shared by every QRabbit package.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "nanoid": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}

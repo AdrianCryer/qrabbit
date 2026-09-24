@@ -7,7 +7,10 @@
     "build": "pnpm -r --filter './packages/**' run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
-    "spike:acp": "pnpm --filter @qrabbit/spike-acp run start"
+    "spike:acp": "pnpm --filter @qrabbit/spike-acp run start",
+    "desktop:build": "pnpm --filter @qrabbit/desktop run build",
+    "desktop:dev": "pnpm --filter @qrabbit/desktop run dev",
+    "desktop:drive": "node tools/dev/drive-desktop.mjs"
   },
   "engines": { "node": ">=22" }
 }

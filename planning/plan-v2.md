@@ -357,9 +357,9 @@ Human-readable, diffable, and trivially parsed. A user message that carried bran
 
 | Layer | Choice | Why |
 |---|---|---|
-| Shell | **Electron** (electron-vite, electron-builder) | All TypeScript; the ACP SDK, PDF tooling and file watching are all Node-native; you are already expert. |
+| Shell | **Electron** (electron-vite, electron-builder) | All TypeScript; the ACP SDK, PDF tooling and file watching are all Node-native; you are already expert. Pinned: electron-vite 5 with Vite 7 and `@vitejs/plugin-react` 5 (plugin-react 6 needs Vite 8, which electron-vite 5 rejects). |
 | UI | React + TypeScript, Zustand for state, Tailwind or CSS modules | Standard; the UI would be identical under Tauri, so this is not a lock-in. |
-| PDF | PDF.js (`pdfjs-dist`) with text layer | The only realistic open-source renderer with selectable text. |
+| PDF | PDF.js 6 (`pdfjs-dist`) with text layer | The only realistic open-source renderer with selectable text. Its text layer sets `--font-height` and `--scale-x` per span and needs the matching stylesheet plus `--total-scale-factor` on the layer; the reader does both. |
 | Text extraction | PDF.js `getTextContent` per page → `text.md` with page markers | Same engine for rendering and extraction keeps offsets consistent. |
 | Anchoring | W3C Web Annotation selectors: TextQuote + TextPosition + page | Survives re-extraction and rendering changes; this is what Hypothesis uses. |
 | Agent link | `@agentclientprotocol/sdk` (v1 API) in the main process; registry JSON for install/launch | See §5. |
@@ -445,7 +445,7 @@ Rules: pnpm workspaces; TypeScript project references; one Vitest config per pac
 ## 9. Build order
 
 0. **Spike — done 2026-09-25.** `tools/spike-acp` spawns `claude-agent-acp`, reuses the existing Claude Code sign-in (Max plan, reported by the adapter's auth push), lists the model and effort options, changes one, streams a reply to a prompt with an embedded passage and a resource link, and handles two permission requests under the §5.6 policy (a shell command refused, a write under `notes/` allowed). About 20 s per turn at low effort. Findings in `tools/spike-acp/README.md`; the reusable parts live in `packages/acp-client`. Repeat for `codex-acp` when the second agent is chosen.
-1. **Collections + reader:** home screen, folder open/create, header switchers, PDF import and extraction, PDF.js viewer, selection → anchor → highlight rendering, reading position.
+1. **Collections + reader — done 2026-09-25.** `apps/desktop` with the home screen, folder open through the OS dialog, header switchers for collection, source and threads, PDF import, PDF.js 6 rendering with lazy pages and fit-to-width, text extraction to `text.md` with page markers, selection → anchor (quote, prefix, suffix, offsets, page) → highlight rendering with margin markers, remembered page per source. Threads came in early so anchors have a home: *Explore* creates a thread file with the anchor, *Ask here* puts a quoted span into the focused thread's composer and saves the message. Verified by a scripted Playwright run with screenshots (`tools/dev/drive-desktop.mjs`, `.claude/skills/run-desktop`). Not yet: Markdown sources in the reader, zoom, pane resizing, first-run polish.
 2. **Threads:** file format, parser/writer, index, threads popover and margin markers, thread panel, *Ask here* and *Explore* creating threads and branches, breadcrumb and outline navigation, return-to-anchor.
 3. **Agent wiring:** ACP client in the main process, session per thread, context assembly, streaming into the panel, tool-call and permission UI, model picker, `AGENTS.md`.
 4. **Branch summaries + events + polish:** lazy branch context, cached summaries with concept tags, event log, keyboard shortcuts, error handling, packaging.

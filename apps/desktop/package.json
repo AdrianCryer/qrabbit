@@ -1,0 +1,32 @@
+{
+  "name": "@qrabbit/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "QRabbit desktop app: read, highlight, explore in branches, keep what you learned.",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "start": "electron-vite preview",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit"
+  },
+  "dependencies": {
+    "@qrabbit/shared": "workspace:*",
+    "@qrabbit/workspace": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "electron": "^44.4.0",
+    "electron-vite": "^5.0.0",
+    "pdfjs-dist": "^6.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "typescript": "^5.8.0",
+    "vite": "^7.0.0",
+    "zustand": "^5.0.0"
+  }
+}

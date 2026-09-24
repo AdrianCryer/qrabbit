@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": ["src/renderer/src/**/*", "src/preload/index.d.ts"],
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["vite/client"],
+    "noEmit": true,
+    "declaration": false,
+    "sourceMap": false
+  }
+}
