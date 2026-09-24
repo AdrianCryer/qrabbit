@@ -16,6 +16,7 @@ type Frontmatter = {
   anchor?: Anchor;
   anchors?: Record<string, Anchor>;
   context?: Record<string, string[]>;
+  handoff?: string;
   summary?: ThreadMeta["summary"];
   hue: number;
 };
@@ -69,6 +70,7 @@ export function parseThreadFile(text: string, file: string): Thread {
   if (fm.effort) meta.effort = fm.effort;
   if (fm.parent) meta.parent = fm.parent;
   if (fm.anchor) meta.anchor = fm.anchor;
+  if (fm.handoff) meta.handoff = fm.handoff;
   if (fm.summary) meta.summary = fm.summary;
   return { ...meta, messages };
 }
@@ -89,6 +91,7 @@ export function serializeThread(t: Thread): string {
   if (t.effort) fm.effort = t.effort;
   if (t.parent) fm.parent = t.parent;
   if (t.anchor) fm.anchor = t.anchor;
+  if (t.handoff) fm.handoff = t.handoff;
   if (t.summary) fm.summary = t.summary;
   const anchors: Record<string, Anchor> = {};
   const context: Record<string, string[]> = {};
@@ -196,7 +199,7 @@ export function appendMessage(
   return t;
 }
 
-export function updateThread(collection: string, id: string, patch: Partial<Pick<Thread, "title" | "agent" | "model" | "effort" | "summary">>): Thread {
+export function updateThread(collection: string, id: string, patch: Partial<Pick<Thread, "title" | "agent" | "model" | "effort" | "handoff" | "summary">>): Thread {
   const t = readThread(collection, id);
   if (!t) throw new Error(`Unknown thread: ${id}`);
   Object.assign(t, patch);

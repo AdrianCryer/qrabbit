@@ -53,7 +53,8 @@ export type SourceInfo = {
  */
 export type Anchor = {
   target: "source" | "message";
-  source: string;
+  /** Source id for a source target; absent for a message target. */
+  source?: string;
   page?: number;
   quote: string;
   prefix: string;
@@ -95,6 +96,8 @@ export type ThreadMeta = {
   effort?: string;
   parent?: { thread: string; message: string };
   anchor?: Anchor;
+  /** Written by the parent session when the branch is created (plan §5.5). */
+  handoff?: string;
   summary?: ThreadSummary;
   /** 1–4, picks the highlight colour */
   hue: number;
@@ -137,7 +140,9 @@ export type AgentEvent =
   | { type: "tool_call_update"; id: string; title?: string; status?: string }
   | { type: "config_options"; options: ConfigOption[] }
   | { type: "stop"; stopReason: string }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  /** The parent session finished writing a branch's handoff. */
+  | { type: "handoff"; text: string };
 
 export type PermissionRequest = {
   id: string;
@@ -187,6 +192,8 @@ export type QrabbitApi = {
     session(collectionPath: string, threadId: string): Promise<{ configOptions: ConfigOption[] }>;
     /** Append the user message, run one turn, append the reply; resolves with the updated thread. */
     prompt(collectionPath: string, threadId: string, body: string, quote?: Anchor): Promise<Thread>;
+    /** Create a branch from a span inside a message and start its handoff in the background. */
+    branch(collectionPath: string, parentId: string, messageId: string, anchor: Anchor): Promise<Thread>;
     cancel(collectionPath: string, threadId: string): Promise<void>;
     setConfig(collectionPath: string, threadId: string, configId: string, value: string | boolean): Promise<ConfigOption[]>;
     replyPermission(requestId: string, optionId: string | null): Promise<void>;

@@ -7541,6 +7541,7 @@ function parseThreadFile(text2, file2) {
   if (fm.effort) meta.effort = fm.effort;
   if (fm.parent) meta.parent = fm.parent;
   if (fm.anchor) meta.anchor = fm.anchor;
+  if (fm.handoff) meta.handoff = fm.handoff;
   if (fm.summary) meta.summary = fm.summary;
   return { ...meta, messages };
 }
@@ -7555,6 +7556,7 @@ function serializeThread(t) {
   if (t.effort) fm.effort = t.effort;
   if (t.parent) fm.parent = t.parent;
   if (t.anchor) fm.anchor = t.anchor;
+  if (t.handoff) fm.handoff = t.handoff;
   if (t.summary) fm.summary = t.summary;
   const anchors2 = {};
   const context = {};
@@ -17172,6 +17174,8 @@ function textUri(collection, sourceId) {
   return node_url.pathToFileURL(node_path.join(collection, "sources", sourceId, "text.md")).href;
 }
 function passageBlocks(collection, anchor2, label) {
+  if (!anchor2.source) return [text(`${label}:
+${anchor2.quote}`)];
   const uri = textUri(collection, anchor2.source);
   const page = anchor2.page ? ` (p.${anchor2.page})` : "";
   const blocks = [embeddedText(`${uri}#quote`, `${label}${page}:
@@ -17186,35 +17190,123 @@ ${anchor2.quote}`)];
   blocks.push(resourceLink(uri, `sources/${anchor2.source}/text.md`));
   return blocks;
 }
-function historyBlock(thread) {
+function historyBlock(thread, intro = "Earlier in this thread (for context, do not repeat it)") {
   if (thread.messages.length === 0) return null;
   const parts = [];
   for (const m of thread.messages) {
     const who = m.role === "user" ? "Reader" : m.role === "assistant" ? "You" : "Note";
-    const quote = m.quote ? `[quoting p.${m.quote.page ?? "?"}: ${m.quote.quote}]
+    const quote = m.quote ? `[quoting ${m.quote.page ? `p.${m.quote.page}` : "a passage"}: ${m.quote.quote}]
 ` : "";
     parts.push(`${who}: ${quote}${m.body}`);
   }
   let joined = parts.join("\n\n");
   if (joined.length > HISTORY_CHARS) joined = "…" + joined.slice(-HISTORY_CHARS);
-  return text(`Earlier in this thread (for context, do not repeat it):
+  return text(`${intro}:
 
 ${joined}`);
 }
-function buildPromptBlocks(collection, thread, body, quote, priorTurns) {
+function paragraphAround(body, quote) {
+  const norm = (s) => s.replace(/\s+/g, " ").trim().toLowerCase();
+  const target = norm(quote);
+  for (const para of body.split(/\n{2,}/)) if (norm(para).includes(target)) return para.trim();
+  return "";
+}
+function branchIntroBlocks(parent, branch, handoff2) {
+  const blocks = [];
+  const parentMsg = parent.messages.find((m) => m.id === branch.parent?.message);
+  blocks.push(text(`This thread branches from a passage inside an earlier answer in the thread "${parent.title}". The reader wants to explore that passage on its own.`));
+  if (handoff2) blocks.push(text(`Handoff from the assistant in the parent thread:
+
+${handoff2}`));
+  else {
+    const h = historyBlock(parent, "The parent thread so far (for context)");
+    if (h) blocks.push(h);
+  }
+  if (branch.anchor) {
+    const para = parentMsg ? paragraphAround(parentMsg.body, branch.anchor.quote) : "";
+    blocks.push(text(`The passage being explored, from the parent's answer:
+${branch.anchor.quote}${para && para !== branch.anchor.quote ? `
+
+Its surrounding paragraph:
+${para}` : ""}`));
+  }
+  return blocks;
+}
+function handoffPrompt(selection) {
+  return `The reader is about to explore "${selection}" in a separate thread. Write a handoff for a fresh assistant that has no access to this conversation: (1) what this thread is about and which source passage it started from; (2) what has been established so far, in 3–6 sentences; (3) what "${selection}" means in the context of your answer, in 1–3 sentences; (4) what the reader already seems to understand and what they seem to be missing. Reply with the handoff only.`;
+}
+const SUMMARY_PROMPT = "Summarise what this thread has established, for someone who has not read it, in 2–3 sentences. Then on a new line write `Tags:` followed by 1–5 short concept tags separated by commas. Reply with nothing else.";
+function parseSummary(reply) {
+  const m = /\n\s*tags?\s*:\s*(.+)$/i.exec(reply.trim());
+  if (!m) return { text: reply.trim(), concepts: [] };
+  const concepts = m[1].split(/[,;]/).map((s) => s.trim().replace(/^[-*]\s*/, "")).filter(Boolean).slice(0, 5);
+  return { text: reply.slice(0, m.index).trim(), concepts };
+}
+function branchContextBlock(items) {
+  if (items.length === 0) return null;
+  const lines = items.map((b) => `• The reader explored "${b.title}" in a branch. ${b.digest}`);
+  return text(`Since your last turn, in branches of this thread:
+${lines.join("\n\n")}`);
+}
+function buildPromptBlocks(collection, thread, body, quote, priorTurns, extras = {}) {
   const blocks = [];
   if (priorTurns === 0) {
     blocks.push(text(PREAMBLE));
+    if (extras.intro) blocks.push(...extras.intro);
     const history = historyBlock(thread);
     if (history) blocks.push(history);
     if (thread.anchor?.target === "source") blocks.push(...passageBlocks(collection, thread.anchor, "The reader started this thread from this passage"));
   }
+  if (extras.branchContext) blocks.push(extras.branchContext);
   if (quote && quote.target === "source") blocks.push(...passageBlocks(collection, quote, "The reader highlighted this passage"));
   const question = body.trim() || (quote ? "Explain this passage." : "");
   if (question) blocks.push(text(question));
   return blocks;
 }
+function childrenOf(all, id) {
+  return all.filter((t) => t.parent?.thread === id).sort((a, b) => a.created < b.created ? -1 : 1);
+}
+function subtreeLastActivity(collection, all, id) {
+  let latest = "";
+  const t = readThread(collection, id);
+  for (const m of t?.messages ?? []) if (m.at > latest) latest = m.at;
+  for (const c of childrenOf(all, id)) {
+    const l = subtreeLastActivity(collection, all, c.id);
+    if (l > latest) latest = l;
+  }
+  return latest;
+}
+const DIGEST_CHARS = 900;
+function branchDigest(branch) {
+  const last = branch.messages[branch.messages.length - 1];
+  if (branch.summary && last && branch.summary.through === last.id) {
+    const tags2 = branch.summary.concepts.length ? ` (concepts: ${branch.summary.concepts.join(", ")})` : "";
+    return `${branch.summary.text}${tags2}`;
+  }
+  const firstUser = branch.messages.find((m) => m.role === "user");
+  const lastAssistant = [...branch.messages].reverse().find((m) => m.role === "assistant");
+  const parts = [];
+  if (firstUser) parts.push(`They asked: ${firstUser.body.slice(0, 300)}`);
+  if (lastAssistant) parts.push(`Latest answer: ${lastAssistant.body.slice(0, DIGEST_CHARS)}${lastAssistant.body.length > DIGEST_CHARS ? "…" : ""}`);
+  return parts.join("\n") || "(no messages yet)";
+}
+function dirtyBranches(collection, parent, all) {
+  const out = [];
+  for (const child of childrenOf(all, parent.id)) {
+    const lastActivity = subtreeLastActivity(collection, all, child.id);
+    if (!lastActivity) continue;
+    let lastTold = "";
+    for (const m of parent.messages) if (m.context?.includes(child.id) && m.at > lastTold) lastTold = m.at;
+    if (lastActivity <= lastTold) continue;
+    const full = readThread(collection, child.id);
+    if (!full) continue;
+    out.push({ branch: full, digest: branchDigest(full) });
+  }
+  return out;
+}
 const IDENTITY = { name: "qrabbit", title: "QRabbit", version: electron.app.getVersion() };
+const HANDOFF_WAIT_MS = 2e4;
+const SUMMARY_DELAY_MS = 1500;
 function adapterEntry() {
   try {
     return require.resolve("@agentclientprotocol/claude-agent-acp/dist/index.js");
@@ -17252,6 +17344,17 @@ function deferred() {
   });
   return { promise, resolve: resolve2, reject };
 }
+function agentShortName(reported) {
+  if (!reported) return "claude-code";
+  if (/claude/i.test(reported)) return "claude-code";
+  if (/codex/i.test(reported)) return "codex";
+  if (/copilot/i.test(reported)) return "copilot";
+  return reported.replace(/^@[^/]+\//, "").replace(/-acp$/, "");
+}
+function loginArgs(methodId) {
+  if (methodId === "console-login") return ["--cli", "auth", "login", "--console"];
+  return ["--cli", "auth", "login", "--claudeai"];
+}
 class AgentHost {
   constructor(collection, emit) {
     this.collection = collection;
@@ -17268,6 +17371,8 @@ class AgentHost {
   threadBySession = /* @__PURE__ */ new Map();
   pending = /* @__PURE__ */ new Map();
   running = /* @__PURE__ */ new Map();
+  handoffs = /* @__PURE__ */ new Map();
+  summaryTimers = /* @__PURE__ */ new Map();
   permSeq = 0;
   // ---------- paths ----------
   inside(p) {
@@ -17343,7 +17448,9 @@ class AgentHost {
     this.closed.resolve();
     for (const cancel of this.running.values()) cancel();
     for (const reply of this.pending.values()) reply({ outcome: "cancelled" });
+    for (const t of this.summaryTimers.values()) clearTimeout(t);
     this.pending.clear();
+    this.summaryTimers.clear();
     this.agent?.kill();
     this.agent = null;
     this.ctx = null;
@@ -17357,7 +17464,7 @@ class AgentHost {
     await this.connect();
     if (!this.ctx) throw new Error("Agent is not connected");
     const session = await this.ctx.buildSession(this.collection).start();
-    const entry = { session, configOptions: flattenOptions(session.newSessionResponse.configOptions), turns: 0 };
+    const entry = { session, configOptions: flattenOptions(session.newSessionResponse.configOptions), turns: 0, lock: Promise.resolve() };
     this.sessions.set(threadId, entry);
     this.threadBySession.set(session.sessionId, threadId);
     const thread = readThread(this.collection, threadId);
@@ -17373,6 +17480,12 @@ class AgentHost {
     }
     return entry;
   }
+  /** Run `fn` when the session is free; the reader's turns and hidden work never overlap. */
+  withSession(entry, fn) {
+    const run = entry.lock.then(fn, fn);
+    entry.lock = run.then(() => void 0, () => void 0);
+    return run;
+  }
   async setConfig(threadId, configId, value) {
     const entry = await this.ensureSession(threadId);
     if (!this.ctx) throw new Error("Agent is not connected");
@@ -17380,55 +17493,136 @@ class AgentHost {
     if (typeof value === "string" && (configId === "model" || configId === "effort")) updateThread(this.collection, threadId, { [configId]: value });
     return entry.configOptions;
   }
+  /** A turn whose output goes nowhere but the return value: handoffs and summaries. */
+  async runHidden(entry, blocks) {
+    return this.withSession(entry, async () => {
+      entry.turns += 1;
+      let out = "";
+      for await (const ev of promptTurn(entry.session, blocks)) if (ev.type === "text") out += ev.text;
+      return out.trim();
+    });
+  }
+  // ---------- branches (plan §5.5) ----------
+  /** Create the branch file at once and let the parent session write the handoff behind it. */
+  branch(parentId, messageId, anchor2) {
+    const parent = readThread(this.collection, parentId);
+    if (!parent) throw new Error(`Unknown thread: ${parentId}`);
+    const title = titleFromQuote(anchor2.quote);
+    const branch = createThread(this.collection, {
+      title,
+      anchor: { ...anchor2, target: "message", thread: parentId, message: messageId },
+      parent: { thread: parentId, message: messageId },
+      ...parent.model ? { model: parent.model } : {},
+      ...parent.effort ? { effort: parent.effort } : {}
+    });
+    const job = this.writeHandoff(parent, branch).catch((err) => console.warn("[agent] handoff failed:", err));
+    this.handoffs.set(branch.id, job);
+    void job.finally(() => this.handoffs.delete(branch.id));
+    return branch;
+  }
+  async writeHandoff(parent, branch) {
+    const entry = await this.ensureSession(parent.id);
+    const blocks = [];
+    if (entry.turns === 0) {
+      blocks.push(text(PREAMBLE));
+      const h = historyBlock(parent, "This thread so far");
+      if (h) blocks.push(h);
+    }
+    blocks.push(text(handoffPrompt(branch.anchor?.quote ?? branch.title)));
+    const handoff2 = await this.runHidden(entry, blocks);
+    if (!handoff2) return;
+    updateThread(this.collection, branch.id, { handoff: handoff2 });
+    this.emit.event(branch.id, { type: "handoff", text: handoff2 });
+  }
+  /** After a branch turn, summarise the branch for its ancestors while its session is warm. */
+  scheduleSummary(threadId) {
+    const prev = this.summaryTimers.get(threadId);
+    if (prev) clearTimeout(prev);
+    this.summaryTimers.set(
+      threadId,
+      setTimeout(() => {
+        this.summaryTimers.delete(threadId);
+        void this.writeSummary(threadId).catch((err) => console.warn("[agent] summary failed:", err));
+      }, SUMMARY_DELAY_MS)
+    );
+  }
+  async writeSummary(threadId) {
+    const entry = this.sessions.get(threadId);
+    const thread = readThread(this.collection, threadId);
+    if (!entry || !thread || thread.messages.length === 0) return;
+    const last = thread.messages[thread.messages.length - 1];
+    if (thread.summary?.through === last.id) return;
+    const reply = await this.runHidden(entry, [text(SUMMARY_PROMPT)]);
+    if (!reply) return;
+    const { text: summary, concepts } = parseSummary(reply);
+    updateThread(this.collection, threadId, { summary: { at: (/* @__PURE__ */ new Date()).toISOString(), through: last.id, text: summary, concepts } });
+  }
   // ---------- turns ----------
   async prompt(threadId, body, quote) {
     const before = readThread(this.collection, threadId);
     if (!before) throw new Error(`Unknown thread: ${threadId}`);
     const entry = await this.ensureSession(threadId);
     if (!this.ctx) throw new Error("Agent is not connected");
-    appendMessage(this.collection, threadId, { role: "user", body: body.trim(), ...quote ? { quote } : {} });
-    const blocks = buildPromptBlocks(this.collection, before, body, quote, entry.turns);
-    entry.turns += 1;
+    let intro;
+    if (entry.turns === 0 && before.parent) {
+      const pending = this.handoffs.get(threadId);
+      if (pending) await Promise.race([pending, new Promise((r) => setTimeout(r, HANDOFF_WAIT_MS))]);
+      const fresh = readThread(this.collection, threadId) ?? before;
+      const parent = readThread(this.collection, before.parent.thread);
+      if (parent) intro = branchIntroBlocks(parent, fresh, fresh.handoff);
+    }
+    const dirty = dirtyBranches(this.collection, before, listThreads(this.collection));
+    const branchContext = branchContextBlock(dirty.map((d) => ({ title: d.branch.title, digest: d.digest })));
+    appendMessage(this.collection, threadId, {
+      role: "user",
+      body: body.trim(),
+      ...quote ? { quote } : {},
+      ...dirty.length ? { context: dirty.map((d) => d.branch.id) } : {}
+    });
+    const blocks = buildPromptBlocks(this.collection, before, body, quote, entry.turns, { intro, branchContext });
     const sessionId = entry.session.sessionId;
     this.running.set(threadId, () => {
       void this.ctx?.notify(methods.agent.session.cancel, { sessionId });
     });
     let reply = "";
     try {
-      for await (const ev of promptTurn(entry.session, blocks)) {
-        switch (ev.type) {
-          case "text":
-            reply += ev.text;
-            this.emit.event(threadId, { type: "text", text: ev.text });
-            break;
-          case "thought":
-            this.emit.event(threadId, { type: "thought", text: ev.text });
-            break;
-          case "tool_call": {
-            if (reply && !/\n\s*$/.test(reply)) {
-              reply += "\n\n";
-              this.emit.event(threadId, { type: "text", text: "\n\n" });
+      await this.withSession(entry, async () => {
+        entry.turns += 1;
+        for await (const ev of promptTurn(entry.session, blocks)) {
+          switch (ev.type) {
+            case "text":
+              reply += ev.text;
+              this.emit.event(threadId, { type: "text", text: ev.text });
+              break;
+            case "thought":
+              this.emit.event(threadId, { type: "thought", text: ev.text });
+              break;
+            case "tool_call": {
+              if (reply && !/\n\s*$/.test(reply)) {
+                reply += "\n\n";
+                this.emit.event(threadId, { type: "text", text: "\n\n" });
+              }
+              const paths = [...ev.locations ?? []];
+              const raw = ev.rawInput;
+              for (const k of ["file_path", "path", "notebook_path"]) if (typeof raw?.[k] === "string") paths.push(raw[k]);
+              this.emit.event(threadId, { type: "tool_call", id: ev.id, title: ev.title, kind: ev.kind, status: ev.status, paths });
+              break;
             }
-            const paths = [...ev.locations ?? []];
-            const raw = ev.rawInput;
-            for (const k of ["file_path", "path", "notebook_path"]) if (typeof raw?.[k] === "string") paths.push(raw[k]);
-            this.emit.event(threadId, { type: "tool_call", id: ev.id, title: ev.title, kind: ev.kind, status: ev.status, paths });
-            break;
+            case "tool_call_update":
+              this.emit.event(threadId, { type: "tool_call_update", id: ev.id, title: ev.title, status: ev.status });
+              break;
+            case "config_options":
+              entry.configOptions = flattenOptions(ev.options);
+              this.emit.event(threadId, { type: "config_options", options: entry.configOptions });
+              break;
+            case "stop":
+              this.emit.event(threadId, { type: "stop", stopReason: ev.stopReason });
+              break;
+            default:
+              break;
           }
-          case "tool_call_update":
-            this.emit.event(threadId, { type: "tool_call_update", id: ev.id, title: ev.title, status: ev.status });
-            break;
-          case "config_options":
-            entry.configOptions = flattenOptions(ev.options);
-            this.emit.event(threadId, { type: "config_options", options: entry.configOptions });
-            break;
-          case "stop":
-            this.emit.event(threadId, { type: "stop", stopReason: ev.stopReason });
-            break;
-          default:
-            break;
         }
-      }
+      });
     } catch (err) {
       const message = String(err?.message ?? err);
       this.emit.event(threadId, { type: "error", message });
@@ -17442,6 +17636,7 @@ class AgentHost {
       agent: agentShortName(this.status.agent?.name),
       ...model && typeof model.currentValue === "string" ? { model: model.currentValue } : {}
     });
+    if (before.parent) this.scheduleSummary(threadId);
     return readThread(this.collection, threadId);
   }
   cancel(threadId) {
@@ -17521,16 +17716,12 @@ read -r
     }
   }
 }
-function agentShortName(reported) {
-  if (!reported) return "claude-code";
-  if (/claude/i.test(reported)) return "claude-code";
-  if (/codex/i.test(reported)) return "codex";
-  if (/copilot/i.test(reported)) return "copilot";
-  return reported.replace(/^@[^/]+\//, "").replace(/-acp$/, "");
-}
-function loginArgs(methodId) {
-  if (methodId === "console-login") return ["--cli", "auth", "login", "--console"];
-  return ["--cli", "auth", "login", "--claudeai"];
+function titleFromQuote(quote, max = 60) {
+  const one = quote.replace(/\s+/g, " ").trim();
+  if (one.length <= max) return one;
+  const cut = one.slice(0, max);
+  const at = cut.lastIndexOf(" ");
+  return (at > 30 ? cut.slice(0, at) : cut) + "…";
 }
 const opened = /* @__PURE__ */ new Set();
 const hosts = /* @__PURE__ */ new Map();
@@ -17634,6 +17825,10 @@ function registerIpc() {
     (_e, collection, threadId, body, quote) => host(collection).prompt(threadId, body, quote)
   );
   electron.ipcMain.handle("agent:cancel", (_e, collection, threadId) => host(collection).cancel(threadId));
+  electron.ipcMain.handle(
+    "agent:branch",
+    (_e, collection, parentId, messageId, anchor2) => host(collection).branch(parentId, messageId, anchor2)
+  );
   electron.ipcMain.handle(
     "agent:setConfig",
     (_e, collection, threadId, configId, value) => host(collection).setConfig(threadId, configId, value)

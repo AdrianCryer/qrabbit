@@ -46,3 +46,5 @@ Files are the truth. Open a collection in Obsidian or track it with git whenever
 ## The agent
 
 The app speaks the Agent Client Protocol. Opening a collection starts one agent process (Claude Code through its ACP adapter) with the collection as its working directory; each thread gets its own session. Sign-in happens in the agent's own terminal flow from the header menu, and the app never sees a credential. Reads inside the collection and writes under `notes/` are allowed automatically; anything else asks you in the thread panel.
+
+Selecting inside an answer and choosing Explore opens a branch. The parent session writes a handoff for it in the background, the branch's own session summarises itself after each turn, and when you next ask in the parent, digests of branches active since its last turn go along with your message. Nothing is ever closed or marked done.

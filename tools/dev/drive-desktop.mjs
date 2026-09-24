@@ -30,10 +30,10 @@ writeFileSync(
 const electronBin = join(appDir, "node_modules", "electron", "dist", process.platform === "win32" ? "electron.exe" : "electron");
 const log = (...a) => console.log(`[drive] ${a.join(" ")}`);
 // The renderer's CSP forbids eval, which Playwright's waitForFunction relies on; poll with evaluate instead.
-async function waitFor(page, fn, { timeout = 30_000, interval = 300, label = "condition" } = {}) {
+async function waitFor(page, fn, { timeout = 30_000, interval = 300, label = "condition", arg = undefined } = {}) {
   const t0 = Date.now();
   for (;;) {
-    if (await page.evaluate(fn)) return;
+    if (await page.evaluate(fn, arg)) return;
     if (Date.now() - t0 > timeout) throw new Error(`timeout waiting for ${label}`);
     await new Promise((r) => setTimeout(r, interval));
   }
@@ -169,6 +169,60 @@ try {
   });
   log("config options:", JSON.stringify(options));
   for (const f of readdirSync(threadsDir).filter((x) => x.endsWith(".md"))) console.log("----- " + f + " (after the agent answered)\n" + readFileSync(join(threadsDir, f), "utf8"));
+
+  // ----- branching: select inside the answer, Explore, wait for the handoff, ask in the branch -----
+  const parentId = await page.evaluate(() => window.__qrabbitStore.getState().thread.id);
+  const picked = await page.evaluate(() => {
+    const md = [...document.querySelectorAll(".msg.assistant[data-msg-id] .md")].pop();
+    const p = md?.querySelector("p");
+    const walker = p ? document.createTreeWalker(p, NodeFilter.SHOW_TEXT) : null;
+    const node = walker?.nextNode();
+    if (!node || node.data.trim().length < 20) return { ok: false };
+    const words = node.data.split(" ");
+    const end = Math.min(node.data.length, words.slice(0, 6).join(" ").length);
+    const range = document.createRange();
+    range.setStart(node, 0);
+    range.setEnd(node, end);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.querySelector(".msgs").dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    return { ok: true, text: sel.toString() };
+  });
+  log("answer selection:", JSON.stringify(picked));
+  await page.waitForSelector(".seltool.msg-tool", { timeout: 10_000 });
+  await shot(page, "08-answer-selection");
+  await page.evaluate(() => document.querySelector(".seltool.msg-tool .primary").click());
+  await waitFor(page, () => { const s = window.__qrabbitStore.getState(); return !!(s.thread && s.thread.parent); }, { label: "branch to open" });
+  await sleep(500);
+  await shot(page, "09-branch");
+  await waitFor(page, () => !!window.__qrabbitStore.getState().thread?.handoff, { timeout: 180_000, interval: 1000, label: "the handoff" });
+  await sleep(400);
+  await shot(page, "10-handoff");
+  log("handoff:", JSON.stringify((await page.evaluate(() => window.__qrabbitStore.getState().thread.handoff)).slice(0, 300)));
+
+  await page.fill(".composer textarea", "Give me the simplest concrete example of this, in one short paragraph.");
+  await page.evaluate(() => document.querySelector(".composer .send").click());
+  await waitFor(page, () => { const s = window.__qrabbitStore.getState(); return !!(s.thread && s.thread.parent && !s.turns[s.thread.id] && s.thread.messages.some((m) => m.role === "assistant")); }, { timeout: 240_000, interval: 1000, label: "the branch answer" });
+  await sleep(500);
+  await shot(page, "11-branch-answer");
+
+  // ----- back to the parent by breadcrumb: the branch is marked in the answer; asking again attaches its digest -----
+  await page.evaluate(() => document.querySelector(".crumbs button").click());
+  await waitFor(page, (id) => window.__qrabbitStore.getState().thread?.id === id, { label: "parent to open", arg: parentId });
+  await page.waitForSelector(".bmark", { timeout: 15_000 }).catch(() => log("no branch marker rendered in the parent answer"));
+  await sleep(400);
+  await shot(page, "12-parent-marker");
+  await sleep(4000); // let the branch summary land
+  await page.fill(".composer textarea", "Given what I explored in the branch, what should I read next in this paper?");
+  await page.evaluate(() => document.querySelector(".composer .send").click());
+  await waitFor(page, () => { const s = window.__qrabbitStore.getState(); return !!(s.thread && !s.thread.parent && !s.turns[s.thread.id] && s.thread.messages.filter((m) => m.role === "assistant").length >= 2); }, { timeout: 240_000, interval: 1000, label: "the second parent answer" });
+  await sleep(500);
+  await shot(page, "13-parent-again");
+  const ctx = await page.evaluate(() => { const s = window.__qrabbitStore.getState(); const u = [...s.thread.messages].reverse().find((m) => m.role === "user"); return u?.context ?? null; });
+  log("context on the last parent message:", JSON.stringify(ctx));
+  const walkAll = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walkAll(join(d, e.name)) : e.name.endsWith(".md") ? [join(d, e.name)] : []));
+  for (const f of walkAll(threadsDir)) console.log("----- " + f.slice(threadsDir.length + 1) + "\n" + readFileSync(f, "utf8"));
 
   // reader state was saved?
   const rs = join(collection, ".qrabbit", "reader-state.json");

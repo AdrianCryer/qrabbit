@@ -37,6 +37,7 @@ const api: QrabbitApi = {
     session: (collection, threadId) => invoke("agent:session", collection, threadId),
     prompt: (collection, threadId, body, quote) => invoke("agent:prompt", collection, threadId, body, quote),
     cancel: (collection, threadId) => invoke("agent:cancel", collection, threadId),
+    branch: (collection, parentId, messageId, anchor) => invoke("agent:branch", collection, parentId, messageId, anchor),
     setConfig: (collection, threadId, configId, value) => invoke("agent:setConfig", collection, threadId, configId, value),
     replyPermission: (requestId, optionId) => invoke("agent:replyPermission", requestId, optionId),
     login: (collection, methodId) => invoke("agent:login", collection, methodId),

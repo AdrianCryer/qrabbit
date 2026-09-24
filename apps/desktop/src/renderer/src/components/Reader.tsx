@@ -47,6 +47,7 @@ export function Reader(props: Props) {
       threads
         .filter((t) => t.anchor?.target === "source" && t.anchor.source === source.id)
         .map((t) => ({ threadId: t.id, hue: t.hue, anchor: t.anchor! })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [threads, source.id],
   );
 

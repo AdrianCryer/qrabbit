@@ -26,7 +26,8 @@ export function Header() {
   const agent = useStore((s) => s.agent);
   const { connectAgent, loginAgent } = useStore.getState();
   const source = collection?.sources.find((s) => s.id === sourceId) ?? null;
-  const threads = collection?.threads ?? [];
+  // Branches are reached from their parent's outline; the popover lists root threads only.
+  const threads = (collection?.threads ?? []).filter((t) => !t.parent);
   const signedIn = !!agent?.connected && !!agent.auth && agent.auth.kind !== "none";
   const agentLabel = !agent ? "Agent" : agent.error ? "Agent failed" : !agent.connected ? "Connecting…" : agent.auth?.label ?? agent.agent?.name ?? "Connected";
   const loginMethods = agent?.authMethods.length

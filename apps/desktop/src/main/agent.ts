@@ -11,13 +11,15 @@ import {
   setConfigOption,
   spawnAgent,
   terminalLoginCommand,
+  text,
   type AgentLaunch,
   type PermissionDecision,
   type SpawnedAgent,
 } from "@qrabbit/acp-client";
 import type { AgentEvent, AgentStatus, Anchor, ConfigOption, PermissionRequest, Thread } from "@qrabbit/shared";
-import { appendMessage, readThread, updateThread } from "@qrabbit/workspace";
-import { buildPromptBlocks } from "./context";
+import { appendMessage, createThread, listThreads, readThread, updateThread } from "@qrabbit/workspace";
+import { branchContextBlock, branchIntroBlocks, buildPromptBlocks, handoffPrompt, historyBlock, parseSummary, PREAMBLE, SUMMARY_PROMPT } from "./context";
+import { dirtyBranches } from "./tree";
 
 export type AgentEmitter = {
   event(threadId: string, event: AgentEvent): void;
@@ -26,6 +28,8 @@ export type AgentEmitter = {
 };
 
 const IDENTITY = { name: "qrabbit", title: "QRabbit", version: app.getVersion() };
+const HANDOFF_WAIT_MS = 20_000;
+const SUMMARY_DELAY_MS = 1500;
 
 function adapterEntry(): string {
   try {
@@ -66,7 +70,29 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-type SessionEntry = { session: acp.ActiveSession; configOptions: ConfigOption[]; turns: number };
+/** A stable, human name for the thread file: the adapter's package name is an implementation detail. */
+function agentShortName(reported?: string): string {
+  if (!reported) return "claude-code";
+  if (/claude/i.test(reported)) return "claude-code";
+  if (/codex/i.test(reported)) return "codex";
+  if (/copilot/i.test(reported)) return "copilot";
+  return reported.replace(/^@[^/]+\//, "").replace(/-acp$/, "");
+}
+
+/** The Claude adapter's terminal auth args, mirrored so login works even before initialize reported them. */
+function loginArgs(methodId: string): string[] {
+  if (methodId === "console-login") return ["--cli", "auth", "login", "--console"];
+  return ["--cli", "auth", "login", "--claudeai"];
+}
+
+type SessionEntry = {
+  session: acp.ActiveSession;
+  configOptions: ConfigOption[];
+  /** Turns sent so far, hidden ones included; 0 means the session still needs its opening context. */
+  turns: number;
+  /** ACP sessions take one prompt at a time; hidden work queues behind the reader's. */
+  lock: Promise<void>;
+};
 
 /** One agent process per open collection, one ACP session per thread. */
 export class AgentHost {
@@ -79,6 +105,8 @@ export class AgentHost {
   private threadBySession = new Map<string, string>();
   private pending = new Map<string, (d: PermissionDecision) => void>();
   private running = new Map<string, () => void>();
+  private handoffs = new Map<string, Promise<void>>();
+  private summaryTimers = new Map<string, NodeJS.Timeout>();
   private permSeq = 0;
 
   constructor(readonly collection: string, private readonly emit: AgentEmitter) {}
@@ -159,7 +187,9 @@ export class AgentHost {
     this.closed.resolve();
     for (const cancel of this.running.values()) cancel();
     for (const reply of this.pending.values()) reply({ outcome: "cancelled" });
+    for (const t of this.summaryTimers.values()) clearTimeout(t);
     this.pending.clear();
+    this.summaryTimers.clear();
     this.agent?.kill();
     this.agent = null;
     this.ctx = null;
@@ -174,10 +204,9 @@ export class AgentHost {
     await this.connect();
     if (!this.ctx) throw new Error("Agent is not connected");
     const session = await this.ctx.buildSession(this.collection).start();
-    const entry: SessionEntry = { session, configOptions: flattenOptions(session.newSessionResponse.configOptions), turns: 0 };
+    const entry: SessionEntry = { session, configOptions: flattenOptions(session.newSessionResponse.configOptions), turns: 0, lock: Promise.resolve() };
     this.sessions.set(threadId, entry);
     this.threadBySession.set(session.sessionId, threadId);
-    // Apply the thread's remembered model and effort.
     const thread = readThread(this.collection, threadId);
     for (const [id, value] of [["model", thread?.model], ["effort", thread?.effort]] as const) {
       const opt = entry.configOptions.find((o) => o.id === id);
@@ -192,6 +221,13 @@ export class AgentHost {
     return entry;
   }
 
+  /** Run `fn` when the session is free; the reader's turns and hidden work never overlap. */
+  private withSession<T>(entry: SessionEntry, fn: () => Promise<T>): Promise<T> {
+    const run = entry.lock.then(fn, fn);
+    entry.lock = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
   async setConfig(threadId: string, configId: string, value: string | boolean): Promise<ConfigOption[]> {
     const entry = await this.ensureSession(threadId);
     if (!this.ctx) throw new Error("Agent is not connected");
@@ -200,39 +236,130 @@ export class AgentHost {
     return entry.configOptions;
   }
 
+  /** A turn whose output goes nowhere but the return value: handoffs and summaries. */
+  private async runHidden(entry: SessionEntry, blocks: acp.ContentBlock[]): Promise<string> {
+    return this.withSession(entry, async () => {
+      entry.turns += 1;
+      let out = "";
+      for await (const ev of promptTurn(entry.session, blocks)) if (ev.type === "text") out += ev.text;
+      return out.trim();
+    });
+  }
+
+  // ---------- branches (plan §5.5) ----------
+  /** Create the branch file at once and let the parent session write the handoff behind it. */
+  branch(parentId: string, messageId: string, anchor: Anchor): Thread {
+    const parent = readThread(this.collection, parentId);
+    if (!parent) throw new Error(`Unknown thread: ${parentId}`);
+    const title = titleFromQuote(anchor.quote);
+    const branch = createThread(this.collection, {
+      title,
+      anchor: { ...anchor, target: "message", thread: parentId, message: messageId },
+      parent: { thread: parentId, message: messageId },
+      ...(parent.model ? { model: parent.model } : {}),
+      ...(parent.effort ? { effort: parent.effort } : {}),
+    });
+    const job = this.writeHandoff(parent, branch).catch((err) => console.warn("[agent] handoff failed:", err));
+    this.handoffs.set(branch.id, job);
+    void job.finally(() => this.handoffs.delete(branch.id));
+    return branch;
+  }
+
+  private async writeHandoff(parent: Thread, branch: Thread): Promise<void> {
+    const entry = await this.ensureSession(parent.id);
+    const blocks: acp.ContentBlock[] = [];
+    if (entry.turns === 0) {
+      // A fresh parent session (after a restart) needs the conversation before it can hand it off.
+      blocks.push(text(PREAMBLE));
+      const h = historyBlock(parent, "This thread so far");
+      if (h) blocks.push(h);
+    }
+    blocks.push(text(handoffPrompt(branch.anchor?.quote ?? branch.title)));
+    const handoff = await this.runHidden(entry, blocks);
+    if (!handoff) return;
+    updateThread(this.collection, branch.id, { handoff });
+    this.emit.event(branch.id, { type: "handoff", text: handoff });
+  }
+
+  /** After a branch turn, summarise the branch for its ancestors while its session is warm. */
+  private scheduleSummary(threadId: string): void {
+    const prev = this.summaryTimers.get(threadId);
+    if (prev) clearTimeout(prev);
+    this.summaryTimers.set(
+      threadId,
+      setTimeout(() => {
+        this.summaryTimers.delete(threadId);
+        void this.writeSummary(threadId).catch((err) => console.warn("[agent] summary failed:", err));
+      }, SUMMARY_DELAY_MS),
+    );
+  }
+
+  private async writeSummary(threadId: string): Promise<void> {
+    const entry = this.sessions.get(threadId);
+    const thread = readThread(this.collection, threadId);
+    if (!entry || !thread || thread.messages.length === 0) return;
+    const last = thread.messages[thread.messages.length - 1]!;
+    if (thread.summary?.through === last.id) return;
+    const reply = await this.runHidden(entry, [text(SUMMARY_PROMPT)]);
+    if (!reply) return;
+    const { text: summary, concepts } = parseSummary(reply);
+    updateThread(this.collection, threadId, { summary: { at: new Date().toISOString(), through: last.id, text: summary, concepts } });
+  }
+
   // ---------- turns ----------
   async prompt(threadId: string, body: string, quote?: Anchor): Promise<Thread> {
     const before = readThread(this.collection, threadId);
     if (!before) throw new Error(`Unknown thread: ${threadId}`);
     const entry = await this.ensureSession(threadId);
     if (!this.ctx) throw new Error("Agent is not connected");
-    appendMessage(this.collection, threadId, { role: "user", body: body.trim(), ...(quote ? { quote } : {}) });
-    const blocks = buildPromptBlocks(this.collection, before, body, quote, entry.turns);
-    entry.turns += 1;
+
+    // Branch opening: wait briefly for the handoff the parent session is writing.
+    let intro: acp.ContentBlock[] | undefined;
+    if (entry.turns === 0 && before.parent) {
+      const pending = this.handoffs.get(threadId);
+      if (pending) await Promise.race([pending, new Promise((r) => setTimeout(r, HANDOFF_WAIT_MS))]);
+      const fresh = readThread(this.collection, threadId) ?? before;
+      const parent = readThread(this.collection, before.parent.thread);
+      if (parent) intro = branchIntroBlocks(parent, fresh, fresh.handoff);
+    }
+
+    // Lazy branch context: digests of descendants active since this thread's last turn.
+    const dirty = dirtyBranches(this.collection, before, listThreads(this.collection));
+    const branchContext = branchContextBlock(dirty.map((d) => ({ title: d.branch.title, digest: d.digest })));
+
+    appendMessage(this.collection, threadId, {
+      role: "user",
+      body: body.trim(),
+      ...(quote ? { quote } : {}),
+      ...(dirty.length ? { context: dirty.map((d) => d.branch.id) } : {}),
+    });
+    const blocks = buildPromptBlocks(this.collection, before, body, quote, entry.turns, { intro, branchContext });
 
     const sessionId = entry.session.sessionId;
     this.running.set(threadId, () => { void this.ctx?.notify(acp.methods.agent.session.cancel, { sessionId }); });
     let reply = "";
     try {
-      for await (const ev of promptTurn(entry.session, blocks)) {
-        switch (ev.type) {
-          case "text": reply += ev.text; this.emit.event(threadId, { type: "text", text: ev.text }); break;
-          case "thought": this.emit.event(threadId, { type: "thought", text: ev.text }); break;
-          case "tool_call": {
-            // Text written before a tool call and text written after it are separate paragraphs.
-            if (reply && !/\n\s*$/.test(reply)) { reply += "\n\n"; this.emit.event(threadId, { type: "text", text: "\n\n" }); }
-            const paths = [...(ev.locations ?? [])];
-            const raw = ev.rawInput as Record<string, unknown> | undefined;
-            for (const k of ["file_path", "path", "notebook_path"]) if (typeof raw?.[k] === "string") paths.push(raw[k] as string);
-            this.emit.event(threadId, { type: "tool_call", id: ev.id, title: ev.title, kind: ev.kind, status: ev.status, paths });
-            break;
+      await this.withSession(entry, async () => {
+        entry.turns += 1;
+        for await (const ev of promptTurn(entry.session, blocks)) {
+          switch (ev.type) {
+            case "text": reply += ev.text; this.emit.event(threadId, { type: "text", text: ev.text }); break;
+            case "thought": this.emit.event(threadId, { type: "thought", text: ev.text }); break;
+            case "tool_call": {
+              if (reply && !/\n\s*$/.test(reply)) { reply += "\n\n"; this.emit.event(threadId, { type: "text", text: "\n\n" }); }
+              const paths = [...(ev.locations ?? [])];
+              const raw = ev.rawInput as Record<string, unknown> | undefined;
+              for (const k of ["file_path", "path", "notebook_path"]) if (typeof raw?.[k] === "string") paths.push(raw[k] as string);
+              this.emit.event(threadId, { type: "tool_call", id: ev.id, title: ev.title, kind: ev.kind, status: ev.status, paths });
+              break;
+            }
+            case "tool_call_update": this.emit.event(threadId, { type: "tool_call_update", id: ev.id, title: ev.title, status: ev.status }); break;
+            case "config_options": entry.configOptions = flattenOptions(ev.options); this.emit.event(threadId, { type: "config_options", options: entry.configOptions }); break;
+            case "stop": this.emit.event(threadId, { type: "stop", stopReason: ev.stopReason }); break;
+            default: break;
           }
-          case "tool_call_update": this.emit.event(threadId, { type: "tool_call_update", id: ev.id, title: ev.title, status: ev.status }); break;
-          case "config_options": entry.configOptions = flattenOptions(ev.options); this.emit.event(threadId, { type: "config_options", options: entry.configOptions }); break;
-          case "stop": this.emit.event(threadId, { type: "stop", stopReason: ev.stopReason }); break;
-          default: break;
         }
-      }
+      });
     } catch (err) {
       const message = String((err as Error)?.message ?? err);
       this.emit.event(threadId, { type: "error", message });
@@ -246,6 +373,7 @@ export class AgentHost {
       agent: agentShortName(this.status.agent?.name),
       ...(model && typeof model.currentValue === "string" ? { model: model.currentValue } : {}),
     });
+    if (before.parent) this.scheduleSummary(threadId);
     return readThread(this.collection, threadId)!;
   }
 
@@ -271,7 +399,6 @@ export class AgentHost {
       const o = pick("allow_once");
       if (o) return { outcome: "selected", optionId: o.optionId };
     }
-    // Everything else asks the reader.
     const threadId = this.threadBySession.get(req.sessionId) ?? "";
     const id = `perm_${++this.permSeq}`;
     return new Promise<PermissionDecision>((resolve) => {
@@ -319,19 +446,12 @@ export class AgentHost {
   }
 }
 
-/** A stable, human name for the thread file: the adapter's package name is an implementation detail. */
-function agentShortName(reported?: string): string {
-  if (!reported) return "claude-code";
-  if (/claude/i.test(reported)) return "claude-code";
-  if (/codex/i.test(reported)) return "codex";
-  if (/copilot/i.test(reported)) return "copilot";
-  return reported.replace(/^@[^/]+\//, "").replace(/-acp$/, "");
-}
-
-/** The Claude adapter's terminal auth args, mirrored so login works even before initialize reported them. */
-function loginArgs(methodId: string): string[] {
-  if (methodId === "console-login") return ["--cli", "auth", "login", "--console"];
-  return ["--cli", "auth", "login", "--claudeai"];
+function titleFromQuote(quote: string, max = 60): string {
+  const one = quote.replace(/\s+/g, " ").trim();
+  if (one.length <= max) return one;
+  const cut = one.slice(0, max);
+  const at = cut.lastIndexOf(" ");
+  return (at > 30 ? cut.slice(0, at) : cut) + "…";
 }
 
 export function adapterExists(): boolean {

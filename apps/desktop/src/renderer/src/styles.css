@@ -186,9 +186,34 @@ svg.i { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-widt
 .crumbs .cur { color: var(--text); font-weight: 500; padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .crumbs .sep { color: var(--text-3); }
 .pactions { display: flex; align-items: center; gap: 4px; flex: none; }
-.outline { padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--sunken); font-size: 12.5px; color: var(--text-2); display: flex; align-items: center; gap: 8px; }
-.outline .st { margin-left: auto; color: var(--text-3); font-size: 11px; font-family: var(--font-mono); }
-.msgs { overflow: auto; min-height: 0; padding: 16px 16px 8px; display: flex; flex-direction: column; gap: 18px; user-select: text; }
+.crumbs .crumb { display: contents; }
+.crumbs button { color: var(--text-2); padding: 3px 6px; border-radius: 6px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumbs button:hover { background: var(--raised-2); color: var(--text); }
+.outline { padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--sunken); display: grid; gap: 1px; max-height: 160px; overflow: auto; }
+.node { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; font-size: 12.5px; color: var(--text-2); width: 100%; text-align: left; min-width: 0; }
+.node:hover { background: var(--raised); }
+.node.cur { color: var(--text); background: var(--raised); }
+.node .dot { width: 7px; height: 7px; }
+.node .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.node .st { color: var(--text-3); font-size: 11px; font-family: var(--font-mono); flex: none; }
+.msgs { position: relative; overflow: auto; min-height: 0; padding: 16px 16px 8px; display: flex; flex-direction: column; gap: 18px; user-select: text; }
+.msgs .seltool.msg-tool { transform: translate(-4px, calc(-100% - 8px)); }
+.mdwrap { position: relative; }
+.bmark { position: absolute; width: 16px; height: 16px; border-radius: 50%; background: var(--hl); color: #1a1a1a; display: grid; place-items: center; box-shadow: var(--shadow-sm); z-index: 2; }
+.bmark svg.i { stroke: #1a1a1a; stroke-width: 2.4; }
+.bmark:hover { filter: brightness(1.08); }
+::highlight(qr-h1) { background-color: rgba(255, 216, 92, 0.42); }
+::highlight(qr-h2) { background-color: rgba(121, 207, 255, 0.42); }
+::highlight(qr-h3) { background-color: rgba(247, 161, 196, 0.42); }
+::highlight(qr-h4) { background-color: rgba(159, 227, 171, 0.42); }
+.ctxchip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px 2px 6px; border-radius: var(--r-pill); background: var(--sunken); border: 1px solid var(--line); color: var(--text-3); font-size: 11px; width: max-content; }
+.handoff { display: grid; gap: 6px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--sunken); border: 1px dashed var(--line-strong); color: var(--text-2); font-size: 12.5px; }
+.handoff summary { list-style: none; display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-2); font-weight: 500; }
+.handoff summary::-webkit-details-marker { display: none; }
+.handoff summary .chip { margin-left: auto; }
+.handoff p { margin: 6px 0 0; line-height: 1.55; max-width: 62ch; white-space: pre-wrap; }
+.handoff .md { margin-top: 6px; font-size: 12.5px; color: var(--text-2); }
+.handoff .md p { white-space: normal; }
 .msg { display: grid; gap: 8px; }
 .msg .who { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-3); }
 .msg .who b { color: var(--text-2); font-weight: 500; }

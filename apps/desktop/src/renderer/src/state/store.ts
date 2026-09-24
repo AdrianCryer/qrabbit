@@ -66,6 +66,8 @@ type Actions = {
   closePanel(): void;
   setFocus(v: boolean): void;
   explore(anchor: Anchor): Promise<void>;
+  /** Explore a span inside one of the open thread's messages: creates a branch and opens it. */
+  branch(messageId: string, anchor: Anchor): Promise<void>;
   askHere(anchor: Anchor): void;
   clearComposerQuote(): void;
   sendMessage(body: string): Promise<void>;
@@ -108,6 +110,11 @@ export const useStore = create<State & Actions>((set, get) => ({
       set((s) => ({ turns: { ...s.turns, [request.threadId]: { ...(s.turns[request.threadId] ?? emptyTurn()), permission: request } } }));
     });
     api.agent.onEvent((threadId, event) => {
+      if (event.type === "handoff") {
+        set((s) => (s.thread?.id === threadId ? { thread: { ...s.thread, handoff: event.text } } : {}));
+        void get().refreshThreads();
+        return;
+      }
       set((s) => {
         const t = { ...(s.turns[threadId] ?? emptyTurn()) };
         applyEvent(t, event);
@@ -194,7 +201,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     }
     const a = thread.anchor;
     const patch: Partial<State> = { thread, panelOpen: true, composerQuote: null };
-    if (a?.target === "source" && a.page) {
+    if (a?.target === "source" && a.page && a.source) {
       if (a.source !== get().sourceId) get().selectSource(a.source);
       patch.focusTarget = { page: a.page, key: Date.now() };
     }
@@ -223,6 +230,15 @@ export const useStore = create<State & Actions>((set, get) => ({
     await get().refreshThreads();
     window.getSelection()?.removeAllRanges();
     await get().openThread(thread.id);
+  },
+
+  async branch(messageId, anchor) {
+    const { collection: c, thread } = get();
+    if (!c || !thread) return;
+    const child = await api.agent.branch(c.info.path, thread.id, messageId, anchor);
+    await get().refreshThreads();
+    window.getSelection()?.removeAllRanges();
+    await get().openThread(child.id);
   },
 
   askHere(anchor) {

@@ -136,6 +136,9 @@ export function registerIpc(): void {
     host(collection).prompt(threadId, body, quote),
   );
   ipcMain.handle("agent:cancel", (_e, collection: string, threadId: string) => host(collection).cancel(threadId));
+  ipcMain.handle("agent:branch", (_e, collection: string, parentId: string, messageId: string, anchor: Anchor) =>
+    host(collection).branch(parentId, messageId, anchor),
+  );
   ipcMain.handle("agent:setConfig", (_e, collection: string, threadId: string, configId: string, value: string | boolean) =>
     host(collection).setConfig(threadId, configId, value),
   );

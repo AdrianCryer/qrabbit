@@ -1,16 +1,59 @@
-import { useEffect, useRef, useState } from "react";
-import type { Anchor, ConfigOption, Message } from "@qrabbit/shared";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { Anchor, ConfigOption, Message, ThreadMeta } from "@qrabbit/shared";
 import { useStore, type TurnState } from "../state/store";
+import { anchorToRangeIn, offsetsForRange, rectsForRange, selectorFor, textOfElement } from "../pdf/anchoring";
 import { Dropdown } from "./Dropdown";
 import { Icon } from "./Icons";
 import { Markdown } from "./Markdown";
 
-function QuoteCard({ anchor, hue }: { anchor: Anchor; hue: number }) {
+// ---------- thread tree helpers ----------
+function ancestorsOf(all: ThreadMeta[], t: ThreadMeta): ThreadMeta[] {
+  const out: ThreadMeta[] = [];
+  let cur: ThreadMeta | undefined = t;
+  const seen = new Set<string>();
+  while (cur?.parent && !seen.has(cur.parent.thread)) {
+    seen.add(cur.parent.thread);
+    const p = all.find((x) => x.id === cur!.parent!.thread);
+    if (!p) break;
+    out.unshift(p);
+    cur = p;
+  }
+  return out;
+}
+
+function treeRows(all: ThreadMeta[], rootId: string): Array<{ t: ThreadMeta; depth: number }> {
+  const rows: Array<{ t: ThreadMeta; depth: number }> = [];
+  const visit = (id: string, depth: number) => {
+    const t = all.find((x) => x.id === id);
+    if (!t) return;
+    rows.push({ t, depth });
+    for (const c of all.filter((x) => x.parent?.thread === id).sort((a, b) => (a.created < b.created ? -1 : 1))) visit(c.id, depth + 1);
+  };
+  visit(rootId, 0);
+  return rows;
+}
+
+// ---------- highlight registry (Custom Highlight API) ----------
+type HL = { add(r: Range): void; delete(r: Range): boolean };
+function highlightFor(name: string): HL | null {
+  const g = globalThis as unknown as { CSS?: { highlights?: Map<string, HL> }; Highlight?: new () => HL };
+  const reg = g.CSS?.highlights;
+  if (!reg || !g.Highlight) return null;
+  let hl = reg.get(name);
+  if (!hl) {
+    hl = new g.Highlight();
+    reg.set(name, hl);
+  }
+  return hl;
+}
+
+// ---------- pieces ----------
+function QuoteCard({ anchor, hue, from }: { anchor: Anchor; hue: number; from?: string }) {
   return (
     <div className={`quote h${hue}`}>
       <span className="from">
-        <Icon name="file" />
-        {anchor.source}
+        <Icon name={anchor.target === "message" ? "branch" : "file"} />
+        {anchor.target === "message" ? `from ${from ?? "the parent thread"}` : anchor.source}
         {anchor.page ? <span className="cite">p.{anchor.page}</span> : null}
       </span>
       {anchor.quote}
@@ -18,16 +61,66 @@ function QuoteCard({ anchor, hue }: { anchor: Anchor; hue: number }) {
   );
 }
 
-function MessageView({ m, hue, agentName }: { m: Message; hue: number; agentName: string }) {
+/** An assistant message with any branches that start inside it lit up and marked. */
+function AssistantBody({ m, branches, onOpen }: { m: Message; branches: ThreadMeta[]; onOpen(id: string): void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [marks, setMarks] = useState<Array<{ id: string; hue: number; x: number; y: number }>>([]);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const added: Array<[HL, Range]> = [];
+    const next: typeof marks = [];
+    for (const b of branches) {
+      if (!b.anchor) continue;
+      const range = anchorToRangeIn(el, b.anchor);
+      if (!range) continue;
+      const hl = highlightFor(`qr-h${b.hue}`);
+      if (hl) {
+        hl.add(range);
+        added.push([hl, range]);
+      }
+      const rects = rectsForRange(range, el);
+      const first = rects[0];
+      if (first) next.push({ id: b.id, hue: b.hue, x: first.x + first.width, y: first.y });
+    }
+    setMarks(next);
+    return () => {
+      for (const [hl, range] of added) hl.delete(range);
+    };
+  }, [m.body, branches]);
+
   return (
-    <div className={`msg ${m.role}`}>
+    <div className="mdwrap">
+      <div ref={ref}>
+        <Markdown text={m.body} />
+      </div>
+      {marks.map((mk) => (
+        <button key={mk.id} className={`bmark h${mk.hue}`} style={{ left: mk.x + 4, top: mk.y - 1 }} title="Open this branch" onClick={() => onOpen(mk.id)}>
+          <Icon name="branch" size={10} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function MessageView({ m, hue, agentName, branches, threads, onOpen }: { m: Message; hue: number; agentName: string; branches: ThreadMeta[]; threads: ThreadMeta[]; onOpen(id: string): void }) {
+  const included = (m.context ?? []).map((id) => threads.find((t) => t.id === id)?.title ?? id);
+  return (
+    <div className={`msg ${m.role}`} data-msg-id={m.id}>
       <div className="who">
         <b>{m.role === "user" ? "You" : m.role === "assistant" ? agentName : "Note"}</b>
         <span>{new Date(m.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
       </div>
       <div className="body">
         {m.quote && <QuoteCard anchor={m.quote} hue={hue} />}
-        {m.role === "user" ? m.body.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>) : <Markdown text={m.body} />}
+        {m.role === "user" ? m.body.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>) : <AssistantBody m={m} branches={branches} onOpen={onOpen} />}
+        {included.length > 0 && (
+          <span className="ctxchip" title={included.join("\n")}>
+            <Icon name="branch" size={11} />
+            included {included.length} {included.length === 1 ? "branch" : "branches"}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -66,12 +159,7 @@ function TurnView({ turn, agentName, threadId }: { turn: TurnState; agentName: s
               <span>
                 {agentName} wants to {perm.kind ? `${perm.kind}: ` : ""}
                 <code>{perm.title}</code>
-                {perm.paths.length > 0 && (
-                  <>
-                    {" "}
-                    on <code>{perm.paths.join(", ")}</code>
-                  </>
-                )}
+                {perm.paths.length > 0 && <> on <code>{perm.paths.join(", ")}</code></>}
               </span>
             </div>
             <div className="btns">
@@ -125,24 +213,37 @@ function Picker({ option, onPick }: { option: ConfigOption; onPick: (value: stri
   );
 }
 
+// ---------- the panel ----------
 export function ThreadPanel() {
   const thread = useStore((s) => s.thread);
+  const allThreads = useStore((s) => s.collection?.threads ?? []);
   const focus = useStore((s) => s.focus);
   const composerQuote = useStore((s) => s.composerQuote);
   const agent = useStore((s) => s.agent);
   const turn = useStore((s) => (s.thread ? s.turns[s.thread.id] : undefined));
   const options = useStore((s) => (s.thread ? s.configOptions[s.thread.id] : undefined));
-  const { closePanel, setFocus, clearComposerQuote, sendMessage, cancelTurn, setConfig } = useStore.getState();
+  const { closePanel, setFocus, clearComposerQuote, sendMessage, cancelTurn, setConfig, openThread, branch } = useStore.getState();
   const [draft, setDraft] = useState("");
+  const [msgSel, setMsgSel] = useState<{ anchor: Anchor; messageId: string; left: number; top: number } | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const msgsRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setDraft(""); }, [thread?.id]);
+  const ancestors = useMemo(() => (thread ? ancestorsOf(allThreads, thread) : []), [allThreads, thread]);
+  const rootId = ancestors[0]?.id ?? thread?.id ?? "";
+  const rows = useMemo(() => (rootId ? treeRows(allThreads, rootId) : []), [allThreads, rootId]);
+  const parent = ancestors[ancestors.length - 1];
+
+  useEffect(() => { setDraft(""); setMsgSel(null); }, [thread?.id]);
   useEffect(() => { if (composerQuote) taRef.current?.focus(); }, [composerQuote]);
   useEffect(() => {
     const el = msgsRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [thread?.messages.length, turn?.text.length, turn?.activity.length, turn?.permission?.id]);
+  }, [thread?.id, thread?.messages.length, turn?.text.length, turn?.activity.length, turn?.permission?.id]);
+  useEffect(() => {
+    const onChange = () => { const s = window.getSelection(); if (!s || s.isCollapsed) setMsgSel(null); };
+    document.addEventListener("selectionchange", onChange);
+    return () => document.removeEventListener("selectionchange", onChange);
+  }, []);
 
   if (!thread) return null;
   const hue = thread.hue;
@@ -150,6 +251,7 @@ export function ThreadPanel() {
   const running = !!turn?.running;
   const modelOpt = options?.find((o) => o.category === "model" || o.id === "model");
   const effortOpt = options?.find((o) => o.category === "thought_level" || o.id === "effort");
+  const branchesOf = (messageId: string) => allThreads.filter((t) => t.parent?.thread === thread.id && t.parent.message === messageId);
 
   const send = () => {
     if (running) { cancelTurn(); return; }
@@ -158,11 +260,42 @@ export function ThreadPanel() {
     setDraft("");
   };
 
+  // Selecting inside an answer offers Explore: a branch anchored to that span.
+  const onMsgsMouseUp = () => {
+    window.setTimeout(() => {
+      const sel = window.getSelection();
+      const container = msgsRef.current;
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0 || !container) { setMsgSel(null); return; }
+      const range = sel.getRangeAt(0);
+      const startEl = range.startContainer.nodeType === Node.ELEMENT_NODE ? (range.startContainer as Element) : range.startContainer.parentElement;
+      const md = startEl?.closest(".msg.assistant[data-msg-id] .md") as HTMLElement | null;
+      const messageId = (startEl?.closest(".msg.assistant[data-msg-id]") as HTMLElement | null)?.dataset["msgId"];
+      if (!md || !messageId) { setMsgSel(null); return; }
+      const offs = offsetsForRange(md, range);
+      if (!offs) return;
+      const s = selectorFor(textOfElement(md), offs[0], offs[1]);
+      if (!s) return;
+      const rect = rectsForRange(range, container)[0];
+      if (!rect) return;
+      setMsgSel({ anchor: { target: "message", thread: thread.id, message: messageId, ...s }, messageId, left: rect.x, top: rect.y });
+    }, 0);
+  };
+
   return (
     <section className="panel" aria-label="Thread">
       <div className="phead">
         <div className="crumbs">
           <span>Threads</span>
+          {ancestors.map((a, i) => (
+            <span key={a.id} className="crumb">
+              <span className="sep">›</span>
+              {ancestors.length > 2 && i > 0 && i < ancestors.length - 1 ? (
+                <button title={a.title} onClick={() => void openThread(a.id)}>…</button>
+              ) : (
+                <button title={a.title} onClick={() => void openThread(a.id)}>{a.title}</button>
+              )}
+            </span>
+          ))}
           <span className="sep">›</span>
           <span className="cur">{thread.title}</span>
         </div>
@@ -177,27 +310,51 @@ export function ThreadPanel() {
       </div>
 
       <div className="outline">
-        <span className={`dot h${hue}`} />
-        <span>{thread.title}</span>
-        <span className="st">{thread.anchor?.page ? `p.${thread.anchor.page}` : thread.anchor ? "anchored" : "no anchor"}</span>
+        {rows.map(({ t, depth }) => (
+          <button key={t.id} className={`node ${t.id === thread.id ? "cur" : ""}`} style={{ paddingLeft: 8 + depth * 16 }} onClick={() => void openThread(t.id)}>
+            <span className={`dot h${t.hue}`} />
+            <span className="t">{t.title}</span>
+            <span className="st">{t.anchor?.page ? `p.${t.anchor.page}` : t.parent ? "branch" : ""}</span>
+          </button>
+        ))}
       </div>
 
-      <div className="msgs" ref={msgsRef}>
+      <div className="msgs" ref={msgsRef} onMouseUp={onMsgsMouseUp} onScroll={() => setMsgSel(null)}>
+        {thread.parent && (
+          <details className="handoff" open={thread.messages.length === 0}>
+            <summary>
+              <Icon name="branch" />
+              Handoff from {parent?.title ?? "the parent thread"}
+              <span className="chip">{thread.handoff ? "written by parent session" : "being written…"}</span>
+            </summary>
+            {thread.handoff ? (
+              <Markdown text={thread.handoff} />
+            ) : (
+              <p>The parent session is writing a handoff for this branch. You can ask right away; it is included if it is ready in time.</p>
+            )}
+          </details>
+        )}
         {thread.anchor && (
           <div className="msg user">
             <div className="who"><b>Started from</b></div>
             <div className="body">
-              <QuoteCard anchor={thread.anchor} hue={hue} />
+              <QuoteCard anchor={thread.anchor} hue={hue} from={parent?.title} />
             </div>
           </div>
         )}
         {thread.messages.map((m) => (
-          <MessageView key={m.id} m={m} hue={hue} agentName={agentName} />
+          <MessageView key={m.id} m={m} hue={hue} agentName={agentName} branches={branchesOf(m.id)} threads={allThreads} onOpen={(id) => void openThread(id)} />
         ))}
         {turn && (turn.running || turn.text || turn.error || turn.activity.length > 0) && <TurnView turn={turn} agentName={agentName} threadId={thread.id} />}
         {!agent?.connected && (
-          <div className="pnote">
-            {agent?.error ? `The agent could not start: ${agent.error}` : "Connecting to the agent…"}
+          <div className="pnote">{agent?.error ? `The agent could not start: ${agent.error}` : "Connecting to the agent…"}</div>
+        )}
+        {msgSel && (
+          <div className="seltool msg-tool" role="toolbar" style={{ left: msgSel.left, top: msgSel.top }} onMouseDown={(e) => e.preventDefault()}>
+            <button className="primary" onClick={() => { const s = msgSel; setMsgSel(null); void branch(s.messageId, s.anchor); }}>
+              <Icon name="branch" />
+              Explore
+            </button>
           </div>
         )}
       </div>
@@ -221,7 +378,7 @@ export function ThreadPanel() {
           ref={taRef}
           rows={2}
           value={draft}
-          placeholder={running ? `${agentName} is answering. Type to queue a follow-up.` : composerQuote ? `Ask about this passage in ${thread.title}` : "Ask a follow-up, or highlight the paper and choose Ask here"}
+          placeholder={running ? `${agentName} is answering. Type to queue a follow-up.` : composerQuote ? `Ask about this passage in ${thread.title}` : thread.parent ? "Ask about this branch" : "Ask a follow-up, or highlight the paper and choose Ask here"}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {

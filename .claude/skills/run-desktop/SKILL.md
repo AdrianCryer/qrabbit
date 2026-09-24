@@ -23,9 +23,9 @@ node tools/dev/sample-pdf.mjs "$WORK/sample.pdf"
 node tools/dev/drive-desktop.mjs "$WORK" "$WORK/sample.pdf"
 ```
 
-Screenshots land in `$WORK/shots/` (`01-home`, `02-reader`, `03-selection`, `04-thread`, `05-askhere`, `06-working`, `07-answer`). The driver prints the thread file it created and the head of the extracted `text.md`. **Look at the screenshots**; the log alone does not prove the page rendered. Then delete `$WORK/collection-test` before the next run, or the driver reuses it.
+Screenshots land in `$WORK/shots/` (`01-home` through `13-parent-again`: home, reader, selection, thread, Ask here, working, answer, answer selection, branch, handoff, branch answer, parent with marker, parent asked again). The driver prints the thread file it created and the head of the extracted `text.md`. **Look at the screenshots**; the log alone does not prove the page rendered. Then delete `$WORK/collection-test` before the next run, or the driver reuses it.
 
-The Ask here step sends a real message to Claude Code through ACP and waits up to four minutes for the reply, so a run needs the machine's Claude Code sign-in and spends a small amount of the plan's usage. The driver prints the agent status (account label, auth methods) and the config options the session reported.
+From the Ask here step on, the driver sends real messages to Claude Code through ACP: one in the root thread, one in a branch, and one back in the root, plus the hidden handoff and summary turns. A full run takes three to four minutes, needs the machine's Claude Code sign-in, and spends a small amount of the plan's usage. The driver prints the agent status (account label, auth methods) and the config options the session reported.
 
 To poke at something else, edit the driver: it exposes the app's store as `window.__qrabbitStore`, so `page.evaluate(() => window.__qrabbitStore.getState().openCollection(path))` opens a collection without the folder dialog, and any store action can be called the same way.
 
