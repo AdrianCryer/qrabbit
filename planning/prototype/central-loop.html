@@ -1,0 +1,870 @@
+<title>QRabbit Central Loop</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* ---------- tokens (dark-first, single deliberate look; light preview via data-mode) ---------- */
+  :root{
+    color-scheme: dark;
+    --backdrop:#0a0b0d;
+    --bg:#121417;
+    --raised:#1a1d22;
+    --raised-2:#20242a;
+    --sunken:#0c0e11;
+    --line:rgba(255,255,255,.08);
+    --line-strong:rgba(255,255,255,.15);
+    --text:#e9ebee;
+    --text-2:#a3a8b0;
+    --text-3:#6e747d;
+    --paper:#fbfaf6;
+    --paper-text:#1e2227;
+    --paper-2:#5a6068;
+    --paper-line:#e4e1d8;
+    --accent:#c9f24d;
+    --accent-fg:#101407;
+    --accent-soft:rgba(201,242,77,.14);
+    --hl-1:#ffd85c;
+    --hl-2:#79cfff;
+    --hl-3:#f7a1c4;
+    --hl-4:#9fe3ab;
+    --ok:#5fd18a;
+    --sel:rgba(110,160,255,.38);
+    --glass:rgba(22,25,30,.86);
+    --shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 10px 28px rgba(0,0,0,.4);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.5);
+    --r:14px; --r-sm:9px; --r-pill:999px;
+    --font-ui:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --font-paper:'STIX Two Text','Times New Roman',Times,serif;
+    --font-mono:'JetBrains Mono',ui-monospace,Consolas,'Courier New',monospace;
+  }
+  :root[data-accent="amber"]{
+    --accent:#f2a64b; --accent-fg:#1a1006; --accent-soft:rgba(242,166,75,.16);
+  }
+  :root[data-mode="light"]{
+    color-scheme: light;
+    --backdrop:#d6d9df; --bg:#f3f4f7; --raised:#ffffff; --raised-2:#f7f8fa; --sunken:#e6e8ed;
+    --line:rgba(16,20,28,.09); --line-strong:rgba(16,20,28,.16);
+    --text:#1b1f26; --text-2:#5b6270; --text-3:#8a909b;
+    --accent:#5f8f00; --accent-fg:#ffffff; --accent-soft:rgba(95,143,0,.12);
+    --sel:rgba(80,140,255,.3);
+    --glass:rgba(255,255,255,.9);
+    --shadow:0 1px 2px rgba(16,20,28,.06), 0 10px 28px rgba(16,20,28,.1);
+    --shadow-sm:0 1px 2px rgba(16,20,28,.12);
+  }
+  :root[data-mode="light"][data-accent="amber"]{
+    --accent:#c2641a; --accent-fg:#ffffff; --accent-soft:rgba(194,100,26,.12);
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--backdrop); color:var(--text);
+    font-family:var(--font-ui); font-size:13px; line-height:1.45;
+    padding:16px 16px calc(16px + 68px + env(safe-area-inset-bottom,0px));
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer}
+  button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  kbd{font-family:var(--font-mono); font-size:10.5px; padding:1px 5px; border-radius:5px; background:var(--sunken); border:1px solid var(--line); color:var(--text-2)}
+  svg.i{width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; flex:none}
+  .chip{display:inline-flex; align-items:center; gap:5px; padding:2px 7px; border-radius:var(--r-pill); background:var(--sunken); border:1px solid var(--line); color:var(--text-2); font-size:11px; font-family:var(--font-mono); white-space:nowrap}
+  .chip.ok{color:var(--ok); border-color:color-mix(in srgb, var(--ok) 35%, transparent)}
+  .dot{width:8px; height:8px; border-radius:50%; flex:none}
+  .dot.h1{background:var(--hl-1)} .dot.h2{background:var(--hl-2)} .dot.h3{background:var(--hl-3)} .dot.h4{background:var(--hl-4)}
+
+  /* ---------- window ---------- */
+  .win{
+    height:100%; display:grid; grid-template-rows:44px minmax(0,1fr); position:relative;
+    background:var(--bg); border:1px solid var(--line-strong); border-radius:12px; overflow:hidden;
+    box-shadow:var(--shadow);
+  }
+
+  /* ---------- header ---------- */
+  .hdr{display:flex; align-items:center; gap:4px; padding:0 6px 0 12px; border-bottom:1px solid var(--line); min-width:0}
+  .brand{display:flex; align-items:center; gap:8px; font-weight:500; margin-right:6px; flex:none}
+  .brand .q{width:20px; height:20px; border-radius:6px; background:var(--accent); color:var(--accent-fg); display:grid; place-items:center; font-weight:600; font-size:12px}
+  .brand .name{display:none}
+  .hsep{color:var(--text-3); flex:none; padding:0 2px}
+  .pop{position:relative; min-width:0}
+  .hpill{display:inline-flex; align-items:center; gap:6px; padding:5px 8px; border-radius:var(--r-sm); color:var(--text); font-weight:500; min-width:0; max-width:100%}
+  .hpill:hover, .hpill[aria-expanded="true"]{background:var(--raised-2)}
+  .hpill .txt{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .hpill .lbl{color:var(--text-3); font-weight:400}
+  .hpill svg.i.chev{width:13px; height:13px; color:var(--text-3)}
+  .hpill .n{font-family:var(--font-mono); font-size:11px; color:var(--text-3); padding:0 5px; border-radius:5px; background:var(--sunken); border:1px solid var(--line)}
+  .hright{display:flex; align-items:center; gap:2px; margin-left:auto; flex:none}
+  .agent{display:flex; align-items:center; gap:6px; color:var(--text-3); font-size:12px; padding:0 8px}
+  .agent .dot{background:var(--ok); width:7px; height:7px}
+  .agent span{white-space:nowrap}
+  .ibtn{width:32px; height:30px; display:grid; place-items:center; color:var(--text-2); border-radius:7px}
+  .ibtn:hover{background:var(--raised-2); color:var(--text)}
+  .winctl{display:flex; margin-left:6px; border-left:1px solid var(--line); padding-left:6px}
+  .winctl button{width:36px; height:30px; display:grid; place-items:center; color:var(--text-3); border-radius:6px}
+  .winctl button:hover{background:var(--raised-2); color:var(--text)}
+  :root[data-state="home"] .hsrc, :root[data-state="home"] .hsep.s2, :root[data-state="home"] .hthreads{display:none}
+  :root[data-state="home"] .brand .name{display:inline}
+
+  .menu{position:absolute; top:calc(100% + 6px); left:0; min-width:280px; max-width:min(92vw, 420px); background:var(--glass); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid var(--line-strong); border-radius:var(--r-sm); box-shadow:var(--shadow); padding:6px; z-index:20; display:grid; gap:2px}
+  .menu.right{left:auto; right:0}
+  .mh{font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-3); padding:7px 9px 3px; font-weight:500}
+  .mi{display:flex; align-items:center; gap:10px; padding:7px 9px; border-radius:7px; text-align:left; width:100%; min-width:0}
+  .mi:hover{background:var(--raised-2)}
+  .mi.cur{background:var(--raised)}
+  .mi .txt{flex:1; min-width:0; display:grid; gap:2px}
+  .mi .txt .t{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500}
+  .mi .txt .m{color:var(--text-3); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .mi .meta{margin-left:auto; color:var(--text-3); font-size:11px; font-family:var(--font-mono); flex:none; display:flex; gap:6px; align-items:center}
+  .mi svg.i{color:var(--text-2)}
+  .msep{height:1px; background:var(--line); margin:4px 4px}
+
+  /* ---------- home ---------- */
+  .home{display:none; overflow:auto; min-height:0; padding:40px 24px 60px}
+  :root[data-state="home"] .home{display:block}
+  :root[data-state="home"] .main{display:none}
+  .home .col{width:min(100%, 720px); margin:0 auto; display:grid; gap:22px}
+  .home h1{font-size:20px; font-weight:600; margin:0; letter-spacing:-.01em; text-wrap:balance}
+  .home .sub{color:var(--text-3); margin:4px 0 0}
+  .cont{display:flex; align-items:center; gap:14px; padding:14px 16px; border-radius:var(--r); background:var(--raised); border:1px solid var(--line); box-shadow:var(--shadow-sm)}
+  .cont .thumb{width:44px; height:56px; border-radius:4px; background:var(--paper); flex:none; box-shadow:0 1px 2px rgba(0,0,0,.4); position:relative; overflow:hidden}
+  .cont .thumb::before{content:""; position:absolute; left:8px; right:8px; top:9px; height:3px; background:#b9b5a8; border-radius:2px; box-shadow:0 8px 0 #d6d2c6, 0 14px 0 #d6d2c6, 0 20px 0 #d6d2c6, 0 26px 0 #d6d2c6, 0 32px 0 #d6d2c6}
+  .cont .thumb::after{content:""; position:absolute; left:8px; right:14px; top:23px; height:3px; background:color-mix(in srgb, var(--hl-1) 70%, transparent); border-radius:2px}
+  .cont .txt{flex:1; min-width:0; display:grid; gap:3px}
+  .cont .t{font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .cont .m{color:var(--text-3); font-size:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .btn{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:var(--r-sm); font-weight:500; border:1px solid var(--line); background:var(--raised); color:var(--text); white-space:nowrap}
+  .btn:hover{background:var(--raised-2)}
+  .btn.primary{background:var(--accent); color:var(--accent-fg); border-color:transparent}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .btn.icon{padding:6px; color:var(--text-2); background:none; border-color:transparent}
+  .btn.icon:hover{background:var(--raised-2); color:var(--text)}
+  .sect{display:flex; align-items:baseline; justify-content:space-between; gap:12px}
+  .sect h2{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-3); font-weight:500; margin:0}
+  .colls{display:grid; gap:8px}
+  .coll{display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:14px; align-items:center; padding:13px 16px; border-radius:var(--r); background:var(--raised); border:1px solid var(--line); text-align:left; width:100%}
+  .coll:hover{background:var(--raised-2); border-color:var(--line-strong)}
+  .coll .ico{width:34px; height:34px; border-radius:9px; background:var(--sunken); border:1px solid var(--line); display:grid; place-items:center; color:var(--text-2)}
+  .coll .txt{display:grid; gap:5px; min-width:0}
+  .coll .t{font-weight:500; font-size:14px}
+  .coll .srcs{display:flex; gap:6px; flex-wrap:wrap}
+  .coll .srcs .chip{font-family:var(--font-ui); max-width:220px; overflow:hidden; text-overflow:ellipsis; display:inline-block; padding:2px 8px}
+  .coll .meta{display:grid; gap:3px; text-align:right; color:var(--text-3); font-size:12px; white-space:nowrap}
+  .coll .meta b{color:var(--text-2); font-weight:500}
+  .coll.new{background:none; border-style:dashed; color:var(--text-2)}
+  .coll.new .ico{background:none}
+  .coll.new .t{color:var(--text-2); font-weight:500}
+  .coll.new .m{color:var(--text-3); font-size:12px}
+  .hint{color:var(--text-3); font-size:12px; display:flex; gap:8px; align-items:center}
+
+  /* ---------- layout ---------- */
+  .main{display:grid; grid-template-columns:minmax(0,1fr) 440px; min-height:0; height:100%}
+  :root[data-state="reading"] .main{grid-template-columns:minmax(0,1fr) 0}
+  :root[data-state="reading"] .panel{display:none}
+  :root[data-layout="focus"]:not([data-state="reading"]) .main{grid-template-columns:0 minmax(0,1fr)}
+  :root[data-layout="focus"]:not([data-state="reading"]) .reader{display:none}
+
+  /* ---------- reader ---------- */
+  .reader{display:flex; flex-direction:column; min-height:0; min-width:0}
+  .rscroll{overflow:auto; min-height:0; padding:22px 20px 40px}
+  .sheet{
+    width:min(100%, 700px); margin:0 auto; background:var(--paper); color:var(--paper-text);
+    padding:50px 60px 44px; border-radius:6px; box-shadow:0 1px 0 rgba(0,0,0,.2), 0 18px 40px rgba(0,0,0,.35);
+    font-family:var(--font-paper); font-size:15px; line-height:1.58; position:relative;
+  }
+  .sheet .run{display:flex; justify-content:space-between; font-size:11px; color:var(--paper-2); letter-spacing:.02em; margin-bottom:26px; border-bottom:1px solid var(--paper-line); padding-bottom:6px}
+  .sheet h3{font-size:16px; font-weight:600; margin:0 0 10px}
+  .sheet h3 .num{margin-right:10px}
+  .sheet p{margin:0 0 12px; position:relative; text-wrap:pretty}
+  .sheet .eq{margin:6px 0 14px; display:flex; align-items:center; justify-content:space-between; gap:12px}
+  .sheet .eq .lab{font-size:13px; color:var(--paper-2)}
+  .sheet .fig{margin:10px 0 16px; padding:12px 14px 10px; border:1px solid var(--paper-line); border-radius:4px; background:#fff}
+  .sheet .fig svg{width:100%; height:auto; display:block}
+  .sheet .cap{font-size:12.5px; color:var(--paper-2); margin-top:8px; line-height:1.45}
+  .sheet .foot{margin-top:26px; text-align:center; font-size:12px; color:var(--paper-2)}
+  mark.hl{background:color-mix(in srgb, var(--hl) 42%, transparent); color:inherit; border-radius:2px; padding:1px 0; box-decoration-break:clone; -webkit-box-decoration-break:clone}
+  mark.hl.h2{--hl:var(--hl-2)} mark.hl.h3{--hl:var(--hl-3)}
+  mark.hl.anchor{box-shadow:0 2px 0 var(--hl)}
+  .marker{position:absolute; right:-44px; top:2px; width:26px; height:18px; border-radius:var(--r-pill); display:grid; place-items:center; font-family:var(--font-ui); font-size:10px; font-weight:600; color:#1a1a1a; cursor:pointer}
+  .marker.h1{background:var(--hl-1)} .marker.h2{background:var(--hl-2)} .marker.h3{background:var(--hl-3)}
+  .marker svg.i{width:11px; height:11px; stroke:#1a1a1a; stroke-width:2.2}
+  span.sel{background:var(--sel); border-radius:2px; box-decoration-break:clone; -webkit-box-decoration-break:clone}
+  :root:not([data-state="reading"]) span.sel{background:color-mix(in srgb, var(--hl-1) 42%, transparent); box-shadow:0 2px 0 var(--hl-1)}
+  :root:not([data-state="reading"]) .seltool{display:none}
+  :root[data-state="reading"] .marker.h1{display:none}
+  .seltool{
+    position:absolute; left:14px; top:-46px; z-index:3; display:flex; gap:2px; padding:4px;
+    background:var(--glass); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    border:1px solid var(--line-strong); border-radius:var(--r-sm); box-shadow:var(--shadow); font-family:var(--font-ui); font-size:12.5px; color:var(--text);
+  }
+  .seltool button{display:flex; align-items:center; gap:7px; padding:6px 9px; border-radius:6px; font-weight:500; white-space:nowrap}
+  .seltool button:hover{background:var(--raised-2)}
+  .seltool button.primary{background:var(--accent); color:var(--accent-fg)}
+  .seltool button.primary kbd{background:rgba(0,0,0,.18); border-color:transparent; color:inherit}
+  .seltool::after{content:""; position:absolute; left:26px; bottom:-6px; width:10px; height:10px; background:var(--glass); border-right:1px solid var(--line-strong); border-bottom:1px solid var(--line-strong); transform:rotate(45deg)}
+  .seltool.two{display:none; top:auto; bottom:-46px; left:auto; right:24px}
+  .seltool.two::after{bottom:auto; top:-6px; left:auto; right:26px; border:0; border-left:1px solid var(--line-strong); border-top:1px solid var(--line-strong)}
+  :root[data-state="askhere"]:not([data-quoted]) .seltool.two{display:flex}
+  span.sel2{border-radius:2px; box-decoration-break:clone; -webkit-box-decoration-break:clone}
+  :root[data-state="askhere"]:not([data-quoted]) span.sel2{background:var(--sel)}
+  :root[data-state="askhere"][data-quoted] span.sel2{background:color-mix(in srgb, var(--hl-1) 30%, transparent); border-bottom:2px dashed var(--hl-1)}
+  :root[data-state="working"] span.sel2{background:color-mix(in srgb, var(--hl-1) 42%, transparent); box-shadow:0 2px 0 var(--hl-1)}
+
+  /* ---------- thread panel ---------- */
+  .panel{border-left:1px solid var(--line); display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; min-height:0; min-width:0; background:var(--bg)}
+  .phead{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px 8px 12px; border-bottom:1px solid var(--line)}
+  .crumbs{display:flex; align-items:center; gap:4px; min-width:0; font-size:12.5px; color:var(--text-3)}
+  .crumbs button{color:var(--text-2); padding:3px 6px; border-radius:6px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .crumbs button:hover{background:var(--raised-2); color:var(--text)}
+  .crumbs .cur{color:var(--text); font-weight:500; padding:3px 6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .crumbs .sep{color:var(--text-3)}
+  .pactions{display:flex; align-items:center; gap:4px; flex:none}
+  .outline{padding:8px 12px; border-bottom:1px solid var(--line); background:var(--sunken)}
+  .outline summary{list-style:none; display:flex; align-items:center; gap:8px; color:var(--text-3); font-size:11.5px; cursor:pointer; user-select:none; letter-spacing:.06em; text-transform:uppercase; font-weight:500}
+  .outline summary::-webkit-details-marker{display:none}
+  .outline summary svg.i{transition:transform .15s}
+  .outline[open] summary svg.i{transform:rotate(90deg)}
+  .tree{display:grid; gap:2px; padding:8px 0 2px}
+  .node{display:flex; align-items:center; gap:8px; padding:5px 8px; border-radius:6px; font-size:12.5px; color:var(--text-2); width:100%; text-align:left}
+  .node:hover{background:var(--raised)}
+  .node.l2{padding-left:26px}
+  .node .dot{width:7px; height:7px}
+  .node.cur{color:var(--text); background:var(--raised)}
+  .node .st{margin-left:auto; color:var(--text-3); font-size:11px; font-family:var(--font-mono)}
+  .node.branch-node{display:none}
+  :root[data-state="branch"] .node.branch-node, :root[data-state="again"] .node.branch-node, :root[data-state="askhere"] .node.branch-node, :root[data-state="working"] .node.branch-node{display:flex}
+
+  .msgs{overflow:auto; min-height:0; padding:16px 16px 8px; display:flex; flex-direction:column; gap:18px}
+  .msg{display:grid; gap:8px}
+  .msg .who{display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--text-3)}
+  .msg .who b{color:var(--text-2); font-weight:500}
+  .msg.user .body{background:var(--raised); border:1px solid var(--line); border-radius:var(--r); padding:10px 12px 11px; display:grid; gap:9px}
+  .msg.assistant .body{display:grid; gap:10px; font-size:13.5px; line-height:1.6; max-width:62ch}
+  .msg.assistant .body p{margin:0}
+  .msg.assistant .body ul{margin:0; padding-left:18px; display:grid; gap:4px}
+  .quote{display:grid; gap:6px; padding:8px 10px 8px 12px; border-left:3px solid var(--hl); border-radius:6px; background:var(--sunken); font-family:var(--font-paper); font-size:13.5px; color:var(--text); line-height:1.5}
+  .quote.h1{--hl:var(--hl-1)} .quote.h2{--hl:var(--hl-2)}
+  .quote .from{display:flex; align-items:center; gap:6px; font-family:var(--font-ui); font-size:11px; color:var(--text-3)}
+  .cite{display:inline-flex; align-items:center; padding:0 5px; border-radius:5px; background:var(--accent-soft); color:var(--accent); font-family:var(--font-mono); font-size:11px; font-weight:500; margin:0 1px; vertical-align:1px; cursor:pointer; border:1px solid transparent}
+  .cite:hover{border-color:color-mix(in srgb, var(--accent) 50%, transparent)}
+  .disp{padding:6px 10px; overflow-x:auto; font-size:15px}
+  .xspan{position:relative; background:var(--sel); border-radius:2px; padding:1px 0}
+  .xspan .explore-chip{position:absolute; left:-2px; top:-32px; display:flex; align-items:center; gap:6px; padding:4px 8px; border-radius:7px; background:var(--accent); color:var(--accent-fg); font-size:12px; font-weight:500; white-space:nowrap; box-shadow:var(--shadow-sm); z-index:2}
+  .xspan .explore-chip kbd{background:rgba(0,0,0,.18); border-color:transparent; color:inherit}
+  :root:not([data-state="thread"]) .xspan{background:color-mix(in srgb, var(--hl-2) 42%, transparent); box-shadow:0 2px 0 var(--hl-2)}
+  :root:not([data-state="thread"]) .xspan .explore-chip{display:none}
+  .xspan .bmark{display:none; position:absolute; right:-22px; top:-1px; width:16px; height:16px; border-radius:50%; background:var(--hl-2); place-items:center; cursor:pointer}
+  .xspan .bmark svg.i{width:10px; height:10px; stroke:#1a1a1a; stroke-width:2.4}
+  :root[data-state="branch"] .xspan .bmark.b, :root[data-state="again"] .xspan .bmark.b, :root[data-state="askhere"] .xspan .bmark.b, :root[data-state="working"] .xspan .bmark.b{display:grid}
+  .xspan .hovercard{display:none; position:absolute; left:0; top:calc(100% + 10px); width:min(320px, 80vw); padding:10px 12px; border-radius:var(--r-sm); background:var(--glass); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid var(--line-strong); box-shadow:var(--shadow); z-index:4; font-size:12.5px; line-height:1.5; color:var(--text); font-weight:400; white-space:normal; cursor:default}
+  .xspan .hovercard .t{display:flex; align-items:center; gap:7px; font-weight:500; margin-bottom:5px}
+  .xspan .hovercard .t .chip{margin-left:auto}
+  .xspan .hovercard .tags{display:flex; gap:5px; flex-wrap:wrap; margin-top:8px}
+  :root[data-state="again"] .xspan:hover .hovercard, :root[data-state="again"] .xspan:focus-within .hovercard{display:block}
+  .handoff{display:grid; gap:6px; padding:10px 12px; border-radius:var(--r-sm); background:var(--sunken); border:1px dashed var(--line-strong); color:var(--text-2); font-size:12.5px}
+  .handoff summary{list-style:none; display:flex; align-items:center; gap:8px; cursor:pointer; color:var(--text-2); font-weight:500}
+  .handoff summary::-webkit-details-marker{display:none}
+  .handoff summary .chip{margin-left:auto}
+  .handoff p{margin:6px 0 0; line-height:1.55; max-width:62ch}
+  .view{display:none}
+  :root[data-state="thread"] .view.root, :root[data-state="again"] .view.root, :root[data-state="askhere"] .view.root, :root[data-state="working"] .view.root{display:contents}
+  :root[data-state="branch"] .view.branch{display:contents}
+  .only-working{display:none}
+  :root[data-state="working"] .only-working{display:grid}
+
+  .cq{display:none; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:start; padding:7px 8px 7px 10px; border-left:3px solid var(--hl-1); border-radius:6px; background:var(--sunken); font-family:var(--font-paper); font-size:13px; line-height:1.45; color:var(--text)}
+  :root[data-state="askhere"][data-quoted] .cq{display:grid}
+  .cq .from{display:flex; align-items:center; gap:6px; font-family:var(--font-ui); font-size:11px; color:var(--text-3); margin-bottom:3px}
+  .cq .x{width:22px; height:22px; display:grid; place-items:center; border-radius:6px; color:var(--text-3)}
+  .cq .x:hover{background:var(--raised-2); color:var(--text)}
+  .msg .ctxchip{display:inline-flex; align-items:center; gap:6px; padding:2px 8px 2px 6px; border-radius:var(--r-pill); background:var(--sunken); border:1px solid var(--line); color:var(--text-3); font-size:11px; width:max-content}
+  .msg .ctxchip .dot{width:7px; height:7px}
+
+  .act{display:grid; gap:5px; padding:8px 10px; border-radius:var(--r-sm); background:var(--sunken); border:1px solid var(--line); font-size:12px; color:var(--text-2); max-width:62ch}
+  .act .row{display:flex; align-items:center; gap:8px; min-width:0}
+  .act .row svg.i{width:13px; height:13px}
+  .act .row .ok{color:var(--ok)}
+  .act .row .t{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .act .row .d{color:var(--text-3); font-family:var(--font-mono); font-size:11px; flex:none}
+  .act code{font-family:var(--font-mono); font-size:11.5px; color:var(--text)}
+  .perm{display:grid; gap:9px; padding:10px 12px; border-radius:var(--r-sm); background:var(--raised); border:1px solid color-mix(in srgb, var(--accent) 45%, transparent); max-width:62ch}
+  .perm .q{display:flex; gap:8px; align-items:flex-start; font-size:12.5px; color:var(--text); line-height:1.5}
+  .perm .q svg.i{color:var(--accent); margin-top:2px}
+  .perm .btns{display:flex; gap:6px; flex-wrap:wrap}
+  .perm .btn{padding:5px 9px; font-size:12px}
+  .perm[hidden]{display:none}
+  .cursor{display:inline-block; width:7px; height:14px; background:var(--accent); vertical-align:-2px; margin-left:2px; animation:blink 1s steps(2) infinite}
+  @keyframes blink{to{opacity:0}}
+  .spin{animation:spin 1.1s linear infinite; color:var(--accent)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .send .ico-stop{display:none}
+  :root[data-state="working"] .send .ico-send{display:none}
+  :root[data-state="working"] .send .ico-stop{display:block}
+
+  .ctx{display:none}
+  :root[data-state="again"] .ctx{display:block}
+  .ctx summary{list-style:none; display:inline-flex; align-items:center; gap:6px; padding:3px 9px 3px 7px; border-radius:var(--r-pill); background:var(--sunken); border:1px solid var(--line); color:var(--text-2); font-size:11.5px; cursor:pointer}
+  .ctx summary::-webkit-details-marker{display:none}
+  .ctx summary:hover{color:var(--text); border-color:var(--line-strong)}
+  .ctx summary .dot{width:7px; height:7px}
+  .ctx .body{margin-top:8px; padding:8px 10px; border-radius:var(--r-sm); background:var(--sunken); border:1px dashed var(--line-strong); color:var(--text-2); font-size:12px; line-height:1.5}
+  .ctx .body b{color:var(--text); font-weight:500}
+  .composer{margin:8px 12px 12px; background:var(--raised); border:1px solid var(--line); border-radius:var(--r); padding:10px 10px 8px; display:grid; gap:8px; box-shadow:var(--shadow-sm)}
+  .composer textarea{width:100%; resize:none; background:none; border:0; color:var(--text); font:inherit; font-size:13.5px; line-height:1.5; min-height:44px; padding:2px 4px}
+  .composer textarea::placeholder{color:var(--text-3)}
+  .crow{display:flex; align-items:center; gap:6px; flex-wrap:wrap}
+  .crow .send{margin-left:auto; width:30px; height:30px; border-radius:50%; background:var(--accent); color:var(--accent-fg); display:grid; place-items:center}
+  .crow .send:hover{filter:brightness(1.05)}
+  .pick{display:inline-flex; align-items:center; gap:5px; padding:4px 8px; border-radius:var(--r-pill); background:var(--sunken); border:1px solid var(--line); color:var(--text-2); font-size:12px}
+  .pick:hover{color:var(--text); border-color:var(--line-strong)}
+  .pick .lbl{color:var(--text-3)}
+
+  /* ---------- toast + prototype bar ---------- */
+  .toast{position:absolute; right:16px; bottom:16px; z-index:5; display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:var(--r-sm); background:var(--glass); backdrop-filter:blur(14px); border:1px solid var(--line-strong); box-shadow:var(--shadow); font-size:12.5px; opacity:0; transform:translateY(6px); transition:opacity .2s, transform .2s; pointer-events:none; max-width:min(92%, 420px)}
+  .toast.show{opacity:1; transform:none}
+  .pbar{position:fixed; left:0; right:0; bottom:0; z-index:10; display:flex; justify-content:center; padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px)); pointer-events:none}
+  .pbar .card{pointer-events:auto; display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center; padding:8px 12px; border-radius:var(--r); background:var(--glass); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid var(--line-strong); box-shadow:var(--shadow); max-width:100%}
+  .pbar .grp{display:flex; align-items:center; gap:6px}
+  .pbar .lbl{font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-3); font-weight:500; margin-right:2px}
+  .seg{display:flex; background:var(--sunken); border:1px solid var(--line); border-radius:var(--r-pill); padding:2px; gap:2px}
+  .seg button{padding:5px 10px; border-radius:var(--r-pill); color:var(--text-2); font-weight:500; font-size:12px; display:flex; align-items:center; gap:6px}
+  .seg button[aria-pressed="true"]{background:var(--accent); color:var(--accent-fg); box-shadow:var(--shadow-sm)}
+  .seg button kbd{margin-left:2px; font-size:10px}
+  .seg button[aria-pressed="true"] kbd{background:rgba(0,0,0,.18); border-color:transparent; color:inherit}
+
+  /* ---------- responsive ---------- */
+  @media (max-width:1100px){
+    .main{grid-template-columns:minmax(0,1fr) 400px}
+    :root[data-state="reading"] .main{grid-template-columns:minmax(0,1fr) 0}
+    :root[data-layout="focus"]:not([data-state="reading"]) .main{grid-template-columns:0 minmax(0,1fr)}
+    .agent span{display:none}
+  }
+  @media (max-width:760px){
+    .main{grid-template-columns:minmax(0,1fr)}
+    :root:not([data-state="reading"]) .reader{display:none}
+    :root[data-state="reading"] .main{grid-template-columns:minmax(0,1fr)}
+    :root[data-layout="focus"]:not([data-state="reading"]) .main{grid-template-columns:minmax(0,1fr)}
+    .sheet{padding:28px 22px 24px}
+    .marker{right:-16px}
+    .pbar .lbl{display:none}
+    .hsrc .txt{display:none}
+    .winctl{display:none}
+    .coll{grid-template-columns:auto minmax(0,1fr)}
+    .coll .meta{grid-column:2; text-align:left}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none !important; transition:none !important}
+  }
+</style>
+
+<div class="win" id="win">
+  <!-- ================= header ================= -->
+  <header class="hdr">
+    <div class="brand"><span class="q">Q</span><span class="name">QRabbit</span></div>
+    <div class="pop">
+      <button class="hpill" id="pill-coll" aria-expanded="false" aria-haspopup="menu"><span class="txt">Representation geometry</span><svg class="i chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="menu" id="menu-coll" hidden role="menu">
+        <div class="mh">Collections</div>
+        <button class="mi cur" role="menuitem" data-open="stay"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="txt"><span class="t">Representation geometry</span><span class="m">3 sources · 4 threads</span></span><span class="meta">now</span></button>
+        <button class="mi" role="menuitem" data-open="other"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="txt"><span class="t">Neural ODEs</span><span class="m">5 sources · 3 threads</span></span><span class="meta">Tue</span></button>
+        <button class="mi" role="menuitem" data-open="other"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="txt"><span class="t">Diffusion, from scratch</span><span class="m">4 sources · 6 threads</span></span><span class="meta">Aug</span></button>
+        <div class="msep"></div>
+        <button class="mi" role="menuitem" data-open="home"><svg class="i" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span class="txt"><span class="t">All collections</span></span><span class="meta"><kbd>0</kbd></span></button>
+      </div>
+    </div>
+    <span class="hsep s2">/</span>
+    <div class="pop hsrc">
+      <button class="hpill" id="pill-src" aria-expanded="false" aria-haspopup="menu"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg><span class="txt">Intrinsic Dimension of Learned Representations</span><span class="lbl">p. 4 / 14</span><svg class="i chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="menu" id="menu-src" hidden role="menu">
+        <div class="mh">Sources in this collection</div>
+        <button class="mi cur" role="menuitem"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg><span class="txt"><span class="t">Intrinsic Dimension of Learned Representations</span><span class="m">PDF · 14 pages · 3 threads</span></span><span class="meta">p.4</span></button>
+        <button class="mi" role="menuitem"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg><span class="txt"><span class="t">Testing the Manifold Hypothesis</span><span class="m">PDF · 31 pages · 1 thread</span></span><span class="meta">p.1</span></button>
+        <button class="mi" role="menuitem"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/></svg><span class="txt"><span class="t">Manifold hypothesis notes</span><span class="m">Markdown · notes/manifold.md</span></span></button>
+        <div class="msep"></div>
+        <button class="mi" role="menuitem"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="txt"><span class="t">Add a source</span><span class="m">PDF, Markdown or a folder</span></span></button>
+      </div>
+    </div>
+    <div class="hright">
+      <div class="pop hthreads">
+        <button class="hpill" id="pill-threads" aria-expanded="false" aria-haspopup="menu"><svg class="i" viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg><span class="txt">Threads</span><span class="n">4</span></button>
+        <div class="menu right" id="menu-threads" hidden role="menu">
+          <div class="mh">Intrinsic Dimension of Learned Representations</div>
+          <button class="mi" role="menuitem" data-thread="1"><span class="dot h1"></span><span class="txt"><span class="t">low-dimensional manifold</span><span class="m">2 min ago · 1 branch</span></span><span class="meta"><span class="chip">p.4</span></span></button>
+          <button class="mi" role="menuitem" data-thread="3"><span class="dot h3"></span><span class="txt"><span class="t">what the Jacobian penalty does</span><span class="m">yesterday</span></span><span class="meta"><span class="chip">p.4</span></span></button>
+          <button class="mi" role="menuitem" data-thread="2"><span class="dot h2"></span><span class="txt"><span class="t">why PCA overestimates <i>k</i></span><span class="m">yesterday · 2 branches</span></span><span class="meta"><span class="chip">p.4</span></span></button>
+          <div class="mh">Testing the Manifold Hypothesis</div>
+          <button class="mi" role="menuitem" data-thread="4"><span class="dot h4"></span><span class="txt"><span class="t">paper overview</span><span class="m">Monday</span></span><span class="meta"><span class="chip">whole paper</span></span></button>
+        </div>
+      </div>
+      <button class="ibtn" id="btn-search" title="Search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+      <div class="agent" title="Claude Code · signed in"><span class="dot"></span><span>Claude Code</span></div>
+      <div class="winctl" aria-hidden="true">
+        <button title="Minimise"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+        <button title="Maximise"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg></button>
+        <button title="Close"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= home ================= -->
+  <section class="home" aria-label="Collections">
+    <div class="col">
+      <div>
+        <h1>Collections</h1>
+        <p class="sub">A collection is a reading list: its sources and every thread you opened from them. Each one is a folder on disk.</p>
+      </div>
+
+      <div class="cont">
+        <div class="thumb" aria-hidden="true"></div>
+        <div class="txt">
+          <div class="t">Intrinsic Dimension of Learned Representations · p. 4</div>
+          <div class="m"><span>Representation geometry</span><span class="chip">low-dimensional manifold</span></div>
+        </div>
+        <button class="btn primary" id="btn-continue">Continue reading</button>
+      </div>
+
+      <div class="sect"><h2>Recent</h2></div>
+      <div class="colls">
+        <button class="coll" id="coll-1">
+          <span class="ico"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+          <span class="txt">
+            <span class="t">Representation geometry</span>
+            <span class="srcs"><span class="chip">Intrinsic Dimension of Learned Representations</span><span class="chip">Testing the Manifold Hypothesis</span><span class="chip">Manifold hypothesis notes</span></span>
+          </span>
+          <span class="meta"><b>4 threads</b><span>2 min ago</span></span>
+        </button>
+        <button class="coll" data-open="other">
+          <span class="ico"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+          <span class="txt">
+            <span class="t">Neural ODEs</span>
+            <span class="srcs"><span class="chip">Neural Ordinary Differential Equations</span><span class="chip">Adjoint sensitivity notes</span><span class="chip">+3</span></span>
+          </span>
+          <span class="meta"><b>3 threads</b><span>Tuesday</span></span>
+        </button>
+        <button class="coll" data-open="other">
+          <span class="ico"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span>
+          <span class="txt">
+            <span class="t">Diffusion, from scratch</span>
+            <span class="srcs"><span class="chip">Denoising Diffusion Probabilistic Models</span><span class="chip">Score matching notes</span><span class="chip">+2</span></span>
+          </span>
+          <span class="meta"><b>6 threads</b><span>August</span></span>
+        </button>
+        <button class="coll new" data-open="new">
+          <span class="ico"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+          <span class="txt"><span class="t">New collection</span><span class="m">Drop in PDFs, or open an existing folder</span></span>
+        </button>
+      </div>
+
+      <div class="hint"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Every collection is a plain folder of Markdown and PDFs. Open one in Obsidian or track it with git whenever you like.</div>
+    </div>
+  </section>
+
+  <!-- ================= reading layout ================= -->
+  <div class="main">
+    <section class="reader" aria-label="Reader">
+      <div class="rscroll" id="rscroll">
+        <article class="sheet" aria-label="Page 4">
+          <div class="run"><span>Okonkwo, Lindqvist &amp; Tanaka</span><span>Intrinsic dimension of learned representations</span></div>
+
+          <h3><span class="num">3</span>Geometry of the representation</h3>
+
+          <p>Let $h(x) \in \mathbb{R}^d$ denote the activation of the penultimate layer for an input $x$, with $d = 4096$ throughout. We are interested not in the span of these vectors but in the shape of the set they occupy. Following Facco et&nbsp;al., we estimate the intrinsic dimension from the ratio of each point's second- and first-nearest-neighbour distances,</p>
+
+          <div class="eq"><span>$$\hat{k} = \left( \frac{1}{m} \sum_{i=1}^{m} \log \frac{r_2(x_i)}{r_1(x_i)} \right)^{-1}$$</span><span class="lab">(1)</span></div>
+
+          <p class="has-sel" id="p-anchor">
+            <span class="seltool" role="toolbar" aria-label="Selection actions">
+              <button class="primary" id="act-explore"><svg class="i" viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>Explore <kbd>E</kbd></button>
+              <button id="act-ask"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.4A8 8 0 1 1 21 12z"/></svg>Ask here <kbd>A</kbd></button>
+              <button id="act-note"><svg class="i" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Note <kbd>N</kbd></button>
+            </span>
+            <button class="marker h1" title="1 thread starts here">1</button>
+            which uses only the two closest points to each sample. <span class="sel" id="anchor-1">We hypothesise that the representation lies on a low-dimensional manifold embedded in $\mathbb{R}^d$, and that the intrinsic dimension $k \ll d$ is stable across the later layers.</span> <span class="sel2" id="sel-2">Figure&nbsp;2 supports the second half of this claim: from layer 18 onward the estimate settles between 22 and 26 while $d$ is unchanged.</span>
+            <span class="seltool two" role="toolbar" aria-label="Selection actions, thread focused">
+              <button class="primary" id="act-ask-2"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.4A8 8 0 1 1 21 12z"/></svg>Ask here <kbd>A</kbd></button>
+              <button id="act-explore-3"><svg class="i" viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>New thread <kbd>E</kbd></button>
+              <button id="act-note-2"><svg class="i" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Note <kbd>N</kbd></button>
+            </span>
+          </p>
+
+          <div class="fig" aria-label="Figure 2">
+            <svg viewBox="0 0 520 150" role="img" aria-label="Schematic of a curved two-dimensional surface embedded in a higher-dimensional space, with sample points on it">
+              <defs><clipPath id="c"><rect x="0" y="0" width="520" height="150"/></clipPath></defs>
+              <g clip-path="url(#c)" fill="none" stroke="#9aa0a6" stroke-width="1">
+                <path d="M30 118 C 120 20, 220 20, 300 80 S 470 140, 500 60"/>
+                <path d="M30 128 C 120 30, 220 30, 300 90 S 470 150, 500 70"/>
+                <path d="M30 138 C 120 40, 220 40, 300 100 S 470 160, 500 80"/>
+                <path d="M30 108 C 120 10, 220 10, 300 70 S 470 130, 500 50"/>
+              </g>
+              <g fill="#1e2227">
+                <circle cx="70" cy="86" r="2.2"/><circle cx="110" cy="52" r="2.2"/><circle cx="150" cy="38" r="2.2"/><circle cx="190" cy="36" r="2.2"/><circle cx="230" cy="46" r="2.2"/><circle cx="270" cy="66" r="2.2"/><circle cx="310" cy="92" r="2.2"/><circle cx="350" cy="112" r="2.2"/><circle cx="390" cy="122" r="2.2"/><circle cx="430" cy="118" r="2.2"/><circle cx="465" cy="98" r="2.2"/><circle cx="488" cy="76" r="2.2"/>
+                <circle cx="95" cy="80" r="2.2"/><circle cx="135" cy="60" r="2.2"/><circle cx="215" cy="58" r="2.2"/><circle cx="335" cy="120" r="2.2"/><circle cx="410" cy="132" r="2.2"/>
+              </g>
+              <g font-family="STIX Two Text, Times New Roman, serif" font-size="11" fill="#5a6068">
+                <text x="34" y="20" font-style="italic">ambient space, dimension d</text>
+                <text x="392" y="142" font-style="italic">surface φ(z), dimension k</text>
+              </g>
+            </svg>
+            <div class="cap"><b>Figure 2.</b> Schematic of the manifold picture. Activations (dots) are sampled near a curved surface of dimension $k$ inside the ambient space of dimension $d$. The surface itself is not linear, so a flat subspace of dimension $k$ does not contain it.</div>
+          </div>
+
+          <p><button class="marker h2" title="1 thread starts here">1</button>A linear baseline is instructive. <mark class="hl h2 anchor">PCA retaining 95% of the variance</mark> overestimates $k$ by a factor of three to six on every model we tested (Table&nbsp;2), which we take as evidence that the manifold is curved rather than a subspace. The gap widens with depth.</p>
+
+          <p><button class="marker h3" title="1 thread starts here">1</button>To discourage the network from expanding the surface during fine-tuning we add a penalty on the local expansion of the map, <mark class="hl h3 anchor">the trace of $J_\theta(x)^{\top} J_\theta(x)$</mark>, where $J_\theta$ is the Jacobian of $h$ with respect to its input:</p>
+
+          <div class="eq"><span>$$\mathcal{L}(\theta) = \mathbb{E}_{x \sim p}\!\left[ \ell\big(f_\theta(x), y\big) \right] + \lambda\, \mathbb{E}_{x \sim p}\!\left[ \operatorname{tr}\!\big( J_\theta(x)^{\top} J_\theta(x) \big) \right]$$</span><span class="lab">(2)</span></div>
+
+          <p>With $\lambda = 10^{-3}$ the estimated dimension of the fine-tuned model moves by less than one across all layers, while accuracy is unchanged to within noise. We return to the choice of $\lambda$ in Section&nbsp;5.</p>
+
+          <div class="foot">4</div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ================= thread panel ================= -->
+    <section class="panel" aria-label="Thread">
+      <!-- ---- root thread view ---- -->
+      <div class="view root">
+        <div class="phead">
+          <div class="crumbs">
+            <button id="crumb-threads">Threads</button><span class="sep">›</span><span class="cur">low-dimensional manifold</span>
+          </div>
+          <div class="pactions">
+            <button class="btn" id="focus-toggle-root" title="Show or hide the paper"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>p.4</button>
+            <button class="btn icon" id="collapse-root" title="Collapse panel (Esc)"><svg class="i" viewBox="0 0 24 24"><path d="m6 17 5-5-5-5"/><path d="m13 17 5-5-5-5"/></svg></button>
+          </div>
+        </div>
+        <details class="outline" open>
+          <summary><svg class="i" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Outline</summary>
+          <div class="tree">
+            <button class="node cur" data-go="thread"><span class="dot h1"></span>low-dimensional manifold<span class="st">p.4</span></button>
+            <button class="node l2 branch-node" data-go="branch"><span class="dot h2"></span>intrinsic dimensionality<span class="st">from answer</span></button>
+          </div>
+        </details>
+        <div class="msgs" id="msgs-root">
+          <div class="msg user">
+            <div class="who"><b>You</b><span>10:14</span></div>
+            <div class="body">
+              <div class="quote h1"><span class="from"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>Intrinsic Dimension… <span class="cite">p.4</span></span>We hypothesise that the representation lies on a low-dimensional manifold embedded in $\mathbb{R}^d$, and that the intrinsic dimension $k \ll d$ is stable across the later layers.</div>
+              <div>What does this mean concretely? Is it a claim about the data or about the network?</div>
+            </div>
+          </div>
+          <div class="msg assistant">
+            <div class="who"><b>Claude Code</b><span>Opus 5 · 10:14</span></div>
+            <div class="body">
+              <p>It is a claim about the <b>activations</b>, not the raw inputs. Take any input $x$ and read off the network's hidden vector $h(x) \in \mathbb{R}^d$, with $d = 4096$ here <span class="cite">p.4</span>. Across the dataset those vectors do not fill the 4096-dimensional space. They sit near a curved surface that can be described with far fewer coordinates:</p>
+              <div class="disp">$$h(x) \approx \phi(z), \qquad z \in \mathbb{R}^k,\; k \ll d$$</div>
+              <p>The number $k$ is the <span class="xspan" id="xspan-1">intrinsic dimensionality<button class="explore-chip" id="act-explore-2"><svg class="i" viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>Explore <kbd>E</kbd></button><span class="bmark b" title="Open the branch"><svg class="i" viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span><span class="hovercard" role="tooltip"><span class="t"><span class="dot h2"></span>intrinsic dimensionality<span class="chip">branch · 1 exchange</span></span>TwoNN estimates $k$ from the ratio of first- and second-neighbour distances. That ratio's distribution depends only on $k$, so no subspace is fitted and curvature does not bias the estimate. It drifts upward for small $m$.<span class="tags"><span class="chip">intrinsic dimension</span><span class="chip">TwoNN</span><span class="chip">nearest neighbours</span></span></span></span> of the representation, and the authors estimate it with the two-nearest-neighbour ratio in Eq.&nbsp;1 rather than by fitting a subspace <span class="cite">p.4</span>.</p>
+              <p>Why not PCA? PCA finds the best <b>flat</b> subspace. A curved surface needs extra flat dimensions to be covered, so PCA reports a $k$ that is too large. That is the three-to-six-fold gap in Table&nbsp;2 <span class="cite">p.4</span>, and it is their main evidence that the manifold is curved rather than linear.</p>
+              <p>Two things to check as you read on:</p>
+              <ul>
+                <li>whether $k$ is measured per layer or once for the whole model (Figure&nbsp;2 suggests per layer <span class="cite">p.4</span>);</li>
+                <li>how sensitive Eq.&nbsp;1 is to the sample size $m$.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="msg user only-working">
+            <div class="who"><b>You</b><span>10:27</span></div>
+            <div class="body">
+              <div class="quote h1"><span class="from"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>Intrinsic Dimension… <span class="cite">p.4</span></span>Figure&nbsp;2 supports the second half of this claim: from layer 18 onward the estimate settles between 22 and 26 while $d$ is unchanged.</div>
+              <div>Does that mean the per-layer estimates in Figure 2 are comparable, or does $m$ change between layers?</div>
+              <span class="ctxchip" title="Digest of the branch was sent with this message"><span class="dot h2"></span>included 1 branch · intrinsic dimensionality</span>
+            </div>
+          </div>
+          <div class="msg assistant only-working">
+            <div class="who"><b>Claude Code</b><span>Opus 5 · working</span><svg class="i spin" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg></div>
+            <div class="body">
+              <div class="act" aria-label="Agent activity">
+                <div class="row"><svg class="i ok" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg><span class="t">Read <code>source.pdf</code> pages 4–5</span><span class="d">1.2s</span></div>
+                <div class="row"><svg class="i ok" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg><span class="t">Searched <code>text.md</code> for "per layer" · 3 matches</span><span class="d">0.3s</span></div>
+                <div class="row"><svg class="i spin" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.2-8.6"/></svg><span class="t">Reading Facco et al. for the sample-size caveat</span><span class="d">waiting</span></div>
+              </div>
+              <div class="perm" id="perm-1" role="group" aria-label="Permission request">
+                <div class="q"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Claude Code wants to read a file outside this collection: <code>~/papers/facco-2017-twonn.pdf</code></span></div>
+                <div class="btns"><button class="btn primary" data-perm="once">Allow once</button><button class="btn" data-perm="always">Always for this collection</button><button class="btn" data-perm="deny">Deny</button></div>
+              </div>
+              <p>They are comparable in the sense the paper intends, with one caveat. The estimator is applied per layer to the same $m = 20{,}000$ samples, so $m$ does not change between layers <span class="cite">p.4</span>. What does change is the geometry: early layers keep more of the input's dimension, so their estimate is higher, and the flat region from layer 18 onward is what the authors mean by "stable"<span class="cursor" aria-hidden="true"></span></p>
+            </div>
+          </div>
+        </div>
+        <div class="composer">
+          <details class="ctx">
+            <summary><span class="dot h2"></span>Includes 1 branch since your last message<svg class="i" viewBox="0 0 24 24" style="width:12px;height:12px"><path d="m6 9 6 6 6-6"/></svg></summary>
+            <div class="body"><b>intrinsic dimensionality</b> · summarised in the background when you came back. TwoNN estimates $k$ from the ratio of first- and second-neighbour distances; the ratio's distribution depends only on $k$, so no subspace is fitted and curvature does not bias it; drifts upward for small $m$. Sent to the agent with your next message, not shown to it before.</div>
+          </details>
+          <div class="cq" id="cq">
+            <div><div class="from"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>Quoting p.4 · anchored to this thread</div>Figure&nbsp;2 supports the second half of this claim: from layer 18 onward the estimate settles between 22 and 26 while $d$ is unchanged.</div>
+            <button class="x" id="cq-remove" title="Remove quote"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          </div>
+          <textarea id="compose-root" rows="2" placeholder="Ask a follow-up, or highlight the paper and choose Ask here"></textarea>
+          <div class="crow">
+            <button class="pick"><svg class="i" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg>Claude Code</button>
+            <button class="pick"><span class="lbl">model</span>Opus 5<svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+            <button class="pick"><span class="lbl">effort</span>high<svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+            <button class="send" id="send-root" title="Send"><svg class="i ico-send" viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg><svg class="i ico-stop" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" stroke="none"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---- branch view ---- -->
+      <div class="view branch">
+        <div class="phead">
+          <div class="crumbs">
+            <button id="crumb-parent">low-dimensional manifold</button><span class="sep">›</span><span class="cur">intrinsic dimensionality</span>
+          </div>
+          <div class="pactions">
+            <button class="btn" id="focus-toggle-branch" title="Show or hide the paper"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>p.4</button>
+            <button class="btn icon" id="collapse-branch" title="Collapse panel"><svg class="i" viewBox="0 0 24 24"><path d="m6 17 5-5-5-5"/><path d="m13 17 5-5-5-5"/></svg></button>
+          </div>
+        </div>
+        <details class="outline" open>
+          <summary><svg class="i" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>Outline</summary>
+          <div class="tree">
+            <button class="node" data-go="thread"><span class="dot h1"></span>low-dimensional manifold<span class="st">p.4</span></button>
+            <button class="node l2 cur branch-node" data-go="branch"><span class="dot h2"></span>intrinsic dimensionality<span class="st">from answer</span></button>
+          </div>
+        </details>
+        <div class="msgs" id="msgs-branch">
+          <details class="handoff">
+            <summary><svg class="i" viewBox="0 0 24 24"><path d="M9 21V9"/><path d="m5 13 4-4 4 4"/><path d="M14 4h6v6"/><path d="M20 4l-8 8"/></svg>Handoff from the parent thread<span class="chip">written by parent session</span></summary>
+            <p>This thread began from p.4 of <i>Intrinsic Dimension of Learned Representations</i>, where the authors claim the representation lies on a low-dimensional manifold. Established so far: the claim is about activations $h(x)\in\mathbb{R}^d$, not inputs; "low-dimensional" is measured by an intrinsic dimension $k$ estimated with Eq.&nbsp;1; PCA overestimates $k$ because the manifold is curved. The reader is now exploring "intrinsic dimensionality", which I introduced as the quantity Eq.&nbsp;1 estimates. They seem comfortable with the manifold picture and unsure how a dimension can be estimated from data without fitting a subspace.</p>
+          </details>
+          <div class="msg user">
+            <div class="who"><b>You</b><span>10:19</span></div>
+            <div class="body">
+              <div class="quote h2"><span class="from"><svg class="i" viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>from <i>low-dimensional manifold</i></span>the intrinsic dimensionality of the representation, and the authors estimate it with the two-nearest-neighbour ratio in Eq.&nbsp;1</div>
+              <div>How is this estimated in practice? Why the ratio of two neighbours and not, say, a local PCA?</div>
+            </div>
+          </div>
+          <div class="msg assistant">
+            <div class="who"><b>Claude Code</b><span>Opus 5 · 10:19</span></div>
+            <div class="body">
+              <p>Eq.&nbsp;1 is the TwoNN estimator <span class="cite">p.4</span>. For each point $x_i$ take the distances to its nearest and second-nearest neighbours, $r_1$ and $r_2$, and form the ratio $\mu_i = r_2 / r_1$.</p>
+              <p>The useful fact is that if points are sampled from a $k$-dimensional surface, $\mu$ follows a Pareto distribution whose shape parameter is exactly $k$, whatever the surface's curvature:</p>
+              <div class="disp">$$P(\mu > t) = t^{-k}, \qquad t \ge 1$$</div>
+              <p>So $k$ can be read off the tail of the observed ratios. The paper uses the closed-form maximum-likelihood version:</p>
+              <div class="disp">$$\hat{k} = \left( \frac{1}{m} \sum_{i=1}^{m} \log \frac{r_2(x_i)}{r_1(x_i)} \right)^{-1}$$</div>
+              <p>Why two neighbours and not a local PCA? Using only the two closest points keeps the estimate local, so curvature at larger scales does not leak in, and no basis is fitted at all. A local PCA needs a neighbourhood size and a variance threshold, and both push the answer upward on a curved surface. That is what lets TwoNN disagree with PCA <span class="cite">p.9</span>.</p>
+              <p>One caveat the paper raises: the estimate drifts upward when $m$ is small, so they report it at $m = 20{,}000$ and check stability by subsampling <span class="cite">p.9</span>.</p>
+            </div>
+          </div>
+        </div>
+        <div class="composer">
+          <textarea id="compose-branch" rows="2" placeholder="Ask a follow-up in this branch"></textarea>
+          <div class="crow">
+            <button class="pick"><svg class="i" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg>Claude Code</button>
+            <button class="pick"><span class="lbl">model</span>Opus 5<svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+            <button class="pick"><span class="lbl">effort</span>high<svg class="i" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+            <button class="send" title="Send"><svg class="i" viewBox="0 0 24 24"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<!-- ================= prototype controls ================= -->
+<div class="pbar" aria-label="Prototype controls">
+  <div class="card">
+    <div class="grp"><span class="lbl">State</span>
+      <div class="seg" id="seg-state">
+        <button data-state="home" aria-pressed="false">Home <kbd>0</kbd></button>
+        <button data-state="reading" aria-pressed="true">Reading <kbd>1</kbd></button>
+        <button data-state="thread" aria-pressed="false">Thread <kbd>2</kbd></button>
+        <button data-state="branch" aria-pressed="false">Branch <kbd>3</kbd></button>
+        <button data-state="again" aria-pressed="false">Ask again <kbd>4</kbd></button>
+        <button data-state="askhere" aria-pressed="false">Ask here <kbd>5</kbd></button>
+        <button data-state="working" aria-pressed="false">Working <kbd>6</kbd></button>
+      </div>
+    </div>
+    <div class="grp"><span class="lbl">Accent</span>
+      <div class="seg" id="seg-accent">
+        <button data-accent="lime" aria-pressed="true">Lime</button>
+        <button data-accent="amber" aria-pressed="false">Amber</button>
+      </div>
+    </div>
+    <div class="grp"><span class="lbl">Panel</span>
+      <div class="seg" id="seg-layout">
+        <button data-layout="side" aria-pressed="true">Side by side</button>
+        <button data-layout="focus" aria-pressed="false">Focus</button>
+      </div>
+    </div>
+    <div class="grp"><span class="lbl">Theme</span>
+      <div class="seg" id="seg-mode">
+        <button data-mode="dark" aria-pressed="true">Dark</button>
+        <button data-mode="light" aria-pressed="false">Light</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [['$','$'], ['\\(','\\)']], displayMath: [['$$','$$'], ['\\[','\\]']] },
+    svg: { fontCache: 'global' },
+    options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code','kbd','svg'] }
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js"></script>
+<script>
+  (function(){
+    const root = document.documentElement;
+    const $ = (s, el=document) => el.querySelector(s);
+    const $$ = (s, el=document) => Array.from(el.querySelectorAll(s));
+    const toastEl = $('#toast');
+    let toastTimer;
+
+    function toast(msg){
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2400);
+    }
+    function press(groupSel, attr, value){
+      $$(groupSel + ' button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset[attr] === value)));
+    }
+    function remember(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+
+    const messages = {
+      home:     'Collections · pick one to read',
+      reading:  'Reading · select text to see the actions',
+      thread:   'New thread anchored to p.4',
+      branch:   'Branch opened · handoff written by the parent session',
+      again:    'Back in the parent · nothing happened; the branch rides along with your next message',
+      askhere:  'Thread focused · a new selection in the paper offers Ask here first',
+      working:  'Claude Code is answering · activity, a permission request, streamed text'
+    };
+
+    function setState(s, quiet){
+      closeMenus();
+      delete root.dataset.quoted;
+      root.dataset.state = s;
+      press('#seg-state', 'state', s);
+      if (s === 'thread' || s === 'again' || s === 'askhere') { const m = $('#msgs-root'); if (m) m.scrollTop = 0; }
+      if (s === 'working') { const m = $('#msgs-root'); if (m) m.scrollTop = m.scrollHeight; const p = $('#perm-1'); if (p) p.hidden = false; }
+      if (s === 'branch') { const m = $('#msgs-branch'); if (m) m.scrollTop = 0; }
+      const ta = $('#compose-root');
+      if (ta) {
+        ta.value = (s === 'again') ? 'Does that mean the per-layer estimates in Figure 2 are comparable, or does m change between layers?' : '';
+        ta.placeholder = (s === 'working') ? 'Claude Code is answering. Type to queue a follow-up.' : 'Ask a follow-up, or highlight the paper and choose Ask here';
+      }
+      if (!quiet) toast(messages[s]);
+      remember('qr-proto-state', s);
+    }
+    function setAccent(a){ root.dataset.accent = a; press('#seg-accent', 'accent', a); remember('qr-proto-accent', a); }
+    function setLayout(l){ root.dataset.layout = l; press('#seg-layout', 'layout', l); remember('qr-proto-layout', l); }
+    function setMode(m){ root.dataset.mode = m; press('#seg-mode', 'mode', m); remember('qr-proto-mode', m); }
+
+    // ---- menus ----
+    const menus = [['#pill-coll','#menu-coll'], ['#pill-src','#menu-src'], ['#pill-threads','#menu-threads']];
+    function closeMenus(){ menus.forEach(([b, m]) => { $(m).hidden = true; $(b).setAttribute('aria-expanded','false'); }); }
+    menus.forEach(([b, m]) => {
+      $(b).addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = $(m).hidden;
+        closeMenus();
+        if (open) { $(m).hidden = false; $(b).setAttribute('aria-expanded','true'); }
+      });
+      $(m).addEventListener('click', e => e.stopPropagation());
+    });
+    document.addEventListener('click', closeMenus);
+
+    $$('#menu-coll .mi').forEach(mi => mi.addEventListener('click', () => {
+      const k = mi.dataset.open;
+      if (k === 'home') setState('home');
+      else if (k === 'stay') { closeMenus(); toast('Already in this collection'); }
+      else { closeMenus(); toast('Opens that collection (not in this prototype)'); }
+    }));
+    $$('#menu-src .mi').forEach((mi, i) => mi.addEventListener('click', () => { closeMenus(); toast(i === 0 ? 'Already reading this source' : 'Switches the reader to that source (not in this prototype)'); }));
+    $$('#menu-threads .mi').forEach(mi => mi.addEventListener('click', () => {
+      if (mi.dataset.thread === '1') setState('thread');
+      else { closeMenus(); toast('Opens that thread beside its page (not in this prototype)'); }
+    }));
+    $('#btn-search').addEventListener('click', (e) => { e.stopPropagation(); closeMenus(); toast('Search across sources and threads (not in this prototype)'); });
+
+    // ---- home ----
+    $('#btn-continue').addEventListener('click', () => setState('reading'));
+    $('#coll-1').addEventListener('click', () => setState('reading'));
+    $$('.coll[data-open="other"]').forEach(c => c.addEventListener('click', () => toast('Opens that collection (not in this prototype)')));
+    $$('.coll[data-open="new"]').forEach(c => c.addEventListener('click', () => toast('New collection · choose a folder or drop PDFs (not in this prototype)')));
+
+    // ---- reader + panel ----
+    $('#act-explore').addEventListener('click', () => setState('thread'));
+    $('#act-ask').addEventListener('click', () => toast('Ask here · quote goes into the focused thread (not in this prototype)'));
+    $('#act-note').addEventListener('click', () => toast('Note · opens a note anchored to the span (not in this prototype)'));
+    $('#act-explore-2').addEventListener('click', () => setState('branch'));
+    // Ask here with a thread focused: the quote lands in that thread's composer, anchored
+    $('#act-ask-2').addEventListener('click', () => {
+      root.dataset.quoted = '1';
+      const ta = $('#compose-root'); if (ta) { ta.placeholder = 'Ask about this passage in low-dimensional manifold'; ta.focus(); }
+      toast('Quote added to the composer · the message will carry the anchor');
+    });
+    $('#act-explore-3').addEventListener('click', () => toast('New thread anchored here, beside the paper (not in this prototype)'));
+    $('#act-note-2').addEventListener('click', () => toast('Note · opens a note anchored to the span (not in this prototype)'));
+    $('#cq-remove').addEventListener('click', () => { delete root.dataset.quoted; toast('Quote removed · the selection is back'); });
+    $$('#perm-1 [data-perm]').forEach(b => b.addEventListener('click', () => {
+      $('#perm-1').hidden = true;
+      const k = b.dataset.perm;
+      toast(k === 'deny' ? 'Denied · Claude Code continues without that file' : k === 'always' ? 'Allowed for this collection · remembered in qrabbit.json' : 'Allowed once');
+    }));
+    $('#send-root').addEventListener('click', (e) => { e.stopPropagation(); if (root.dataset.state === 'working') toast('Stop · cancels the turn, keeps what was streamed'); else toast('Send · streams the reply into this thread'); });
+    $('#crumb-parent').addEventListener('click', () => setState('again'));
+    $('#crumb-threads').addEventListener('click', (e) => { e.stopPropagation(); const m = $('#menu-threads'); closeMenus(); m.hidden = false; $('#pill-threads').setAttribute('aria-expanded','true'); });
+    $('#collapse-root').addEventListener('click', () => setState('reading'));
+    $('#collapse-branch').addEventListener('click', () => setState('reading'));
+    $('#focus-toggle-root').addEventListener('click', () => setLayout(root.dataset.layout === 'focus' ? 'side' : 'focus'));
+    $('#focus-toggle-branch').addEventListener('click', () => setLayout(root.dataset.layout === 'focus' ? 'side' : 'focus'));
+    $$('.node[data-go]').forEach(n => n.addEventListener('click', () => {
+      const target = n.dataset.go;
+      // moving from the branch up to its parent is plain navigation; the parent shows the pending branch context
+      setState(target === 'thread' && root.dataset.state === 'branch' ? 'again' : target);
+    }));
+    $$('.marker.h1').forEach(m => m.addEventListener('click', () => setState('thread')));
+    $$('.marker.h2, .marker.h3').forEach(m => m.addEventListener('click', () => toast('Opens the thread anchored here (not in this prototype)')));
+    $$('.xspan .bmark').forEach(b => b.addEventListener('click', () => setState('branch')));
+    $$('.cite').forEach(c => c.addEventListener('click', () => {
+      const a = $('#anchor-1'); if (a && a.scrollIntoView) a.scrollIntoView({block:'center', behavior:'smooth'});
+      toast('Citation · reader jumps to p.4');
+    }));
+    $$('.pick').forEach(p => p.addEventListener('click', () => toast('Picker · options come from the agent over ACP')));
+    $$('.send:not(#send-root)').forEach(p => p.addEventListener('click', () => toast('Send · streams the reply into this thread')));
+
+    // ---- prototype bar ----
+    $$('#seg-state button').forEach(b => b.addEventListener('click', () => setState(b.dataset.state)));
+    $$('#seg-accent button').forEach(b => b.addEventListener('click', () => setAccent(b.dataset.accent)));
+    $$('#seg-layout button').forEach(b => b.addEventListener('click', () => setLayout(b.dataset.layout)));
+    $$('#seg-mode button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+    // ---- keyboard ----
+    document.addEventListener('keydown', (e) => {
+      if (e.target && (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT')) return;
+      const k = e.key.toLowerCase();
+      const s = root.dataset.state;
+      if (k === '0') setState('home');
+      else if (k === '1') setState('reading');
+      else if (k === '2') setState('thread');
+      else if (k === '3') setState('branch');
+      else if (k === '4') setState('again');
+      else if (k === '5') setState('askhere');
+      else if (k === '6') setState('working');
+      else if (k === 'e') { if (s === 'reading') setState('thread'); else if (s === 'thread' || s === 'again') setState('branch'); }
+      else if (k === 'a') { if (s === 'askhere' && !root.dataset.quoted) $('#act-ask-2').click(); }
+      else if (k === 'escape') {
+        const anyOpen = menus.some(([b, m]) => !$(m).hidden);
+        if (anyOpen) closeMenus();
+        else if (s === 'askhere' && root.dataset.quoted) { delete root.dataset.quoted; }
+        else if (s === 'branch') setState('again');
+        else if (s === 'thread' || s === 'again' || s === 'askhere' || s === 'working') setState('reading');
+        else if (s === 'reading') setState('home');
+      }
+    });
+
+    // ---- initial state (remembered per viewer when storage is available) ----
+    let s = 'reading', a = 'lime', l = 'side', m = 'dark';
+    try {
+      s = localStorage.getItem('qr-proto-state') || s;
+      a = localStorage.getItem('qr-proto-accent') || a;
+      l = localStorage.getItem('qr-proto-layout') || l;
+      m = localStorage.getItem('qr-proto-mode') || m;
+    } catch(e){}
+    if (!messages[s]) s = 'reading';
+    setAccent(a); setLayout(l); setMode(m); setState(s, true);
+  })();
+</script>
