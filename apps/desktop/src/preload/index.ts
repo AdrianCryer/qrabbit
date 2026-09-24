@@ -1,7 +1,13 @@
-import { contextBridge, ipcRenderer } from "electron";
-import type { QrabbitApi } from "@qrabbit/shared";
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import type { AgentEvent, AgentStatus, PermissionRequest, QrabbitApi } from "@qrabbit/shared";
 
 const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> => ipcRenderer.invoke(channel, ...args) as Promise<T>;
+
+function subscribe<Args extends unknown[]>(channel: string, cb: (...args: Args) => void): () => void {
+  const handler = (_e: IpcRendererEvent, ...args: unknown[]) => cb(...(args as Args));
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+}
 
 const api: QrabbitApi = {
   collections: {
@@ -24,6 +30,19 @@ const api: QrabbitApi = {
   },
   reader: {
     setPosition: (collection, sourceId, position) => invoke("reader:setPosition", collection, sourceId, position),
+  },
+  agent: {
+    status: (collection) => invoke("agent:status", collection),
+    connect: (collection) => invoke("agent:connect", collection),
+    session: (collection, threadId) => invoke("agent:session", collection, threadId),
+    prompt: (collection, threadId, body, quote) => invoke("agent:prompt", collection, threadId, body, quote),
+    cancel: (collection, threadId) => invoke("agent:cancel", collection, threadId),
+    setConfig: (collection, threadId, configId, value) => invoke("agent:setConfig", collection, threadId, configId, value),
+    replyPermission: (requestId, optionId) => invoke("agent:replyPermission", requestId, optionId),
+    login: (collection, methodId) => invoke("agent:login", collection, methodId),
+    onEvent: (cb) => subscribe<[string, AgentEvent]>("agent:event", cb),
+    onPermission: (cb) => subscribe<[PermissionRequest]>("agent:permission", cb),
+    onStatus: (cb) => subscribe<[string, AgentStatus]>("agent:status", cb),
   },
   app: {
     version: () => invoke("app:version"),

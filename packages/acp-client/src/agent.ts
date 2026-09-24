@@ -190,7 +190,15 @@ export async function* promptTurn(
         if (u.content.type === "text") yield { type: "thought", text: u.content.text };
         break;
       case "tool_call":
-        yield { type: "tool_call", id: u.toolCallId, title: u.title, kind: u.kind ?? undefined, status: u.status ?? undefined };
+        yield {
+          type: "tool_call",
+          id: u.toolCallId,
+          title: u.title,
+          kind: u.kind ?? undefined,
+          status: u.status ?? undefined,
+          locations: (u.locations ?? []).map((l) => l.path),
+          rawInput: u.rawInput,
+        };
         break;
       case "tool_call_update":
         yield { type: "tool_call_update", id: u.toolCallId, title: u.title ?? undefined, status: u.status ?? undefined };

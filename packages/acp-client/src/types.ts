@@ -53,7 +53,7 @@ export type ClientHandlers = {
 export type TurnEvent =
   | { type: "text"; text: string }
   | { type: "thought"; text: string }
-  | { type: "tool_call"; id: string; title: string; kind?: string; status?: string }
+  | { type: "tool_call"; id: string; title: string; kind?: string; status?: string; locations?: string[]; rawInput?: unknown }
   | { type: "tool_call_update"; id: string; title?: string; status?: string }
   | { type: "config_options"; options: acp.SessionConfigOption[] }
   | { type: "usage"; usage: unknown }

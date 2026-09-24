@@ -1,6 +1,6 @@
 import { app, BrowserWindow, shell } from "electron";
 import { join } from "node:path";
-import { registerIpc } from "./ipc";
+import { disposeAgents, registerIpc } from "./ipc";
 
 const rendererUrl = process.env["ELECTRON_RENDERER_URL"];
 
@@ -46,4 +46,8 @@ void app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", () => {
+  void disposeAgents();
 });

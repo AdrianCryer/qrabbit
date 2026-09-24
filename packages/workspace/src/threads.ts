@@ -11,6 +11,7 @@ type Frontmatter = {
   created: string;
   agent?: string;
   model?: string;
+  effort?: string;
   parent?: { thread: string; message: string };
   anchor?: Anchor;
   anchors?: Record<string, Anchor>;
@@ -65,6 +66,7 @@ export function parseThreadFile(text: string, file: string): Thread {
   };
   if (fm.agent) meta.agent = fm.agent;
   if (fm.model) meta.model = fm.model;
+  if (fm.effort) meta.effort = fm.effort;
   if (fm.parent) meta.parent = fm.parent;
   if (fm.anchor) meta.anchor = fm.anchor;
   if (fm.summary) meta.summary = fm.summary;
@@ -84,6 +86,7 @@ export function serializeThread(t: Thread): string {
   const fm: Frontmatter = { id: t.id, title: t.title, created: t.created, hue: t.hue };
   if (t.agent) fm.agent = t.agent;
   if (t.model) fm.model = t.model;
+  if (t.effort) fm.effort = t.effort;
   if (t.parent) fm.parent = t.parent;
   if (t.anchor) fm.anchor = t.anchor;
   if (t.summary) fm.summary = t.summary;
@@ -193,7 +196,7 @@ export function appendMessage(
   return t;
 }
 
-export function updateThread(collection: string, id: string, patch: Partial<Pick<Thread, "title" | "agent" | "model" | "summary">>): Thread {
+export function updateThread(collection: string, id: string, patch: Partial<Pick<Thread, "title" | "agent" | "model" | "effort" | "summary">>): Thread {
   const t = readThread(collection, id);
   if (!t) throw new Error(`Unknown thread: ${id}`);
   Object.assign(t, patch);

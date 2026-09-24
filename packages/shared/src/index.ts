@@ -92,6 +92,7 @@ export type ThreadMeta = {
   created: string;
   agent?: string;
   model?: string;
+  effort?: string;
   parent?: { thread: string; message: string };
   anchor?: Anchor;
   summary?: ThreadSummary;
@@ -107,6 +108,45 @@ export type Thread = ThreadMeta & { messages: Message[] };
 // ---------- reader ----------
 export type ReaderPosition = { page: number; scrollTop: number; zoom: number };
 export type ReaderState = Record<string, ReaderPosition>;
+
+// ---------- agent ----------
+export type AgentAuth = { kind: string; label: string } | null;
+
+export type AgentStatus = {
+  connected: boolean;
+  agent?: { name: string; version?: string };
+  /** Pushed by the adapter: which account the next turn bills. */
+  auth: AgentAuth;
+  authMethods: Array<{ id: string; name: string; description?: string | null }>;
+  error?: string;
+};
+
+export type ConfigOption = {
+  id: string;
+  name: string;
+  category?: string | null;
+  type: "select" | "boolean";
+  currentValue: string | boolean;
+  options?: Array<{ value: string; name: string; description?: string | null; group?: string }>;
+};
+
+export type AgentEvent =
+  | { type: "text"; text: string }
+  | { type: "thought"; text: string }
+  | { type: "tool_call"; id: string; title: string; kind?: string; status?: string; paths?: string[] }
+  | { type: "tool_call_update"; id: string; title?: string; status?: string }
+  | { type: "config_options"; options: ConfigOption[] }
+  | { type: "stop"; stopReason: string }
+  | { type: "error"; message: string };
+
+export type PermissionRequest = {
+  id: string;
+  threadId: string;
+  title: string;
+  kind?: string;
+  paths: string[];
+  options: Array<{ optionId: string; name: string; kind: string }>;
+};
 
 // ---------- renderer ↔ main contract ----------
 export type CollectionSnapshot = {
@@ -139,6 +179,22 @@ export type QrabbitApi = {
   };
   reader: {
     setPosition(collectionPath: string, sourceId: string, position: ReaderPosition): Promise<void>;
+  };
+  agent: {
+    status(collectionPath: string): Promise<AgentStatus>;
+    connect(collectionPath: string): Promise<AgentStatus>;
+    /** Ensure a session exists for the thread and return its config options. */
+    session(collectionPath: string, threadId: string): Promise<{ configOptions: ConfigOption[] }>;
+    /** Append the user message, run one turn, append the reply; resolves with the updated thread. */
+    prompt(collectionPath: string, threadId: string, body: string, quote?: Anchor): Promise<Thread>;
+    cancel(collectionPath: string, threadId: string): Promise<void>;
+    setConfig(collectionPath: string, threadId: string, configId: string, value: string | boolean): Promise<ConfigOption[]>;
+    replyPermission(requestId: string, optionId: string | null): Promise<void>;
+    /** Run the agent's own terminal sign-in flow in a terminal window. */
+    login(collectionPath: string, methodId: string): Promise<void>;
+    onEvent(cb: (threadId: string, event: AgentEvent) => void): () => void;
+    onPermission(cb: (request: PermissionRequest) => void): () => void;
+    onStatus(cb: (collectionPath: string, status: AgentStatus) => void): () => void;
   };
   app: {
     version(): Promise<string>;

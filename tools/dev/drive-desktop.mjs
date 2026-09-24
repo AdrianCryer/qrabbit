@@ -29,6 +29,15 @@ writeFileSync(
 
 const electronBin = join(appDir, "node_modules", "electron", "dist", process.platform === "win32" ? "electron.exe" : "electron");
 const log = (...a) => console.log(`[drive] ${a.join(" ")}`);
+// The renderer's CSP forbids eval, which Playwright's waitForFunction relies on; poll with evaluate instead.
+async function waitFor(page, fn, { timeout = 30_000, interval = 300, label = "condition" } = {}) {
+  const t0 = Date.now();
+  for (;;) {
+    if (await page.evaluate(fn)) return;
+    if (Date.now() - t0 > timeout) throw new Error(`timeout waiting for ${label}`);
+    await new Promise((r) => setTimeout(r, interval));
+  }
+}
 const shot = async (page, name) => { const f = join(shots, `${name}.png`); await page.screenshot({ path: f }); log("screenshot", f); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -52,7 +61,7 @@ try {
   await page.evaluate((p) => window.__qrabbitStore.getState().openCollection(p), collection);
   await page.waitForSelector(".page canvas", { timeout: 30_000 });
   await page.waitForSelector(".textLayer span", { timeout: 30_000 });
-  await page.waitForFunction(() => !document.querySelector(".rstatus"), null, { timeout: 30_000 });
+  await waitFor(page, () => !document.querySelector(".rstatus"), { label: "text extraction" });
   await sleep(600);
   await shot(page, "02-reader");
   log("text.md written:", existsSync(join(srcDir, "text.md")));
@@ -129,10 +138,37 @@ try {
   await page.waitForSelector(".cq", { timeout: 10_000 });
   await page.fill(".composer textarea", "Why does a flat subspace overestimate k?");
   await page.evaluate(() => document.querySelector(".composer .send").click());
-  await page.waitForSelector(".msg.user .quote", { timeout: 10_000 });
+  await page.waitForSelector(".msg.user .quote", { timeout: 30_000 });
   await sleep(500);
   await shot(page, "05-askhere");
-  for (const f of readdirSync(threadsDir).filter((x) => x.endsWith(".md"))) console.log("----- " + f + " (after Ask here)\n" + readFileSync(join(threadsDir, f), "utf8"));
+
+  // The send goes to the real agent over ACP. Watch the turn stream, then wait for it to finish.
+  const agentStatus = await page.evaluate(() => window.__qrabbitStore.getState().agent);
+  log("agent status:", JSON.stringify(agentStatus));
+  await sleep(4000);
+  await shot(page, "06-working");
+  const midTurn = await page.evaluate(() => {
+    const s = window.__qrabbitStore.getState();
+    const t = s.thread ? s.turns[s.thread.id] : null;
+    return t ? { running: t.running, activity: t.activity.map((a) => `${a.title} [${a.kind ?? "?"}:${a.status ?? "?"}]`), textLen: t.text.length, permission: t.permission?.title ?? null } : null;
+  });
+  log("mid-turn:", JSON.stringify(midTurn));
+  await waitFor(
+    page,
+    () => {
+      const s = window.__qrabbitStore.getState();
+      return !!(s.thread && !s.turns[s.thread.id] && s.thread.messages.some((m) => m.role === "assistant"));
+    },
+    { timeout: 240_000, interval: 1000, label: "the agent's reply" },
+  );
+  await sleep(600);
+  await shot(page, "07-answer");
+  const options = await page.evaluate(() => {
+    const s = window.__qrabbitStore.getState();
+    return (s.thread && s.configOptions[s.thread.id]) ? s.configOptions[s.thread.id].map((o) => `${o.id}=${o.currentValue}`) : null;
+  });
+  log("config options:", JSON.stringify(options));
+  for (const f of readdirSync(threadsDir).filter((x) => x.endsWith(".md"))) console.log("----- " + f + " (after the agent answered)\n" + readFileSync(join(threadsDir, f), "utf8"));
 
   // reader state was saved?
   const rs = join(collection, ".qrabbit", "reader-state.json");

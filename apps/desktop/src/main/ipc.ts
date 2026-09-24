@@ -16,9 +16,34 @@ import {
   setReaderPosition,
 } from "@qrabbit/workspace";
 import { forgetRecent, recentCollections, touchRecent } from "./recent";
+import { AgentHost, type AgentEmitter } from "./agent";
 
 /** Main only touches collections this process opened; the renderer cannot point it at arbitrary folders. */
 const opened = new Set<string>();
+
+// ----- agents: one host per open collection -----
+const hosts = new Map<string, AgentHost>();
+const broadcast = (channel: string, ...args: unknown[]) => {
+  for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(channel, ...args);
+};
+const emitter: AgentEmitter = {
+  event: (threadId, event) => broadcast("agent:event", threadId, event),
+  permission: (request) => broadcast("agent:permission", request),
+  status: (collection, status) => broadcast("agent:status", collection, status),
+};
+function host(collection: string): AgentHost {
+  guard(collection);
+  let h = hosts.get(collection);
+  if (!h) {
+    h = new AgentHost(collection, emitter);
+    hosts.set(collection, h);
+  }
+  return h;
+}
+export async function disposeAgents(): Promise<void> {
+  await Promise.all([...hosts.values()].map((h) => h.dispose()));
+  hosts.clear();
+}
 
 function guard(path: string): string {
   if (!opened.has(path)) throw new Error("Collection is not open");
@@ -99,6 +124,25 @@ export function registerIpc(): void {
   ipcMain.handle("reader:setPosition", (_e, collection: string, sourceId: string, position: ReaderPosition) => {
     setReaderPosition(guard(collection), sourceId, position);
   });
+
+  // ----- agent -----
+  ipcMain.handle("agent:status", (_e, collection: string) => host(collection).status);
+  ipcMain.handle("agent:connect", (_e, collection: string) => host(collection).connect());
+  ipcMain.handle("agent:session", async (_e, collection: string, threadId: string) => {
+    const entry = await host(collection).ensureSession(threadId);
+    return { configOptions: entry.configOptions };
+  });
+  ipcMain.handle("agent:prompt", (_e, collection: string, threadId: string, body: string, quote?: Anchor) =>
+    host(collection).prompt(threadId, body, quote),
+  );
+  ipcMain.handle("agent:cancel", (_e, collection: string, threadId: string) => host(collection).cancel(threadId));
+  ipcMain.handle("agent:setConfig", (_e, collection: string, threadId: string, configId: string, value: string | boolean) =>
+    host(collection).setConfig(threadId, configId, value),
+  );
+  ipcMain.handle("agent:replyPermission", (_e, requestId: string, optionId: string | null) => {
+    for (const h of hosts.values()) h.replyPermission(requestId, optionId);
+  });
+  ipcMain.handle("agent:login", (_e, collection: string, methodId: string) => host(collection).login(methodId));
 
   // ----- app -----
   ipcMain.handle("app:version", () => app.getVersion());

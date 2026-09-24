@@ -1,6 +1,11 @@
 "use strict";
 const electron = require("electron");
 const invoke = (channel, ...args) => electron.ipcRenderer.invoke(channel, ...args);
+function subscribe(channel, cb) {
+  const handler = (_e, ...args) => cb(...args);
+  electron.ipcRenderer.on(channel, handler);
+  return () => electron.ipcRenderer.removeListener(channel, handler);
+}
 const api = {
   collections: {
     recent: () => invoke("collections:recent"),
@@ -22,6 +27,19 @@ const api = {
   },
   reader: {
     setPosition: (collection, sourceId, position) => invoke("reader:setPosition", collection, sourceId, position)
+  },
+  agent: {
+    status: (collection) => invoke("agent:status", collection),
+    connect: (collection) => invoke("agent:connect", collection),
+    session: (collection, threadId) => invoke("agent:session", collection, threadId),
+    prompt: (collection, threadId, body, quote) => invoke("agent:prompt", collection, threadId, body, quote),
+    cancel: (collection, threadId) => invoke("agent:cancel", collection, threadId),
+    setConfig: (collection, threadId, configId, value) => invoke("agent:setConfig", collection, threadId, configId, value),
+    replyPermission: (requestId, optionId) => invoke("agent:replyPermission", requestId, optionId),
+    login: (collection, methodId) => invoke("agent:login", collection, methodId),
+    onEvent: (cb) => subscribe("agent:event", cb),
+    onPermission: (cb) => subscribe("agent:permission", cb),
+    onStatus: (cb) => subscribe("agent:status", cb)
   },
   app: {
     version: () => invoke("app:version"),

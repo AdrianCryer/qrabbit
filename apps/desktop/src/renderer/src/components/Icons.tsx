@@ -14,6 +14,11 @@ const paths: Record<string, string> = {
   home: "M3 11l9-8 9 8M5 10v10h14V10",
   terminal: "m4 17 6-6-6-6M12 19h8",
   check: "m5 12 5 5L20 7",
+  spin: "M21 12a9 9 0 1 1-6.2-8.6",
+  stop: "M7 7h10v10H7z",
+  lock: "M3 11h18v10H3zM7 11V7a5 5 0 0 1 10 0v4",
+  key: "M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L19 3.4M15 7l2 2",
+  refresh: "M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6",
 };
 
 export function Icon({ name, size }: { name: keyof typeof paths | string; size?: number }) {

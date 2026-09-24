@@ -42,3 +42,7 @@ my-research/
 ```
 
 Files are the truth. Open a collection in Obsidian or track it with git whenever you like.
+
+## The agent
+
+The app speaks the Agent Client Protocol. Opening a collection starts one agent process (Claude Code through its ACP adapter) with the collection as its working directory; each thread gets its own session. Sign-in happens in the agent's own terminal flow from the header menu, and the app never sees a credential. Reads inside the collection and writes under `notes/` are allowed automatically; anything else asks you in the thread panel.

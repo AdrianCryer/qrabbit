@@ -12,6 +12,9 @@
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit"
   },
   "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "0.81.2",
+    "@agentclientprotocol/sdk": "1.5.0",
+    "@qrabbit/acp-client": "workspace:*",
     "@qrabbit/shared": "workspace:*",
     "@qrabbit/workspace": "workspace:*"
   },
@@ -22,9 +25,14 @@
     "@vitejs/plugin-react": "^5.0.0",
     "electron": "^44.4.0",
     "electron-vite": "^5.0.0",
+    "katex": "^0.18.9",
     "pdfjs-dist": "^6.3.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "typescript": "^5.8.0",
     "vite": "^7.0.0",
     "zustand": "^5.0.0"

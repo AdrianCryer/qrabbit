@@ -23,8 +23,18 @@ export function Header() {
   const threadId = useStore((s) => s.thread?.id ?? null);
   const { goHome, openCollection, openCollectionDialog, selectSource, importSources, openThread } = useStore.getState();
 
+  const agent = useStore((s) => s.agent);
+  const { connectAgent, loginAgent } = useStore.getState();
   const source = collection?.sources.find((s) => s.id === sourceId) ?? null;
   const threads = collection?.threads ?? [];
+  const signedIn = !!agent?.connected && !!agent.auth && agent.auth.kind !== "none";
+  const agentLabel = !agent ? "Agent" : agent.error ? "Agent failed" : !agent.connected ? "Connecting…" : agent.auth?.label ?? agent.agent?.name ?? "Connected";
+  const loginMethods = agent?.authMethods.length
+    ? agent.authMethods
+    : [
+        { id: "claude-ai-login", name: "Claude subscription", description: "Sign in with your Claude plan" },
+        { id: "console-login", name: "Anthropic Console", description: "API usage billing" },
+      ];
 
   return (
     <header className="hdr">
@@ -162,10 +172,45 @@ export function Header() {
                 </>
               )}
             </Dropdown>
-            <div className="agent" title="Agent wiring comes in step 3">
-              <span className="dot" />
-              <span>No agent yet</span>
-            </div>
+            <Dropdown
+              align="right"
+              title={agent?.error ?? "Agent status and sign-in"}
+              label={
+                <span className="agent">
+                  <span className={`dot ${signedIn ? "on" : ""}`} />
+                  <span>{agentLabel}</span>
+                </span>
+              }
+            >
+              {(close) => (
+                <>
+                  <div className="mh">{agent?.agent?.name ?? "Claude Code"}{agent?.agent?.version ? ` · ${agent.agent.version}` : ""}</div>
+                  <div className="mempty">
+                    {agent?.error
+                      ? agent.error
+                      : agent?.connected
+                        ? agent.auth
+                          ? `Turns bill to ${agent.auth.label}.`
+                          : "Connected. The account is reported when the first message is sent."
+                        : "Not connected."}
+                  </div>
+                  <div className="msep" />
+                  {loginMethods.map((m) => (
+                    <button key={m.id} className="mi" role="menuitem" onClick={() => { close(); void loginAgent(m.id); }}>
+                      <Icon name="key" />
+                      <span className="txt">
+                        <span className="t">Sign in · {m.name}</span>
+                        {m.description && <span className="m">{m.description}</span>}
+                      </span>
+                    </button>
+                  ))}
+                  <button className="mi" role="menuitem" onClick={() => { close(); void connectAgent(); }}>
+                    <Icon name="refresh" />
+                    <span className="txt"><span className="t">{agent?.connected ? "Reconnect" : "Connect"}</span></span>
+                  </button>
+                </>
+              )}
+            </Dropdown>
           </div>
         </>
       )}

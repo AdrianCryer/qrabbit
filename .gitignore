@@ -7,3 +7,6 @@ Thumbs.db
 .env.*
 # spike output
 tools/spike-acp/out/
+
+# electron-vite build output
+apps/desktop/out/
