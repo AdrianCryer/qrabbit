@@ -1,0 +1,21 @@
+{
+  "name": "@qrabbit/spike-acp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Step 0 spike: drive the Claude Code ACP adapter end to end from a script.",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "0.81.2",
+    "@agentclientprotocol/sdk": "1.5.0",
+    "@qrabbit/acp-client": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}

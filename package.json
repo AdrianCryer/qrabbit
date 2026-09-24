@@ -1,0 +1,13 @@
+{
+  "name": "qrabbit",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Read difficult material with AI: highlight, explore in branches, keep what you learned.",
+  "scripts": {
+    "build": "pnpm -r --filter './packages/**' run build",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "spike:acp": "pnpm --filter @qrabbit/spike-acp run start"
+  },
+  "engines": { "node": ">=22" }
+}

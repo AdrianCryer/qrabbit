@@ -158,6 +158,8 @@ This is the same integration model Zed and JetBrains use. It gives us, generical
 
 Install and launch metadata comes from the ACP registry JSON (`https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json`) rather than being hardcoded.
 
+Verified by the spike (2026-09-25): the Claude adapter reuses an existing Claude Code sign-in, pushes the account it will bill on `_auth/status_update`, and exposes three session config options: `mode`, `model` (`default`, `opus[1m]`, `claude-fable-5-1[1m]`, `sonnet`, `haiku`) and `effort` (category `thought_level`, default `xhigh`). The model and effort pickers in §4.3 render those directly.
+
 ### 5.3 Anthropic policy — read before building
 
 From Claude Code's *Legal and compliance* page and the *Use the Claude Agent SDK with your Claude plan* support article (both checked 2026-09-25):
@@ -235,6 +237,8 @@ Handled in our `session/request_permission` handler:
 - Write under `notes/` and `scratch/`: allow.
 - Write anywhere else in the workspace (including `threads/` and `sources/`): deny with an explanation. The app owns those files.
 - Anything outside the workspace, and shell commands: ask (MVP), with a workspace setting to deny outright.
+
+Observed in the spike: asked to append a note, Claude Code first reached for a shell command (`kind: "execute"`), was refused, and then used its Write tool (`kind: "edit"`, with file locations), which the policy allowed. Tool calls arrive as `tool_call` followed by `tool_call_update` with the same id, and paths come from `locations` or `rawInput`.
 
 ### 5.7 `AGENTS.md` (also copied as `CLAUDE.md`)
 
@@ -440,7 +444,7 @@ Rules: pnpm workspaces; TypeScript project references; one Vitest config per pac
 
 ## 9. Build order
 
-0. **Spike (1–2 days, before anything else):** a Node script that spawns `claude-agent-acp`, completes terminal auth, lists model options, streams a reply to a prompt containing an embedded text resource, and handles one permission request. This de-risks the whole subscription question. Repeat for `codex-acp` if quick.
+0. **Spike — done 2026-09-25.** `tools/spike-acp` spawns `claude-agent-acp`, reuses the existing Claude Code sign-in (Max plan, reported by the adapter's auth push), lists the model and effort options, changes one, streams a reply to a prompt with an embedded passage and a resource link, and handles two permission requests under the §5.6 policy (a shell command refused, a write under `notes/` allowed). About 20 s per turn at low effort. Findings in `tools/spike-acp/README.md`; the reusable parts live in `packages/acp-client`. Repeat for `codex-acp` when the second agent is chosen.
 1. **Collections + reader:** home screen, folder open/create, header switchers, PDF import and extraction, PDF.js viewer, selection → anchor → highlight rendering, reading position.
 2. **Threads:** file format, parser/writer, index, threads popover and margin markers, thread panel, *Ask here* and *Explore* creating threads and branches, breadcrumb and outline navigation, return-to-anchor.
 3. **Agent wiring:** ACP client in the main process, session per thread, context assembly, streaming into the panel, tool-call and permission UI, model picker, `AGENTS.md`.

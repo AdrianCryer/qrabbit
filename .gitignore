@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+.env
+.env.*
+# spike output
+tools/spike-acp/out/
