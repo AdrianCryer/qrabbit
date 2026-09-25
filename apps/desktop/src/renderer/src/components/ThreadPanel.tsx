@@ -360,7 +360,7 @@ export function ThreadPanel() {
 
       <div className="msgs" ref={msgsRef} onMouseUp={onMsgsMouseUp} onScroll={() => setMsgSel(null)}>
         {thread.parent && (
-          <details className="handoff" open={thread.messages.length === 0}>
+          <details className="handoff">
             <summary>
               <Icon name="branch" />
               Handoff from {parent?.title ?? "the parent thread"}
