@@ -27,6 +27,7 @@ const api: QrabbitApi = {
     read: (collection, id) => invoke("threads:read", collection, id),
     create: (collection, input) => invoke("threads:create", collection, input),
     appendMessage: (collection, id, message) => invoke("threads:appendMessage", collection, id, message),
+    delete: (collection, id) => invoke("threads:delete", collection, id),
   },
   reader: {
     setPosition: (collection, sourceId, position) => invoke("reader:setPosition", collection, sourceId, position),

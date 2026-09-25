@@ -124,12 +124,26 @@ svg.i { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-widt
 .coll.new .ico { background: none; }
 .hint { color: var(--text-3); font-size: 12px; display: flex; gap: 8px; align-items: center; }
 
+/* ---------- scrollbars ---------- */
+* { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--text-3) 70%, transparent); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
 /* ---------- reading layout ---------- */
-.main { display: grid; grid-template-columns: minmax(0, 1fr) 0; min-height: 0; height: 100%; }
-.app[data-panel="true"] .main { grid-template-columns: minmax(0, 1fr) 440px; }
-.app[data-panel="true"][data-focus="true"] .main { grid-template-columns: 0 minmax(0, 1fr); }
-@media (max-width: 1100px) { .app[data-panel="true"] .main { grid-template-columns: minmax(0, 1fr) 400px; } }
-@media (max-width: 760px) { .app[data-panel="true"] .main { grid-template-columns: 0 minmax(0, 1fr); } }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 0 0; min-height: 0; height: 100%; }
+.app[data-panel="true"] .main { grid-template-columns: minmax(0, 1fr) 6px minmax(0, var(--panel-w, 440px)); }
+.app[data-panel="true"][data-focus="true"] .main { grid-template-columns: 0 0 minmax(0, 1fr); }
+@media (max-width: 760px) { .app[data-panel="true"] .main { grid-template-columns: 0 0 minmax(0, 1fr); } }
+.divider { cursor: col-resize; background: transparent; position: relative; z-index: 3; }
+/* Keep the divider in the grid so the panel stays in the third column; just make it inert. */
+.app[data-focus="true"] .divider { visibility: hidden; pointer-events: none; }
+.divider::after { content: ""; position: absolute; inset: 0 2px; border-radius: 2px; background: transparent; transition: background 0.15s; }
+.divider:hover::after, body.resizing .divider::after { background: var(--accent); }
+body.resizing { cursor: col-resize; user-select: none; }
+body.resizing .rscroll, body.resizing .msgs { pointer-events: none; }
 
 /* ---------- reader ---------- */
 .reader { position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
@@ -178,16 +192,21 @@ svg.i { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-widt
 .seltool button.primary { background: var(--accent); color: var(--accent-fg); }
 .seltool button.primary kbd { background: rgba(0, 0, 0, 0.18); border-color: transparent; color: inherit; }
 .rstatus { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 5px 10px; border-radius: var(--r-pill); background: var(--glass); border: 1px solid var(--line-strong); color: var(--text-2); font-size: 11.5px; font-family: var(--font-mono); z-index: 5; pointer-events: none; }
+.zoom { position: absolute; right: 22px; bottom: 14px; display: flex; align-items: center; padding: 2px; border-radius: var(--r-pill); background: var(--glass); backdrop-filter: blur(12px); border: 1px solid var(--line-strong); box-shadow: var(--shadow-sm); z-index: 5; }
+.zoom button { width: 28px; height: 26px; border-radius: var(--r-pill); color: var(--text-2); font-size: 15px; display: grid; place-items: center; }
+.zoom button.pct { width: auto; padding: 0 8px; font-size: 11.5px; font-family: var(--font-mono); }
+.zoom button:hover { background: var(--raised-2); color: var(--text); }
 
 /* ---------- thread panel ---------- */
-.panel { border-left: 1px solid var(--line); display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; min-height: 0; min-width: 0; background: var(--bg); }
-.phead { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px 8px 12px; border-bottom: 1px solid var(--line); }
-.crumbs { display: flex; align-items: center; gap: 4px; min-width: 0; font-size: 12.5px; color: var(--text-3); }
-.crumbs .cur { color: var(--text); font-weight: 500; padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The single column is explicit with a zero minimum, so no child can widen the panel past its track. */
+.panel { border-left: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; min-height: 0; min-width: 0; overflow: hidden; background: var(--bg); }
+.phead { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px 8px 12px; border-bottom: 1px solid var(--line); min-width: 0; }
+.crumbs { display: flex; align-items: center; gap: 4px; flex: 1 1 auto; min-width: 0; font-size: 12.5px; color: var(--text-3); }
+.crumbs .cur { color: var(--text); font-weight: 500; padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto; }
 .crumbs .sep { color: var(--text-3); }
 .pactions { display: flex; align-items: center; gap: 4px; flex: none; }
 .crumbs .crumb { display: contents; }
-.crumbs button { color: var(--text-2); padding: 3px 6px; border-radius: 6px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumbs button { color: var(--text-2); padding: 3px 6px; border-radius: 6px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto; }
 .crumbs button:hover { background: var(--raised-2); color: var(--text); }
 .outline { padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--sunken); display: grid; gap: 1px; max-height: 160px; overflow: auto; }
 .node { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; font-size: 12.5px; color: var(--text-2); width: 100%; text-align: left; min-width: 0; }
@@ -196,7 +215,11 @@ svg.i { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-widt
 .node .dot { width: 7px; height: 7px; }
 .node .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .node .st { color: var(--text-3); font-size: 11px; font-family: var(--font-mono); flex: none; }
-.msgs { position: relative; overflow: auto; min-height: 0; padding: 16px 16px 8px; display: flex; flex-direction: column; gap: 18px; user-select: text; }
+.msgs { position: relative; overflow-y: auto; overflow-x: hidden; min-height: 0; padding: 16px 16px 8px; display: flex; flex-direction: column; gap: 18px; user-select: text; }
+/* Nothing in a message may widen the panel: long words, URLs, code and maths wrap or scroll inside. */
+.msg, .msg .body, .quote, .cq, .handoff, .pnote { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.msg .body > * { min-width: 0; max-width: 100%; }
+.cq > div { min-width: 0; }
 .msgs .seltool.msg-tool { transform: translate(-4px, calc(-100% - 8px)); }
 .mdwrap { position: relative; }
 .bmark { position: absolute; width: 16px; height: 16px; border-radius: 50%; background: var(--hl); color: #1a1a1a; display: grid; place-items: center; box-shadow: var(--shadow-sm); z-index: 2; }
@@ -231,8 +254,10 @@ svg.i { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-widt
 .composer textarea::placeholder { color: var(--text-3); }
 .cq { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 7px 8px 7px 10px; border-left: 3px solid var(--hl); border-radius: 6px; background: var(--sunken); font-family: var(--font-paper); font-size: 13px; line-height: 1.45; color: var(--text); }
 .cq .from { display: flex; align-items: center; gap: 6px; font-family: var(--font-ui); font-size: 11px; color: var(--text-3); margin-bottom: 3px; }
-.cq .x { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 6px; color: var(--text-3); }
-.cq .x:hover { background: var(--raised-2); color: var(--text); }
+.cq .x { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border-radius: 7px; color: var(--text-2); border: 1px solid var(--line); background: var(--raised); }
+.cq .x:hover { background: var(--raised-2); color: var(--text); border-color: var(--line-strong); }
+.composer { min-width: 0; }
+.composer textarea { overflow-y: auto; }
 .crow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .crow .send { margin-left: auto; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; }
 .crow .send:hover { filter: brightness(1.05); }
@@ -266,7 +291,7 @@ svg.i { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-widt
 .crow .pop .menu { min-width: 220px; }
 
 /* ---------- markdown ---------- */
-.md { display: grid; gap: 10px; font-size: 13.5px; line-height: 1.6; max-width: 62ch; user-select: text; }
+.md { display: grid; gap: 10px; font-size: 13.5px; line-height: 1.6; max-width: 62ch; min-width: 0; user-select: text; overflow-wrap: anywhere; }
 .md > * { margin: 0; }
 .md p { white-space: normal; }
 .md h1, .md h2, .md h3, .md h4 { font-size: 14px; font-weight: 600; margin-top: 4px; }
@@ -285,4 +310,11 @@ svg.i { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-widt
 
 /* ---------- toasts ---------- */
 .toasts { position: fixed; right: 16px; bottom: 16px; z-index: 50; display: grid; gap: 6px; justify-items: end; pointer-events: none; }
-.toast { padding: 8px 12px; border-radius: var(--r-sm); background: var(--glass); backdrop-filter: blur(14px); border: 1px solid var(--line-strong); box-shadow: var(--shadow); font-size: 12.5px; max-width: min(92vw, 460px); }
+.toast { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--r-sm); background: var(--glass); backdrop-filter: blur(14px); border: 1px solid var(--line-strong); box-shadow: var(--shadow); font-size: 12.5px; max-width: min(92vw, 460px); }
+.toast.actionable { pointer-events: auto; }
+.toast .taction { padding: 3px 9px; border-radius: var(--r-pill); background: var(--accent); color: var(--accent-fg); font-weight: 600; font-size: 12px; flex: none; }
+.toast .taction:hover { filter: brightness(1.05); }
+.menu .mi.danger { color: #ff8a8a; }
+.menu .mi.danger svg.i { color: #ff8a8a; }
+.menu .confirm { display: grid; gap: 6px; padding: 6px 9px 4px; font-size: 12.5px; color: var(--text-2); }
+.menu .confirm .btns { display: flex; gap: 6px; }

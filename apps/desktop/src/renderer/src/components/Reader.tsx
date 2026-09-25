@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Anchor, ReaderPosition, SourceInfo, ThreadMeta } from "@qrabbit/shared";
 import { api } from "../lib/api";
 import { ensureWorker, pdfjs, type PDFDocumentProxy, type TextItem } from "../pdf/pdfjs";
@@ -40,6 +40,9 @@ export function Reader(props: Props) {
   const [status, setStatus] = useState<string | null>("Opening…");
   const [sel, setSel] = useState<{ anchor: Anchor; left: number; top: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(() => props.position?.zoom ?? 1);
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
   const restored = useRef(false);
 
   const highlights = useMemo<Highlight[]>(
@@ -131,12 +134,69 @@ export function Reader(props: Props) {
     return () => ro.disconnect();
   }, []);
 
-  const scale = useMemo(() => {
+  const fitScale = useMemo(() => {
     const first = sizes[0];
     if (!first || width <= 0) return 1;
     // Leave room on both sides so margin markers sit beside the page instead of overflowing it.
     return Math.min(2.5, Math.max(0.4, Math.min(width - 2 * MARGIN_GUTTER, MAX_PAGE_WIDTH) / first.w));
   }, [sizes, width]);
+  const scale = fitScale * zoom;
+
+  // ----- zoom: keep the same document point under the top of the viewport -----
+  const prevScale = useRef(scale);
+  useLayoutEffect(() => {
+    const root = scrollRef.current;
+    if (root && prevScale.current > 0 && prevScale.current !== scale) root.scrollTop = root.scrollTop * (scale / prevScale.current);
+    prevScale.current = scale;
+  }, [scale]);
+  const zoomBy = useCallback((factor: number) => setZoom((z) => Math.min(3, Math.max(0.5, Math.round(z * factor * 100) / 100))), []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT")) return;
+      if (e.key === "=" || e.key === "+") { e.preventDefault(); zoomBy(1.1); }
+      else if (e.key === "-") { e.preventDefault(); zoomBy(1 / 1.1); }
+      else if (e.key === "0") { e.preventDefault(); setZoom(1); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [zoomBy]);
+  useEffect(() => {
+    const root = scrollRef.current;
+    if (!root) return;
+    // React registers wheel listeners as passive, so a native one is needed to swallow Ctrl+wheel.
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      zoomBy(e.deltaY < 0 ? 1.1 : 1 / 1.1);
+    };
+    root.addEventListener("wheel", onWheel, { passive: false });
+    return () => root.removeEventListener("wheel", onWheel);
+  }, [zoomBy]);
+
+  // ----- selection guard (what PDF.js's viewer does): while a selection touches a text layer, the
+  // layer's end-of-content block covers the page so dragging over blank paper cannot extend the
+  // selection to everything after it -----
+  useEffect(() => {
+    const onChange = () => {
+      const s = window.getSelection();
+      const layers = Array.from(scrollRef.current?.querySelectorAll<HTMLElement>(".textLayer") ?? []);
+      if (!s || s.rangeCount === 0 || s.isCollapsed) {
+        for (const l of layers) l.classList.remove("selecting");
+        setSel(null);
+        return;
+      }
+      const active = new Set<HTMLElement>();
+      for (let i = 0; i < s.rangeCount; i++) {
+        const r = s.getRangeAt(i);
+        for (const l of layers) if (!active.has(l) && r.intersectsNode(l)) active.add(l);
+      }
+      for (const l of layers) l.classList.toggle("selecting", active.has(l));
+    };
+    document.addEventListener("selectionchange", onChange);
+    return () => document.removeEventListener("selectionchange", onChange);
+  }, []);
 
   // ----- lazy rendering -----
   useEffect(() => {
@@ -186,9 +246,16 @@ export function Reader(props: Props) {
         const el = pageRefs.current[i];
         if (el && el.offsetTop + el.offsetHeight > root.scrollTop + 40) { page = i + 1; break; }
       }
-      onPosition({ page, scrollTop: root.scrollTop, zoom: 1 });
+      onPosition({ page, scrollTop: root.scrollTop, zoom: zoomRef.current });
     }, 300);
   };
+  useEffect(() => {
+    // Remember the zoom level with the position.
+    const root = scrollRef.current;
+    if (!root || !restored.current) return;
+    onPosition({ page: props.position?.page ?? 1, scrollTop: root.scrollTop, zoom });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom]);
 
   // ----- selection → anchor -----
   const onMouseUp = () => {
@@ -203,12 +270,6 @@ export function Reader(props: Props) {
       setSel({ anchor: res.anchor, left: pageEl.offsetLeft + first.x, top: pageEl.offsetTop + first.y });
     }, 0);
   };
-  useEffect(() => {
-    const onChange = () => { const s = window.getSelection(); if (!s || s.isCollapsed) setSel(null); };
-    document.addEventListener("selectionchange", onChange);
-    return () => document.removeEventListener("selectionchange", onChange);
-  }, []);
-
   const registerContext = useCallback((ctx: PageContext) => { contexts.current.set(ctx.page, ctx); }, []);
 
   if (error) {
@@ -257,6 +318,13 @@ export function Reader(props: Props) {
         )}
       </div>
       {status && <div className="rstatus">{status}</div>}
+      {sizes.length > 0 && (
+        <div className="zoom" role="group" aria-label="Zoom">
+          <button onClick={() => zoomBy(1 / 1.1)} title="Zoom out (Ctrl −)">−</button>
+          <button className="pct" onClick={() => setZoom(1)} title="Fit to width (Ctrl 0)">{Math.round(zoom * 100)}%</button>
+          <button onClick={() => zoomBy(1.1)} title="Zoom in (Ctrl +)">+</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -323,6 +391,10 @@ const PageView = forwardRef<HTMLDivElement, PageProps>(function PageView(
       const layer = new pdfjs.TextLayer({ textContentSource: tc, container: tl, viewport });
       await layer.render();
       if (cancelled) return;
+      // Selection guard, see the selectionchange handler in Reader.
+      const end = document.createElement("div");
+      end.className = "endOfContent";
+      tl.append(end);
       if (import.meta.env.DEV && layerText(tl) !== pageText) console.warn(`[reader] text layer differs from extracted text on page ${n}`);
       onContext({ page: n, pageEl: pageRef.current!, textLayer: tl, pageText, pageStart });
       setRenderedAt(scale);

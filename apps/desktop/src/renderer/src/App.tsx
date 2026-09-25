@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "./state/store";
 import { api } from "./lib/api";
 import { Header } from "./components/Header";
@@ -71,12 +71,54 @@ function ReaderPane() {
   );
 }
 
+const PANEL_KEY = "qrabbit:panel-width";
+const PANEL_MIN = 320;
+function readPanelWidth(): number {
+  try {
+    const v = Number(localStorage.getItem(PANEL_KEY));
+    if (v >= PANEL_MIN) return v;
+  } catch {
+    /* ignore */
+  }
+  return 440;
+}
+
+/** Drag handle between the paper and the thread panel; the width is remembered per machine. */
+function Divider({ onWidth }: { onWidth(w: number): void }) {
+  const dragging = useRef(false);
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    dragging.current = true;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    document.body.classList.add("resizing");
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragging.current) return;
+    const max = Math.max(PANEL_MIN, Math.min(960, Math.floor(window.innerWidth * 0.7)));
+    onWidth(Math.min(max, Math.max(PANEL_MIN, Math.round(window.innerWidth - e.clientX - 16))));
+  };
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    dragging.current = false;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    document.body.classList.remove("resizing");
+  };
+  return <div className="divider" role="separator" aria-orientation="vertical" title="Drag to resize" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} />;
+}
+
 export function App() {
   const platform = useStore((s) => s.platform);
   const screen = useStore((s) => s.screen);
   const panelOpen = useStore((s) => s.panelOpen);
   const focus = useStore((s) => s.focus);
   const { init, closePanel } = useStore.getState();
+  const [panelWidth, setPanelWidth] = useState(readPanelWidth);
+  const onWidth = useCallback((w: number) => {
+    setPanelWidth(w);
+    try {
+      localStorage.setItem(PANEL_KEY, String(w));
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     void init();
@@ -94,13 +136,14 @@ export function App() {
   }, [closePanel]);
 
   return (
-    <div className="app" data-platform={platform} data-panel={panelOpen} data-focus={focus}>
+    <div className="app" data-platform={platform} data-panel={panelOpen} data-focus={focus} style={{ "--panel-w": `${panelWidth}px` } as React.CSSProperties}>
       <Header />
       {screen === "home" ? (
         <Home />
       ) : (
         <main className="main">
           <ReaderPane />
+          {panelOpen && <Divider onWidth={onWidth} />}
           {panelOpen && <ThreadPanel />}
         </main>
       )}

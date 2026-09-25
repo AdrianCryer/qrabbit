@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import YAML from "yaml";
 import { newId, slugify, type Anchor, type Message, type Thread, type ThreadMeta } from "@qrabbit/shared";
@@ -197,6 +197,24 @@ export function appendMessage(
   t.messageCount = t.messages.length;
   writeThread(collection, t);
   return t;
+}
+
+/** Delete a thread and every branch under it. Returns the ids removed, deepest first. */
+export function deleteThread(collection: string, id: string): string[] {
+  const all = listThreads(collection);
+  const root = all.find((t) => t.id === id);
+  if (!root) return [];
+  const deleted: string[] = [];
+  const visit = (meta: ThreadMeta) => {
+    for (const child of all.filter((t) => t.parent?.thread === meta.id)) visit(child);
+    const file = join(collection, meta.file);
+    if (existsSync(file)) rmSync(file);
+    const dir = file.replace(/\.md$/, "");
+    if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
+    deleted.push(meta.id);
+  };
+  visit(root);
+  return deleted;
 }
 
 export function updateThread(collection: string, id: string, patch: Partial<Pick<Thread, "title" | "agent" | "model" | "effort" | "handoff" | "summary">>): Thread {

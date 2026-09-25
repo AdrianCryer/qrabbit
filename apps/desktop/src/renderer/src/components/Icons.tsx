@@ -19,6 +19,8 @@ const paths: Record<string, string> = {
   lock: "M3 11h18v10H3zM7 11V7a5 5 0 0 1 10 0v4",
   key: "M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L19 3.4M15 7l2 2",
   refresh: "M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6",
+  more: "M5 12h.01M12 12h.01M19 12h.01",
+  trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
 };
 
 export function Icon({ name, size }: { name: keyof typeof paths | string; size?: number }) {

@@ -14,8 +14,13 @@ const appDir = join(repo, "apps", "desktop");
 const workDir = resolve(process.argv[2] ?? join(here, "out"));
 const samplePdf = resolve(process.argv[3] ?? join(workDir, "sample.pdf"));
 const shots = join(workDir, "shots");
-const collection = join(workDir, "collection-test");
+// A fresh collection per run: nothing has to be deleted, so a straggling process cannot block a run.
+const runId = new Date().toISOString().replace(/[:.]/g, "-");
+const collection = join(workDir, "runs", runId, "collection-test");
+// A private user-data folder: test collections must not appear in the developer's own Recent list.
+const userData = join(workDir, "user-data");
 mkdirSync(shots, { recursive: true });
+mkdirSync(userData, { recursive: true });
 
 // ----- a collection with one source, the way the app would have written it -----
 const srcDir = join(collection, "sources", "intrinsic-dimension");
@@ -48,7 +53,8 @@ const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 let app;
 try {
-  app = await electron.launch({ executablePath: electronBin, args: [appDir], timeout: 60_000, env });
+  app = await electron.launch({ executablePath: electronBin, args: [appDir, `--user-data-dir=${userData}`], timeout: 60_000, env });
+  log("collection:", collection);
   const page = await app.firstWindow();
   page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") consoleErrors.push(`${m.type()}: ${m.text()}`); });
   page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
@@ -106,12 +112,46 @@ try {
   await sleep(300);
   await shot(page, "03-selection");
 
-  // Explore → a thread anchored to the selection
+  // Explore → a thread anchored to the selection; then Undo on the toast removes it again
+  await page.evaluate(() => document.querySelector(".seltool .primary").click());
+  await page.waitForSelector(".panel", { timeout: 10_000 });
+  await page.waitForSelector(".hl", { timeout: 10_000 });
+  await page.waitForSelector(".toast .taction", { timeout: 5_000 });
+  await sleep(300);
+  await shot(page, "04a-thread-undo");
+  await page.evaluate(() => document.querySelector(".toast .taction").click());
+  await waitFor(page, () => !document.querySelector(".panel") && !document.querySelector(".hl"), { label: "the undo to remove the thread" });
+  const afterUndo = existsSync(join(collection, "threads")) ? readdirSync(join(collection, "threads")).filter((f) => f.endsWith(".md")) : [];
+  log("thread files after undo:", afterUndo.join(", ") || "(none)");
+  // …and Explore once more to carry on
+  await page.evaluate(() => {
+    const spans = [...document.querySelectorAll(".page[data-page='1'] .textLayer span")];
+    const a = spans.find((s) => s.textContent.includes("We hypothesise"));
+    const b = spans.find((s) => s.textContent.includes("stable across the later layers"));
+    const range = document.createRange();
+    range.setStart(a.firstChild, 0);
+    range.setEnd(b.firstChild, b.firstChild.length);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.querySelector(".rscroll").dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+  });
+  await page.waitForSelector(".seltool", { timeout: 10_000 });
   await page.evaluate(() => document.querySelector(".seltool .primary").click());
   await page.waitForSelector(".panel", { timeout: 10_000 });
   await page.waitForSelector(".hl", { timeout: 10_000 });
   await sleep(500);
   await shot(page, "04-thread");
+  const layout = await page.evaluate(() => {
+    const r = (sel) => { const el = document.querySelector(sel); if (!el) return null; const b = el.getBoundingClientRect(); return { left: Math.round(b.left), right: Math.round(b.right), width: Math.round(b.width) }; };
+    return {
+      innerWidth: window.innerWidth,
+      app: r(".app"), main: r(".main"), reader: r(".reader"), divider: r(".divider"), panel: r(".panel"), phead: r(".phead"), composer: r(".composer"), pactions: r(".pactions"),
+      columns: getComputedStyle(document.querySelector(".main")).gridTemplateColumns,
+      panelVar: getComputedStyle(document.querySelector(".app")).getPropertyValue("--panel-w"),
+    };
+  });
+  log("layout:", JSON.stringify(layout));
   const threadsDir = join(collection, "threads");
   const files = existsSync(threadsDir) ? readdirSync(threadsDir).filter((f) => f.endsWith(".md")) : [];
   log("thread files:", files.join(", ") || "(none)");
@@ -137,10 +177,14 @@ try {
   await page.evaluate(() => document.querySelector(".seltool .primary").click());
   await page.waitForSelector(".cq", { timeout: 10_000 });
   await page.fill(".composer textarea", "Why does a flat subspace overestimate k?");
+  await shot(page, "05-askhere");
+  if (process.env.DRIVE_NO_AGENT) {
+    log("DRIVE_NO_AGENT set: stopping before any agent turn");
+    throw Object.assign(new Error("early stop"), { name: "EarlyStop" });
+  }
   await page.evaluate(() => document.querySelector(".composer .send").click());
   await page.waitForSelector(".msg.user .quote", { timeout: 30_000 });
   await sleep(500);
-  await shot(page, "05-askhere");
 
   // The send goes to the real agent over ACP. Watch the turn stream, then wait for it to finish.
   const agentStatus = await page.evaluate(() => window.__qrabbitStore.getState().agent);
@@ -229,6 +273,8 @@ try {
   log("reader-state:", existsSync(rs) ? readFileSync(rs, "utf8").replace(/\s+/g, " ") : "(none yet)");
   const textMd = readFileSync(join(srcDir, "text.md"), "utf8");
   log("text.md head:", JSON.stringify(textMd.slice(0, 160)));
+} catch (err) {
+  if (err?.name !== "EarlyStop") throw err;
 } finally {
   if (consoleErrors.length) { console.log("----- renderer console"); for (const e of consoleErrors) console.log(e); }
   await app?.close().catch(() => {});

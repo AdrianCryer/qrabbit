@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initCollection } from "./collection.js";
-import { appendMessage, createThread, listThreads, parseThreadFile, readThread, serializeThread } from "./threads.js";
+import { appendMessage, createThread, deleteThread, listThreads, parseThreadFile, readThread, serializeThread } from "./threads.js";
 
 describe("thread files", () => {
   it("round-trips frontmatter, anchors and messages", () => {
@@ -42,5 +42,16 @@ describe("thread files", () => {
     const child = createThread(dir, { title: "child", parent: { thread: root.id, message: "msg_x" } });
     expect(child.file.startsWith(root.file.replace(/\.md$/, "") + "/")).toBe(true);
     expect(child.hue).not.toBe(root.hue);
+  });
+
+  it("deletes a thread together with its branches", () => {
+    const dir = mkdtempSync(join(tmpdir(), "qrabbit-"));
+    initCollection(dir, "Test");
+    const root = createThread(dir, { title: "root" });
+    const child = createThread(dir, { title: "child", parent: { thread: root.id, message: "msg_x" } });
+    const other = createThread(dir, { title: "other" });
+    const deleted = deleteThread(dir, root.id);
+    expect(deleted.sort()).toEqual([root.id, child.id].sort());
+    expect(listThreads(dir).map((t) => t.id)).toEqual([other.id]);
   });
 });

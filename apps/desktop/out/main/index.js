@@ -7652,6 +7652,22 @@ function appendMessage(collection, id, message) {
   writeThread(collection, t);
   return t;
 }
+function deleteThread(collection, id) {
+  const all = listThreads(collection);
+  const root = all.find((t) => t.id === id);
+  if (!root) return [];
+  const deleted = [];
+  const visit2 = (meta) => {
+    for (const child of all.filter((t) => t.parent?.thread === meta.id)) visit2(child);
+    const file2 = node_path.join(collection, meta.file);
+    if (node_fs.existsSync(file2)) node_fs.rmSync(file2);
+    const dir = file2.replace(/\.md$/, "");
+    if (node_fs.existsSync(dir)) node_fs.rmSync(dir, { recursive: true, force: true });
+    deleted.push(meta.id);
+  };
+  visit2(root);
+  return deleted;
+}
 function updateThread(collection, id, patch) {
   const t = readThread(collection, id);
   if (!t) throw new Error(`Unknown thread: ${id}`);
@@ -17053,9 +17069,18 @@ function spawnAgent(launch, stderr = "pipe") {
   const exited = new Promise((resolve) => {
     child.on("exit", (code, signal) => resolve({ code, signal }));
   });
-  return { child, stream, exited, kill: () => {
-    if (!child.killed) child.kill();
-  } };
+  return { child, stream, exited, kill: () => killTree(child) };
+}
+function killTree(child) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  if (process.platform === "win32" && child.pid) {
+    try {
+      node_child_process.execFileSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+      return;
+    } catch {
+    }
+  }
+  if (!child.killed) child.kill();
 }
 function buildClientApp(identity2, handlers) {
   let app = client({ name: identity2.name }).onRequest(methods.client.session.requestPermission, async (ctx) => {
@@ -17642,6 +17667,22 @@ class AgentHost {
   cancel(threadId) {
     this.running.get(threadId)?.();
   }
+  /** Forget the sessions of deleted threads: stop any turn, drop timers, unhook permission routing. */
+  dropSessions(threadIds) {
+    for (const id of threadIds) {
+      this.running.get(id)?.();
+      const entry = this.sessions.get(id);
+      if (entry) {
+        this.threadBySession.delete(entry.session.sessionId);
+        entry.session.dispose();
+        this.sessions.delete(id);
+      }
+      const timer = this.summaryTimers.get(id);
+      if (timer) clearTimeout(timer);
+      this.summaryTimers.delete(id);
+      this.handoffs.delete(id);
+    }
+  }
   // ---------- permissions (plan §5.6) ----------
   onPermission(req) {
     const tc = req.toolCall;
@@ -17811,6 +17852,11 @@ function registerIpc() {
     "threads:appendMessage",
     (_e, collection, id, message) => appendMessage(guard(collection), id, message)
   );
+  electron.ipcMain.handle("threads:delete", (_e, collection, id) => {
+    const deleted = deleteThread(guard(collection), id);
+    hosts.get(collection)?.dropSessions(deleted);
+    return deleted;
+  });
   electron.ipcMain.handle("reader:setPosition", (_e, collection, sourceId, position) => {
     setReaderPosition(guard(collection), sourceId, position);
   });

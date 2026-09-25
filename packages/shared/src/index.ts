@@ -181,6 +181,8 @@ export type QrabbitApi = {
     read(collectionPath: string, threadId: string): Promise<Thread | null>;
     create(collectionPath: string, input: { title: string; anchor?: Anchor; parent?: { thread: string; message: string } }): Promise<Thread>;
     appendMessage(collectionPath: string, threadId: string, message: Omit<Message, "id" | "at"> & { id?: string; at?: string }): Promise<Thread>;
+    /** Delete a thread and its branches; resolves with the ids removed. */
+    delete(collectionPath: string, threadId: string): Promise<string[]>;
   };
   reader: {
     setPosition(collectionPath: string, sourceId: string, position: ReaderPosition): Promise<void>;

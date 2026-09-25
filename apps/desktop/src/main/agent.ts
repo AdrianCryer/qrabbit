@@ -381,6 +381,23 @@ export class AgentHost {
     this.running.get(threadId)?.();
   }
 
+  /** Forget the sessions of deleted threads: stop any turn, drop timers, unhook permission routing. */
+  dropSessions(threadIds: string[]): void {
+    for (const id of threadIds) {
+      this.running.get(id)?.();
+      const entry = this.sessions.get(id);
+      if (entry) {
+        this.threadBySession.delete(entry.session.sessionId);
+        entry.session.dispose();
+        this.sessions.delete(id);
+      }
+      const timer = this.summaryTimers.get(id);
+      if (timer) clearTimeout(timer);
+      this.summaryTimers.delete(id);
+      this.handoffs.delete(id);
+    }
+  }
+
   // ---------- permissions (plan §5.6) ----------
   private onPermission(req: acp.RequestPermissionRequest): Promise<PermissionDecision> | PermissionDecision {
     const tc = req.toolCall;

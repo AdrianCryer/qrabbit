@@ -222,8 +222,9 @@ export function ThreadPanel() {
   const agent = useStore((s) => s.agent);
   const turn = useStore((s) => (s.thread ? s.turns[s.thread.id] : undefined));
   const options = useStore((s) => (s.thread ? s.configOptions[s.thread.id] : undefined));
-  const { closePanel, setFocus, clearComposerQuote, sendMessage, cancelTurn, setConfig, openThread, branch } = useStore.getState();
+  const { closePanel, setFocus, clearComposerQuote, sendMessage, cancelTurn, setConfig, openThread, branch, deleteThread } = useStore.getState();
   const [draft, setDraft] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [msgSel, setMsgSel] = useState<{ anchor: Anchor; messageId: string; left: number; top: number } | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const msgsRef = useRef<HTMLDivElement>(null);
@@ -233,8 +234,15 @@ export function ThreadPanel() {
   const rows = useMemo(() => (rootId ? treeRows(allThreads, rootId) : []), [allThreads, rootId]);
   const parent = ancestors[ancestors.length - 1];
 
-  useEffect(() => { setDraft(""); setMsgSel(null); }, [thread?.id]);
+  useEffect(() => { setDraft(""); setMsgSel(null); setConfirmDelete(false); }, [thread?.id]);
   useEffect(() => { if (composerQuote) taRef.current?.focus(); }, [composerQuote]);
+  // The composer grows with its text up to a cap, then scrolls inside itself.
+  useEffect(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(220, Math.max(44, ta.scrollHeight))}px`;
+  }, [draft, thread?.id]);
   useEffect(() => {
     const el = msgsRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -252,6 +260,8 @@ export function ThreadPanel() {
   const modelOpt = options?.find((o) => o.category === "model" || o.id === "model");
   const effortOpt = options?.find((o) => o.category === "thought_level" || o.id === "effort");
   const branchesOf = (messageId: string) => allThreads.filter((t) => t.parent?.thread === thread.id && t.parent.message === messageId);
+  const subtreeCount = rows.filter((r) => r.t.id !== thread.id && (r.t.parent?.thread === thread.id || ancestorsOf(allThreads, r.t).some((a) => a.id === thread.id))).length;
+  const removalNeedsConfirm = thread.messages.length > 0 || subtreeCount > 0;
 
   const send = () => {
     if (running) { cancelTurn(); return; }
@@ -303,6 +313,35 @@ export function ThreadPanel() {
           <button className="btn icon" aria-pressed={focus} title={focus ? "Show the paper" : "Hide the paper"} onClick={() => setFocus(!focus)}>
             <Icon name="file" />
           </button>
+          <Dropdown align="right" triggerClass="btn icon" title="Thread actions" label={<Icon name="more" />}>
+            {(close) =>
+              !removalNeedsConfirm ? (
+                <button className="mi danger" role="menuitem" onClick={() => { close(); void deleteThread(thread.id); }}>
+                  <Icon name="trash" />
+                  <span className="txt"><span className="t">Remove this thread</span><span className="m">It has no messages yet</span></span>
+                </button>
+              ) : !confirmDelete ? (
+                <button className="mi danger" role="menuitem" onClick={() => setConfirmDelete(true)}>
+                  <Icon name="trash" />
+                  <span className="txt">
+                    <span className="t">Remove thread…</span>
+                    <span className="m">
+                      {thread.messages.length} {thread.messages.length === 1 ? "message" : "messages"}
+                      {subtreeCount > 0 ? ` and ${subtreeCount} ${subtreeCount === 1 ? "branch" : "branches"}` : ""}
+                    </span>
+                  </span>
+                </button>
+              ) : (
+                <div className="confirm">
+                  <span>Delete the thread file{subtreeCount > 0 ? " and its branches" : ""} from the collection? This cannot be undone.</span>
+                  <div className="btns">
+                    <button className="btn" onClick={() => { close(); setConfirmDelete(false); void deleteThread(thread.id); }}>Delete</button>
+                    <button className="btn" onClick={() => { setConfirmDelete(false); close(); }}>Keep</button>
+                  </div>
+                </div>
+              )
+            }
+          </Dropdown>
           <button className="btn icon" title="Collapse panel (Esc)" onClick={closePanel}>
             <Icon name="collapse" />
           </button>
@@ -369,7 +408,7 @@ export function ThreadPanel() {
               </div>
               {composerQuote.quote}
             </div>
-            <button className="x" title="Remove quote" onClick={clearComposerQuote}>
+            <button className="x" title="Remove the quote (Esc)" aria-label="Remove the quote" onClick={clearComposerQuote}>
               <Icon name="x" />
             </button>
           </div>
@@ -384,6 +423,10 @@ export function ThreadPanel() {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
               if (!running) send();
+            } else if (e.key === "Escape" && composerQuote) {
+              e.preventDefault();
+              e.stopPropagation();
+              clearComposerQuote();
             }
           }}
         />

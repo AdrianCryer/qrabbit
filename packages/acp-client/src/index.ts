@@ -3,6 +3,7 @@ export {
   AUTH_STATUS_UPDATE_METHOD,
   defaultClientCapabilities,
   spawnAgent,
+  killTree,
   buildClientApp,
   withAgent,
   initialize,

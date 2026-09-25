@@ -13,7 +13,7 @@ import type {
 } from "@qrabbit/shared";
 import { api } from "../lib/api";
 
-export type Toast = { id: number; text: string };
+export type Toast = { id: number; text: string; action?: { label: string; run(): void } };
 let toastSeq = 0;
 
 export type Activity = { id: string; title: string; kind?: string; status?: string; paths?: string[] };
@@ -77,7 +77,10 @@ type Actions = {
   connectAgent(): Promise<void>;
   loginAgent(methodId: string): Promise<void>;
   savePosition(sourceId: string, pos: ReaderPosition): void;
-  toast(text: string): void;
+  toast(text: string, action?: Toast["action"]): void;
+  dismissToast(id: number): void;
+  /** Delete a thread and its branches. The panel moves to the parent, or closes. */
+  deleteThread(id: string): Promise<void>;
 };
 
 let subscribed = false;
@@ -230,6 +233,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     await get().refreshThreads();
     window.getSelection()?.removeAllRanges();
     await get().openThread(thread.id);
+    get().toast("New thread from your highlight", { label: "Undo", run: () => void get().deleteThread(thread.id) });
   },
 
   async branch(messageId, anchor) {
@@ -239,6 +243,29 @@ export const useStore = create<State & Actions>((set, get) => ({
     await get().refreshThreads();
     window.getSelection()?.removeAllRanges();
     await get().openThread(child.id);
+    get().toast("New branch from the answer", { label: "Undo", run: () => void get().deleteThread(child.id) });
+  },
+
+  async deleteThread(id) {
+    const c = get().collection;
+    if (!c) return;
+    const meta = c.threads.find((t) => t.id === id);
+    const deleted = await api.threads.delete(c.info.path, id);
+    if (deleted.length === 0) return;
+    await get().refreshThreads();
+    const current = get().thread;
+    if (current && deleted.includes(current.id)) {
+      const parentId = meta?.parent?.thread;
+      if (parentId && !deleted.includes(parentId)) await get().openThread(parentId);
+      else set({ thread: null, panelOpen: false, focus: false, composerQuote: null });
+    }
+    set((s) => {
+      const turns = { ...s.turns };
+      const configOptions = { ...s.configOptions };
+      for (const d of deleted) { delete turns[d]; delete configOptions[d]; }
+      return { turns, configOptions };
+    });
+    get().toast(deleted.length === 1 ? "Thread removed" : `Thread and ${deleted.length - 1} ${deleted.length === 2 ? "branch" : "branches"} removed`);
   },
 
   askHere(anchor) {
@@ -331,10 +358,14 @@ export const useStore = create<State & Actions>((set, get) => ({
     void api.reader.setPosition(c.info.path, sourceId, pos);
   },
 
-  toast(text) {
+  toast(text, action) {
     const id = ++toastSeq;
-    set((s) => ({ toasts: [...s.toasts, { id, text }] }));
-    setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), 3200);
+    set((s) => ({ toasts: [...s.toasts, { id, text, ...(action ? { action } : {}) }] }));
+    setTimeout(() => get().dismissToast(id), action ? 7000 : 3200);
+  },
+
+  dismissToast(id) {
+    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
   },
 }));
 

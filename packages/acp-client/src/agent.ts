@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 import * as acp from "@agentclientprotocol/sdk";
 import type {
@@ -43,7 +43,25 @@ export function spawnAgent(launch: AgentLaunch, stderr: "inherit" | "pipe" = "pi
   const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
     child.on("exit", (code, signal) => resolve({ code, signal }));
   });
-  return { child, stream, exited, kill: () => { if (!child.killed) child.kill(); } };
+  return { child, stream, exited, kill: () => killTree(child) };
+}
+
+/**
+ * End the agent and everything it spawned. Adapters start the real agent binary as their own
+ * child, and on Windows `child.kill()` stops only the adapter, leaving that grandchild running
+ * with the collection as its working directory.
+ */
+export function killTree(child: ChildProcess): void {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  if (process.platform === "win32" && child.pid) {
+    try {
+      execFileSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+      return;
+    } catch {
+      /* fall through to a plain kill */
+    }
+  }
+  if (!child.killed) child.kill();
 }
 
 /** Build the ACP client app with our handlers wired in. */

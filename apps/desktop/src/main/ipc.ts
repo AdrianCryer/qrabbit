@@ -4,6 +4,7 @@ import type { Anchor, CollectionSnapshot, Message, ReaderPosition } from "@qrabb
 import {
   appendMessage,
   createThread,
+  deleteThread,
   importFile,
   listSources,
   listThreads,
@@ -119,6 +120,12 @@ export function registerIpc(): void {
     (_e, collection: string, id: string, message: Omit<Message, "id" | "at"> & { id?: string; at?: string }) =>
       appendMessage(guard(collection), id, message),
   );
+
+  ipcMain.handle("threads:delete", (_e, collection: string, id: string) => {
+    const deleted = deleteThread(guard(collection), id);
+    hosts.get(collection)?.dropSessions(deleted);
+    return deleted;
+  });
 
   // ----- reader -----
   ipcMain.handle("reader:setPosition", (_e, collection: string, sourceId: string, position: ReaderPosition) => {
