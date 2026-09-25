@@ -26,7 +26,9 @@ export function Header() {
   const agent = useStore((s) => s.agent);
   const menu = useStore((s) => s.menu);
   const { connectAgent, loginAgent, setMenu, setSettingsOpen } = useStore.getState();
-  const controlled = (id: "collection" | "source" | "threads") => ({ open: menu === id, onOpenChange: (v: boolean) => setMenu(v ? id : menu === id ? null : menu) });
+  const controlled = (id: "collection" | "source" | "threads" | "marks") => ({ open: menu === id, onOpenChange: (v: boolean) => setMenu(v ? id : menu === id ? null : menu) });
+  const annotations = collection?.annotations ?? [];
+  const { goToAnnotation } = useStore.getState();
   const source = collection?.sources.find((s) => s.id === sourceId) ?? null;
   // Branches are reached from their parent's outline; the popover lists root threads only.
   const threads = (collection?.threads ?? []).filter((t) => !t.parent);
@@ -182,6 +184,44 @@ export function Header() {
                       ))}
                     </div>
                   )}
+                </>
+              )}
+            </Dropdown>
+            <Dropdown
+              {...controlled("marks")}
+              align="right"
+              title="Bookmarks and comments (Ctrl+Shift+M)"
+              label={
+                <>
+                  <Icon name="bookmark" />
+                  <span className="txt">Marks</span>
+                  <span className="n">{annotations.length}</span>
+                </>
+              }
+            >
+              {(close) => (
+                <>
+                  {annotations.length === 0 && <div className="mempty">Highlight a passage and choose Comment or Bookmark, or press Ctrl+D to bookmark a page.</div>}
+                  {collection.sources
+                    .filter((s) => annotations.some((a) => a.source === s.id))
+                    .map((s) => (
+                      <div key={s.id}>
+                        <div className="mh">{s.title}</div>
+                        {annotations
+                          .filter((a) => a.source === s.id)
+                          .sort((a, b) => (a.page ?? 0) - (b.page ?? 0))
+                          .map((a) => (
+                            <button key={a.id} className="mi" role="menuitem" onClick={() => { close(); goToAnnotation(a.id); }}>
+                              <Icon name={a.kind} />
+                              <span className="txt">
+                                <span className="t">{a.text}</span>
+                                {a.anchor && <span className="m">{a.anchor.quote}</span>}
+                              </span>
+                              <span className="meta">{a.page ? <span className="chip">p.{a.page}</span> : null}</span>
+                            </button>
+                          ))}
+                      </div>
+                    ))}
                 </>
               )}
             </Dropdown>

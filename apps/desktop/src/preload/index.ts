@@ -33,6 +33,12 @@ const api: QrabbitApi = {
   reader: {
     setPosition: (collection, sourceId, position) => invoke("reader:setPosition", collection, sourceId, position),
   },
+  annotations: {
+    list: (collection) => invoke("annotations:list", collection),
+    create: (collection, input) => invoke("annotations:create", collection, input),
+    update: (collection, id, patch) => invoke("annotations:update", collection, id, patch),
+    delete: (collection, id) => invoke("annotations:delete", collection, id),
+  },
   agent: {
     status: (collection) => invoke("agent:status", collection),
     connect: (collection) => invoke("agent:connect", collection),

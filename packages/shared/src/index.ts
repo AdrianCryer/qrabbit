@@ -108,6 +108,22 @@ export type ThreadMeta = {
 
 export type Thread = ThreadMeta & { messages: Message[] };
 
+// ---------- annotations: the reader's own marks, never part of a prompt ----------
+export type AnnotationKind = "bookmark" | "comment";
+
+export type Annotation = {
+  id: string;
+  kind: AnnotationKind;
+  source: string;
+  /** Page for a PDF; a page bookmark has a page but no anchor. */
+  page?: number;
+  anchor?: Anchor;
+  /** Comment text, or a bookmark label. */
+  text: string;
+  created: string;
+  updated?: string;
+};
+
 // ---------- reader ----------
 export type ReaderPosition = { page: number; scrollTop: number; zoom: number };
 export type ReaderState = Record<string, ReaderPosition>;
@@ -159,6 +175,7 @@ export type CollectionSnapshot = {
   manifest: CollectionManifest;
   sources: SourceInfo[];
   threads: ThreadMeta[];
+  annotations: Annotation[];
   readerState: ReaderState;
 };
 
@@ -188,6 +205,12 @@ export type QrabbitApi = {
   };
   reader: {
     setPosition(collectionPath: string, sourceId: string, position: ReaderPosition): Promise<void>;
+  };
+  annotations: {
+    list(collectionPath: string): Promise<Annotation[]>;
+    create(collectionPath: string, input: Omit<Annotation, "id" | "created" | "updated">): Promise<Annotation>;
+    update(collectionPath: string, id: string, patch: { text?: string }): Promise<Annotation>;
+    delete(collectionPath: string, id: string): Promise<boolean>;
   };
   agent: {
     status(collectionPath: string): Promise<AgentStatus>;

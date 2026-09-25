@@ -15,7 +15,7 @@ function ReaderPane() {
   const sourceId = useStore((s) => s.sourceId);
   const thread = useStore((s) => s.thread);
   const focusTarget = useStore((s) => s.focusTarget);
-  const { importSources, explore, askHere, openThread, savePosition, updateSource, toast } = useStore.getState();
+  const { importSources, explore, askHere, openThread, savePosition, updateSource, toast, addBookmark, addComment, updateAnnotation, deleteAnnotation } = useStore.getState();
   if (!collection) return null;
   const source = collection.sources.find((s) => s.id === sourceId) ?? null;
 
@@ -55,6 +55,7 @@ function ReaderPane() {
       collectionPath={collection.info.path}
       source={source}
       threads={collection.threads}
+      annotations={collection.annotations}
       position={collection.readerState[source.id]}
       focusedThreadId={thread?.id ?? null}
       focusTarget={focusTarget}
@@ -63,6 +64,10 @@ function ReaderPane() {
       onExplore={(anchor) => void explore(anchor)}
       onAskHere={askHere}
       onOpenThread={(id) => void openThread(id)}
+      onBookmark={(page, anchor) => void addBookmark(source.id, page, anchor)}
+      onComment={(anchor, page, text) => void addComment(source.id, page, anchor, text)}
+      onUpdateAnnotation={(id, text) => void updateAnnotation(id, text)}
+      onDeleteAnnotation={(id) => void deleteAnnotation(id)}
       onTextExtracted={(text, pages, title) => {
         void api.sources
           .saveText(collection.info.path, source.id, text, pages, title)
@@ -137,6 +142,7 @@ export function App() {
       if (s.screen !== "reader") return;
       if (matches(e, "Mod+I")) { e.preventDefault(); void s.importSources(); return; }
       if (matches(e, "Mod+Shift+T")) { e.preventDefault(); s.setMenu(s.menu === "threads" ? null : "threads"); return; }
+      if (matches(e, "Mod+Shift+M")) { e.preventDefault(); s.setMenu(s.menu === "marks" ? null : "marks"); return; }
       if (matches(e, "Mod+B")) { e.preventDefault(); s.togglePanel(); return; }
       if (matches(e, "Mod+Shift+F")) { e.preventDefault(); if (s.panelOpen) s.setFocus(!s.focus); return; }
       if (matches(e, "Alt+ArrowUp")) { e.preventDefault(); void s.openParent(); return; }

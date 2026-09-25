@@ -35,7 +35,8 @@ If `apps/desktop/node_modules/electron/dist` is missing after install, run `node
 my-research/
   qrabbit.json         manifest
   AGENTS.md            instructions any agent reads when its session runs here
-  sources/<id>/        source.pdf, source.json, text.md (extracted, with <!-- page N --> markers)
+  sources/<id>/        source.pdf, source.json, text.md (extracted, with <!-- page N --> markers),
+                       annotations.json (your bookmarks and comments; the agent never receives them)
   threads/             one Markdown file per thread; branches nest under their parent's folder
   notes/               the agent may write here
   .qrabbit/            app state; safe to delete

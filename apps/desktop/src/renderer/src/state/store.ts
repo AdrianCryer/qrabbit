@@ -3,6 +3,7 @@ import type {
   AgentEvent,
   AgentStatus,
   Anchor,
+  Annotation,
   CollectionInfo,
   CollectionSnapshot,
   ConfigOption,
@@ -46,7 +47,8 @@ type State = {
   panelOpen: boolean;
   focus: boolean;
   composerQuote: Anchor | null;
-  focusTarget: { page: number; key: number } | null;
+  /** Where the reader should scroll: a page, and optionally a mark on it. */
+  focusTarget: { page: number; key: number; markId?: string } | null;
   toasts: Toast[];
   agent: AgentStatus | null;
   turns: Record<string, TurnState>;
@@ -55,7 +57,7 @@ type State = {
   knownOptions: ConfigOption[];
   settingsOpen: boolean;
   /** Which header menu a shortcut opened, if any. */
-  menu: "collection" | "source" | "threads" | null;
+  menu: "collection" | "source" | "threads" | "marks" | null;
 };
 
 export type MenuId = State["menu"];
@@ -94,6 +96,13 @@ type Actions = {
   togglePanel(): void;
   openParent(): Promise<void>;
   updateCollectionSettings(patch: { model?: string; effort?: string }): Promise<void>;
+  /** Bookmark a span, or a page when no anchor is given. */
+  addBookmark(sourceId: string, page: number, anchor?: Anchor): Promise<void>;
+  addComment(sourceId: string, page: number | undefined, anchor: Anchor, text: string): Promise<void>;
+  updateAnnotation(id: string, text: string): Promise<void>;
+  deleteAnnotation(id: string): Promise<void>;
+  /** Show a bookmark or comment in the reader. */
+  goToAnnotation(id: string): void;
 };
 
 let subscribed = false;
@@ -231,7 +240,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     const patch: Partial<State> = { thread, panelOpen: true, composerQuote: null };
     if (a?.target === "source" && a.page && a.source) {
       if (a.source !== get().sourceId) get().selectSource(a.source);
-      patch.focusTarget = { page: a.page, key: Date.now() };
+      patch.focusTarget = { page: a.page, key: Date.now(), markId: thread.id };
     }
     set(patch);
     // Warm the agent session so the pickers show real options.
@@ -420,6 +429,46 @@ export const useStore = create<State & Actions>((set, get) => ({
     if (!c) return;
     const manifest = await api.collections.updateSettings(c.info.path, patch);
     set((s) => (s.collection ? { collection: { ...s.collection, manifest } } : {}));
+  },
+
+  async addBookmark(sourceId, page, anchor) {
+    const c = get().collection;
+    if (!c) return;
+    const label = anchor ? titleFromQuote(anchor.quote, 50) : `Page ${page}`;
+    const a = await api.annotations.create(c.info.path, { kind: "bookmark", source: sourceId, page, ...(anchor ? { anchor } : {}), text: label });
+    set((s) => (s.collection ? { collection: { ...s.collection, annotations: [a, ...s.collection.annotations] } } : {}));
+    window.getSelection()?.removeAllRanges();
+    get().toast(anchor ? "Bookmarked the passage" : `Bookmarked page ${page}`, { label: "Undo", run: () => void get().deleteAnnotation(a.id) });
+  },
+
+  async addComment(sourceId, page, anchor, text) {
+    const c = get().collection;
+    if (!c || !text.trim()) return;
+    const a = await api.annotations.create(c.info.path, { kind: "comment", source: sourceId, ...(page ? { page } : {}), anchor, text: text.trim() });
+    set((s) => (s.collection ? { collection: { ...s.collection, annotations: [a, ...s.collection.annotations] } } : {}));
+    window.getSelection()?.removeAllRanges();
+  },
+
+  async updateAnnotation(id, text) {
+    const c = get().collection;
+    if (!c) return;
+    const next = await api.annotations.update(c.info.path, id, { text: text.trim() });
+    set((s) => (s.collection ? { collection: { ...s.collection, annotations: s.collection.annotations.map((a) => (a.id === id ? next : a)) } } : {}));
+  },
+
+  async deleteAnnotation(id) {
+    const c = get().collection;
+    if (!c) return;
+    await api.annotations.delete(c.info.path, id);
+    set((s) => (s.collection ? { collection: { ...s.collection, annotations: s.collection.annotations.filter((a) => a.id !== id) } } : {}));
+  },
+
+  goToAnnotation(id) {
+    const c = get().collection;
+    const a = c?.annotations.find((x) => x.id === id);
+    if (!a) return;
+    if (a.source !== get().sourceId) get().selectSource(a.source);
+    set({ focusTarget: { page: a.page ?? a.anchor?.page ?? 1, key: Date.now(), markId: id } });
   },
 }));
 

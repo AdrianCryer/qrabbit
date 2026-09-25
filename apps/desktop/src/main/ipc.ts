@@ -1,7 +1,11 @@
 import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from "electron";
 import { basename } from "node:path";
-import type { Anchor, CollectionManifest, CollectionSnapshot, Message, ReaderPosition } from "@qrabbit/shared";
+import type { Anchor, Annotation, CollectionManifest, CollectionSnapshot, Message, ReaderPosition } from "@qrabbit/shared";
 import {
+  addAnnotation,
+  deleteAnnotation,
+  listAnnotations,
+  updateAnnotation,
   appendMessage,
   createThread,
   deleteThread,
@@ -56,7 +60,7 @@ function snapshot(path: string): CollectionSnapshot {
   const { info, manifest } = openCollection(path);
   opened.add(path);
   touchRecent(info);
-  return { info, manifest, sources: listSources(path), threads: listThreads(path), readerState: readReaderState(path) };
+  return { info, manifest, sources: listSources(path), threads: listThreads(path), annotations: listAnnotations(path), readerState: readReaderState(path) };
 }
 
 const windowOf = (e: IpcMainInvokeEvent) => BrowserWindow.fromWebContents(e.sender) ?? undefined;
@@ -128,6 +132,12 @@ export function registerIpc(): void {
     hosts.get(collection)?.dropSessions(deleted);
     return deleted;
   });
+
+  // ----- annotations -----
+  ipcMain.handle("annotations:list", (_e, collection: string) => listAnnotations(guard(collection)));
+  ipcMain.handle("annotations:create", (_e, collection: string, input: Omit<Annotation, "id" | "created" | "updated">) => addAnnotation(guard(collection), input));
+  ipcMain.handle("annotations:update", (_e, collection: string, id: string, patch: { text?: string }) => updateAnnotation(guard(collection), id, patch));
+  ipcMain.handle("annotations:delete", (_e, collection: string, id: string) => deleteAnnotation(guard(collection), id));
 
   // ----- reader -----
   ipcMain.handle("reader:setPosition", (_e, collection: string, sourceId: string, position: ReaderPosition) => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { Anchor, ReaderPosition, SourceInfo, ThreadMeta } from "@qrabbit/shared";
+import type { Anchor, Annotation, ReaderPosition, SourceInfo, ThreadMeta } from "@qrabbit/shared";
 import { api } from "../lib/api";
 import { ensureWorker, pdfjs, type PDFDocumentProxy, type TextItem } from "../pdf/pdfjs";
 import { buildTextMd, pageTextFromItems } from "../pdf/text";
@@ -7,20 +7,30 @@ import { anchorToRange, layerText, rectsForRange, selectionToAnchor, type PageCo
 import { isTyping, matches } from "../lib/shortcuts";
 import { Icon } from "./Icons";
 
-type Highlight = { threadId: string; hue: number; anchor: Anchor };
+/** Anything drawn on a page: a thread's anchor, a comment, or a bookmark. */
+type Mark = { id: string; kind: "thread" | "comment" | "bookmark"; hue?: number; anchor?: Anchor; page: number; title: string };
+
+type EditorState =
+  | { mode: "new"; anchor: Anchor; left: number; top: number }
+  | { mode: "edit"; annotation: Annotation; left: number; top: number };
 
 type Props = {
   collectionPath: string;
   source: SourceInfo;
   threads: ThreadMeta[];
+  annotations: Annotation[];
   position?: ReaderPosition;
   focusedThreadId: string | null;
-  focusTarget: { page: number; key: number } | null;
+  focusTarget: { page: number; key: number; markId?: string } | null;
   canAskHere: boolean;
   onPosition(pos: ReaderPosition): void;
   onExplore(anchor: Anchor): void;
   onAskHere(anchor: Anchor): void;
   onOpenThread(id: string): void;
+  onBookmark(page: number, anchor?: Anchor): void;
+  onComment(anchor: Anchor, page: number | undefined, text: string): void;
+  onUpdateAnnotation(id: string, text: string): void;
+  onDeleteAnnotation(id: string): void;
   onTextExtracted(text: string, pages: number, title?: string): void;
 };
 
@@ -29,7 +39,7 @@ const MAX_PAGE_WIDTH = 900;
 const MARGIN_GUTTER = 48;
 
 export function Reader(props: Props) {
-  const { collectionPath, source, threads, focusedThreadId, focusTarget, canAskHere, onPosition, onExplore, onAskHere, onOpenThread, onTextExtracted } = props;
+  const { collectionPath, source, threads, annotations, focusedThreadId, focusTarget, canAskHere, onPosition, onExplore, onAskHere, onOpenThread, onBookmark, onComment, onUpdateAnnotation, onDeleteAnnotation, onTextExtracted } = props;
   const scrollRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
   const contexts = useRef(new Map<number, PageContext>());
@@ -45,15 +55,24 @@ export function Reader(props: Props) {
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
   const restored = useRef(false);
+  const [editor, setEditor] = useState<EditorState | null>(null);
+  const currentPage = useRef(props.position?.page ?? 1);
 
-  const highlights = useMemo<Highlight[]>(
-    () =>
-      threads
-        .filter((t) => t.anchor?.target === "source" && t.anchor.source === source.id)
-        .map((t) => ({ threadId: t.id, hue: t.hue, anchor: t.anchor! })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [threads, source.id],
-  );
+  const marks = useMemo<Mark[]>(() => {
+    const out: Mark[] = [];
+    for (const t of threads) {
+      if (t.anchor?.target === "source" && t.anchor.source === source.id && t.anchor.page) {
+        out.push({ id: t.id, kind: "thread", hue: t.hue, anchor: t.anchor, page: t.anchor.page, title: t.title });
+      }
+    }
+    for (const a of annotations) {
+      if (a.source !== source.id) continue;
+      const page = a.page ?? a.anchor?.page;
+      if (!page) continue;
+      out.push({ id: a.id, kind: a.kind, anchor: a.anchor, page, title: a.text });
+    }
+    return out;
+  }, [threads, annotations, source.id]);
 
   // ----- load the document -----
   useEffect(() => {
@@ -159,15 +178,36 @@ export function Reader(props: Props) {
       if (matches(e, "Mod+=")) { e.preventDefault(); zoomBy(1.1); return; }
       if (matches(e, "Mod+-")) { e.preventDefault(); zoomBy(1 / 1.1); return; }
       if (matches(e, "Mod+0")) { e.preventDefault(); setZoom(1); return; }
-      // Selection actions, only while the toolbar is showing.
       const current = selRef.current;
+      // Bookmark the selection if there is one, else the page in view.
+      if (matches(e, "Mod+D")) {
+        e.preventDefault();
+        if (current) { setSel(null); onBookmark(current.anchor.page ?? currentPage.current, current.anchor); }
+        else onBookmark(currentPage.current);
+        return;
+      }
+      // Selection actions, only while the toolbar is showing.
       if (!current) return;
       if (matches(e, "E")) { e.preventDefault(); setSel(null); onExplore(current.anchor); }
       else if (matches(e, "A")) { e.preventDefault(); setSel(null); onAskHere(current.anchor); }
+      else if (matches(e, "C")) { e.preventDefault(); setSel(null); setEditor({ mode: "new", anchor: current.anchor, left: current.left, top: current.top }); }
+      else if (matches(e, "B")) { e.preventDefault(); setSel(null); onBookmark(current.anchor.page ?? currentPage.current, current.anchor); }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [zoomBy, onExplore, onAskHere]);
+  }, [zoomBy, onExplore, onAskHere, onBookmark]);
+
+  const openMark = useCallback(
+    (mark: Mark, pageEl: HTMLElement, rect: DOMRect | null) => {
+      if (mark.kind === "thread") { onOpenThread(mark.id); return; }
+      const a = annotations.find((x) => x.id === mark.id);
+      if (!a) return;
+      const top = pageEl.offsetTop + (rect ? rect.y + rect.height : 8);
+      const left = pageEl.offsetLeft + (rect ? rect.x : 40);
+      setEditor({ mode: "edit", annotation: a, left, top });
+    },
+    [annotations, onOpenThread],
+  );
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) return;
@@ -236,8 +276,27 @@ export function Reader(props: Props) {
 
   useEffect(() => {
     if (!focusTarget) return;
+    const root = scrollRef.current;
     const el = pageRefs.current[focusTarget.page - 1];
-    if (el && scrollRef.current) scrollRef.current.scrollTo({ top: Math.max(0, el.offsetTop - 22), behavior: "smooth" });
+    if (!el || !root) return;
+    root.scrollTo({ top: Math.max(0, el.offsetTop - 22), behavior: "smooth" });
+    // Once the page has rendered its marks, settle on the mark itself.
+    const id = focusTarget.markId;
+    if (!id) return;
+    let tries = 0;
+    const tick = () => {
+      const m = root.querySelector<HTMLElement>(`.marker[data-mark-id="${CSS.escape(id)}"]`);
+      if (m) {
+        const y = el.offsetTop + m.offsetTop;
+        root.scrollTo({ top: Math.max(0, y - root.clientHeight / 3), behavior: "smooth" });
+        m.classList.add("flash");
+        window.setTimeout(() => m.classList.remove("flash"), 1600);
+        return;
+      }
+      if (++tries < 12) window.setTimeout(tick, 150);
+    };
+    window.setTimeout(tick, 250);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusTarget?.key]);
 
   const saveTimer = useRef<number | null>(null);
@@ -252,6 +311,7 @@ export function Reader(props: Props) {
         const el = pageRefs.current[i];
         if (el && el.offsetTop + el.offsetHeight > root.scrollTop + 40) { page = i + 1; break; }
       }
+      currentPage.current = page;
       onPosition({ page, scrollTop: root.scrollTop, zoom: zoomRef.current });
     }, 300);
   };
@@ -300,10 +360,10 @@ export function Reader(props: Props) {
               visible={visible.has(n)}
               pageText={texts?.pages[i] ?? null}
               pageStart={texts?.starts[i] ?? 0}
-              highlights={highlights.filter((h) => h.anchor.page === n)}
+              marks={marks.filter((m) => m.page === n)}
               focusedThreadId={focusedThreadId}
               onContext={registerContext}
-              onMarker={onOpenThread}
+              onMark={openMark}
             />
           );
         })}
@@ -320,17 +380,67 @@ export function Reader(props: Props) {
                 <button onClick={() => onAskHere(sel.anchor)}><Icon name="chat" />Ask here <kbd>A</kbd></button>
               </>
             )}
+            <button title="Comment on this passage" onClick={() => { const s = sel; setSel(null); setEditor({ mode: "new", anchor: s.anchor, left: s.left, top: s.top }); }}><Icon name="comment" />Comment <kbd>C</kbd></button>
+            <button title="Bookmark this passage" onClick={() => { const s = sel; setSel(null); onBookmark(s.anchor.page ?? currentPage.current, s.anchor); }}><Icon name="bookmark" />Bookmark <kbd>B</kbd></button>
           </div>
+        )}
+        {editor && (
+          <MarkEditor
+            state={editor}
+            onClose={() => setEditor(null)}
+            onSave={(text) => {
+              if (editor.mode === "new") onComment(editor.anchor, editor.anchor.page, text);
+              else onUpdateAnnotation(editor.annotation.id, text);
+              setEditor(null);
+            }}
+            onDelete={editor.mode === "edit" ? () => { onDeleteAnnotation(editor.annotation.id); setEditor(null); } : undefined}
+          />
         )}
       </div>
       {status && <div className="rstatus">{status}</div>}
       {sizes.length > 0 && (
         <div className="zoom" role="group" aria-label="Zoom">
+          <button onClick={() => onBookmark(currentPage.current)} title="Bookmark this page (Ctrl+D)"><Icon name="bookmark" size={13} /></button>
+          <span className="zsep" />
           <button onClick={() => zoomBy(1 / 1.1)} title="Zoom out (Ctrl −)">−</button>
           <button className="pct" onClick={() => setZoom(1)} title="Fit to width (Ctrl 0)">{Math.round(zoom * 100)}%</button>
           <button onClick={() => zoomBy(1.1)} title="Zoom in (Ctrl +)">+</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------- comment / bookmark editor ----------
+function MarkEditor({ state, onClose, onSave, onDelete }: { state: EditorState; onClose(): void; onSave(text: string): void; onDelete?: () => void }) {
+  const isBookmark = state.mode === "edit" && state.annotation.kind === "bookmark";
+  const [text, setText] = useState(state.mode === "edit" ? state.annotation.text : "");
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
+  const quote = state.mode === "new" ? state.anchor.quote : state.annotation.anchor?.quote;
+  return (
+    <div className="ceditor" style={{ left: state.left, top: state.top }} onMouseDown={(e) => e.stopPropagation()}>
+      <div className="chead">
+        <Icon name={isBookmark ? "bookmark" : "comment"} />
+        <span>{isBookmark ? "Bookmark" : state.mode === "new" ? "New comment" : "Comment"}</span>
+        {quote && <span className="cq-quote" title={quote}>{quote}</span>}
+      </div>
+      <textarea
+        ref={ref}
+        rows={isBookmark ? 1 : 3}
+        value={text}
+        placeholder={isBookmark ? "Label" : "Your note on this passage. It stays yours; the agent never sees it."}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onClose(); }
+          else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); if (text.trim() || isBookmark) onSave(text); }
+        }}
+      />
+      <div className="cbtns">
+        <button className="btn primary" disabled={!text.trim() && !isBookmark} onClick={() => onSave(text)}>Save <kbd>Enter</kbd></button>
+        <button className="btn" onClick={onClose}>Cancel</button>
+        {onDelete && <button className="btn danger" onClick={onDelete}>Delete</button>}
+      </div>
     </div>
   );
 }
@@ -346,21 +456,23 @@ type PageProps = {
   visible: boolean;
   pageText: string | null;
   pageStart: number;
-  highlights: Highlight[];
+  marks: Mark[];
   focusedThreadId: string | null;
   onContext(ctx: PageContext): void;
-  onMarker(threadId: string): void;
+  onMark(mark: Mark, pageEl: HTMLElement, rect: DOMRect | null): void;
 };
 
+type Box = { mark: Mark; rects: DOMRect[] };
+
 const PageView = forwardRef<HTMLDivElement, PageProps>(function PageView(
-  { doc, n, scale, size, visible, pageText, pageStart, highlights, focusedThreadId, onContext, onMarker },
+  { doc, n, scale, size, visible, pageText, pageStart, marks, focusedThreadId, onContext, onMark },
   ref,
 ) {
   const pageRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
   const [renderedAt, setRenderedAt] = useState(0);
-  const [boxes, setBoxes] = useState<Array<{ threadId: string; hue: number; rects: DOMRect[] }>>([]);
+  const [boxes, setBoxes] = useState<Box[]>([]);
   const w = size.w * scale;
   const h = size.h * scale;
 
@@ -413,14 +525,28 @@ const PageView = forwardRef<HTMLDivElement, PageProps>(function PageView(
     const pageEl = pageRef.current;
     if (!tl || !pageEl || renderedAt === 0 || pageText === null) { setBoxes([]); return; }
     const ctx: PageContext = { page: n, pageEl, textLayer: tl, pageText, pageStart };
-    const out: Array<{ threadId: string; hue: number; rects: DOMRect[] }> = [];
-    for (const hl of highlights) {
-      const range = anchorToRange(ctx, hl.anchor);
-      if (!range) continue;
-      out.push({ threadId: hl.threadId, hue: hl.hue, rects: rectsForRange(range, pageEl) });
+    const out: Box[] = [];
+    for (const mark of marks) {
+      if (!mark.anchor) { out.push({ mark, rects: [] }); continue; }
+      const range = anchorToRange(ctx, mark.anchor);
+      out.push({ mark, rects: range ? rectsForRange(range, pageEl) : [] });
     }
     setBoxes(out);
-  }, [renderedAt, highlights, n, pageText, pageStart]);
+  }, [renderedAt, marks, n, pageText, pageStart]);
+
+  // Markers sit in the right margin at their span's first line; ones that share a line step right.
+  const markers = useMemo(() => {
+    const items = boxes
+      .map((b) => ({ b, y: b.rects[0]?.y ?? 8 }))
+      .sort((p, q) => p.y - q.y);
+    let lastY = -100;
+    let col = 0;
+    return items.map((it) => {
+      col = Math.abs(it.y - lastY) < 14 ? col + 1 : 0;
+      lastY = it.y;
+      return { ...it, col };
+    });
+  }, [boxes]);
 
   return (
     <div className="page" ref={setRefs} data-page={n} style={{ width: w, height: h }}>
@@ -429,16 +555,21 @@ const PageView = forwardRef<HTMLDivElement, PageProps>(function PageView(
       <div className="hlLayer" aria-hidden="true">
         {boxes.map((b) =>
           b.rects.map((r, i) => (
-            <div key={`${b.threadId}:${i}`} className={`hl h${b.hue} ${b.threadId === focusedThreadId ? "focused" : ""}`} style={{ left: r.x, top: r.y, width: r.width, height: r.height }} />
+            <div
+              key={`${b.mark.id}:${i}`}
+              className={`hl ${b.mark.kind === "thread" ? `h${b.mark.hue}` : b.mark.kind} ${b.mark.id === focusedThreadId ? "focused" : ""}`}
+              style={{ left: r.x, top: r.y, width: r.width, height: r.height }}
+            />
           )),
         )}
       </div>
-      {boxes.map((b) => {
-        const first = b.rects[0];
-        if (!first) return null;
+      {markers.map(({ b, y, col }) => {
+        const m = b.mark;
+        const cls = m.kind === "thread" ? `marker h${m.hue}` : `marker ${m.kind}`;
+        const title = m.kind === "thread" ? `Thread: ${m.title}` : m.kind === "comment" ? m.title : `Bookmark: ${m.title}`;
         return (
-          <button key={b.threadId} className={`marker h${b.hue}`} style={{ top: first.y }} title="Open this thread" onClick={() => onMarker(b.threadId)}>
-            1
+          <button key={m.id} className={cls} data-mark-id={m.id} style={{ top: y, right: -40 - col * 30 }} title={title} onClick={() => onMark(m, pageRef.current!, b.rects[0] ?? null)}>
+            {m.kind === "thread" ? "1" : <Icon name={m.kind} size={11} />}
           </button>
         );
       })}

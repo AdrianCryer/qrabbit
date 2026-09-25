@@ -166,6 +166,35 @@ try {
   await page.keyboard.press("Escape");
   await waitFor(page, () => !document.querySelector(".dialog"), { label: "settings to close on Escape" });
   log("keyboard: escape, ctrl+b, ctrl+, all handled");
+
+  // Marks: comment on a passage, bookmark the page, open the Marks menu.
+  await page.evaluate(() => {
+    const spans = [...document.querySelectorAll(".page[data-page='1'] .textLayer span")];
+    const a = spans.find((s) => s.textContent.includes("The gap widens with depth"));
+    const range = document.createRange();
+    range.selectNodeContents(a);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.querySelector(".rscroll").dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+  });
+  await page.waitForSelector(".seltool", { timeout: 10_000 });
+  await page.evaluate(() => [...document.querySelectorAll(".seltool button")].find((b) => b.textContent.includes("Comment")).click());
+  await page.waitForSelector(".ceditor textarea", { timeout: 5_000 });
+  await page.fill(".ceditor textarea", "Does the widening gap survive at lambda = 0?");
+  await shot(page, "04c-comment-editor");
+  await page.keyboard.press("Enter");
+  await page.waitForSelector(".marker.comment", { timeout: 5_000 });
+  await page.evaluate(() => document.body.focus());
+  await page.keyboard.press("Control+d");
+  await page.waitForSelector(".marker.bookmark", { timeout: 5_000 });
+  await page.keyboard.press("Control+Shift+m");
+  await page.waitForSelector(".menu .mi", { timeout: 5_000 });
+  await sleep(300);
+  await shot(page, "04d-marks");
+  await page.keyboard.press("Escape");
+  const annFile = join(srcDir, "annotations.json");
+  log("annotations.json:", existsSync(annFile) ? readFileSync(annFile, "utf8").replace(/\s+/g, " ").slice(0, 400) : "(missing)");
   const threadsDir = join(collection, "threads");
   const files = existsSync(threadsDir) ? readdirSync(threadsDir).filter((f) => f.endsWith(".md")) : [];
   log("thread files:", files.join(", ") || "(none)");

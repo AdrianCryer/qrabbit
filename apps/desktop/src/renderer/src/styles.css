@@ -186,6 +186,25 @@ body.resizing .rscroll, body.resizing .msgs { pointer-events: none; }
 .hl.focused { box-shadow: 0 2px 0 var(--hl); }
 .marker { position: absolute; right: -40px; width: 26px; height: 18px; border-radius: var(--r-pill); display: grid; place-items: center; font-size: 10px; font-weight: 600; color: #1a1a1a; background: var(--hl); cursor: pointer; z-index: 3; box-shadow: var(--shadow-sm); }
 .marker:hover { filter: brightness(1.08); }
+.marker.comment { background: var(--raised-2); color: var(--text); border: 1px solid var(--line-strong); }
+.marker.comment svg.i { stroke: var(--text-2); }
+.marker.bookmark { background: var(--accent); color: var(--accent-fg); }
+.marker.bookmark svg.i { stroke: var(--accent-fg); fill: var(--accent-fg); }
+.marker.flash { animation: markflash 1.6s ease-out 1; }
+@keyframes markflash { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 80%, transparent); } 100% { box-shadow: 0 0 0 14px transparent; } }
+.hl.comment { background: none; border-bottom: 2px dotted color-mix(in srgb, var(--text-3) 80%, transparent); border-radius: 0; mix-blend-mode: normal; }
+.hl.bookmark { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.zoom .zsep { width: 1px; height: 16px; background: var(--line-strong); margin: 0 2px; }
+.ceditor { position: absolute; z-index: 7; width: min(360px, 80%); display: grid; gap: 8px; padding: 10px 12px; margin-top: 8px; background: var(--glass); backdrop-filter: blur(14px); border: 1px solid var(--line-strong); border-radius: var(--r-sm); box-shadow: var(--shadow); color: var(--text); font-family: var(--font-ui); font-size: 13px; user-select: text; }
+.ceditor .chead { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); font-weight: 500; min-width: 0; }
+.ceditor .chead > span:first-of-type { white-space: nowrap; flex: none; }
+.ceditor .cq-quote { color: var(--text-3); font-weight: 400; font-family: var(--font-paper); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ceditor textarea { width: 100%; resize: none; background: var(--sunken); border: 1px solid var(--line); border-radius: 7px; color: var(--text); font: inherit; font-size: 13px; line-height: 1.5; padding: 6px 8px; }
+.ceditor textarea:focus-visible { outline: none; border-color: color-mix(in srgb, var(--accent) 65%, transparent); }
+.ceditor .cbtns { display: flex; gap: 6px; }
+.ceditor .cbtns .btn { padding: 5px 9px; font-size: 12px; }
+.ceditor .btn.primary kbd { background: rgba(0, 0, 0, 0.18); border-color: transparent; color: inherit; }
+.btn.danger { color: #ff8a8a; margin-left: auto; }
 .seltool { position: absolute; z-index: 6; display: flex; gap: 2px; padding: 4px; background: var(--glass); backdrop-filter: blur(14px); border: 1px solid var(--line-strong); border-radius: var(--r-sm); box-shadow: var(--shadow); font-size: 12.5px; color: var(--text); transform: translate(-8px, calc(-100% - 10px)); white-space: nowrap; }
 .seltool button { display: flex; align-items: center; gap: 7px; padding: 6px 9px; border-radius: 6px; font-weight: 500; }
 .seltool button:hover { background: var(--raised-2); }

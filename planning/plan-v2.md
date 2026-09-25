@@ -46,6 +46,7 @@ The first thing to validate:
 - **Message** — a user or assistant turn inside a thread. A user message may carry one or more anchors (quoted spans from sources). An assistant message may carry citations (page references).
 - **Branch summary** — a cached, model-written summary of a branch: 2–3 sentences, concept tags, and the id of the last message it covers. Generated in the background when the branch has new activity and an ancestor's composer gains focus, or on demand. Feeds lazy context (§5.5), hover cards on branch markers, and thread lists. Never shown as a ceremony and never asked of the reader.
 - **Note** — free-form Markdown the user or agent writes.
+- **Annotation** — the reader's own mark on a source, never part of a prompt: a *comment* (a span plus text) or a *bookmark* (a span or a whole page, with a label). Stored per source in `sources/<id>/annotations.json`; drawn as markers in the page margin; listed in the header's Marks popover.
 - **Event** — append-only log entry: thread opened, question asked, branch created, returned, abandoned, depth reached, time on page.
 
 ### 3.2 How documents relate to threads
@@ -78,7 +79,7 @@ No persistent sidebar. It cost a quarter of the width and earned little, and it 
 
 - **Home** — a list of collections (reading lists) with a *Continue reading* card for the last position. Opening a collection opens its reader.
 - **Header** — one 44px bar: brand, collection switcher, source switcher with the current page, a *Threads* popover with the collection's threads grouped by source and ordered by recency, search, agent status. Switching collection or source is a dropdown, not a panel.
-- **Reader** — PDF.js viewer (or Markdown view), full width when no thread is focused. Selection toolbar: *Explore*, *Ask here*, *Note*. Margin markers for anchored threads, colour-coded by thread; clicking one opens that thread.
+- **Reader** — PDF.js viewer (or Markdown view), full width when no thread is focused. Selection toolbar: *Explore*, *Ask here*, *Comment*, *Bookmark*. Margin markers for anchored threads (colour-coded), comments and bookmarks; markers that share a line step sideways; clicking one opens the thread or an inline editor for the comment or label. A page can be bookmarked without a selection (Ctrl+D or the bookmark button by the zoom control).
 - **Thread panel** — the focused thread, beside the reader. A branch opens *in place* (push), with a breadcrumb of ancestors at the top and a clickable outline of the branch tree under it. There are no Back, Close or Done actions. The breadcrumb, the outline, the margin markers, the Threads popover and Escape are the only ways to move, and moving is all that ever happens. The panel collapses with a header control (Escape from a root thread does the same); the current thread stays current and reopens where it was. A *Focus* toggle hides the paper when the reader wants the full width for the conversation. The paper never moves unless the reader clicks an anchor or a citation, and positions persist per source and per thread across sessions.
 
 While the agent works, the panel shows a compact activity list above the streamed text (files read, searches run, what it is waiting on), permission requests inline with *Allow once*, *Always for this collection* and *Deny* (§5.6), and the send button becomes *Stop*. A message that carried branch digests shows a small "included 1 branch" chip (§5.5).
@@ -286,6 +287,7 @@ my-research/
       source.pdf
       source.json               # title, authors, sha256, page count, added date
       text.md                   # extracted text with <!-- page N --> markers
+      annotations.json          # the reader's bookmarks and comments on this source
   threads/
     2026-09-25-low-dimensional-manifold.md
     2026-09-25-low-dimensional-manifold/
