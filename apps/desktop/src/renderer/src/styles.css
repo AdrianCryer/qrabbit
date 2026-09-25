@@ -311,6 +311,29 @@ body.resizing .rscroll, body.resizing .msgs { pointer-events: none; }
 .md .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; margin: 4px 0; }
 .md .katex { font-size: 1.08em; }
 
+/* ---------- settings dialog ---------- */
+.overlay { position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, 0.45); display: grid; place-items: center; padding: 24px; }
+.dialog { width: min(100%, 640px); max-height: min(88vh, 760px); display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden; }
+.dhead { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 12px 18px; border-bottom: 1px solid var(--line); }
+.dhead h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.dbody { overflow: auto; padding: 6px 18px 18px; display: grid; gap: 22px; }
+.dbody section { display: grid; gap: 8px; }
+.dbody h3 { margin: 12px 0 0; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); font-weight: 500; }
+.dbody h4 { margin: 6px 0 0; font-size: 12.5px; font-weight: 500; color: var(--text-2); }
+.dsub { margin: 0; color: var(--text-3); font-size: 12.5px; line-height: 1.5; }
+.drow { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+.field { display: grid; gap: 4px; font-size: 12px; color: var(--text-3); min-width: 180px; }
+.field select { font: inherit; font-size: 13px; color: var(--text); background: var(--raised); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 6px 8px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 15px; height: 15px; }
+.kgroup { display: grid; gap: 4px; }
+table.keys { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+table.keys td { padding: 5px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table.keys td:last-child { text-align: right; white-space: nowrap; }
+table.keys kbd { margin-left: 4px; }
+.seltool kbd { background: rgba(0, 0, 0, 0.18); border-color: transparent; color: inherit; }
+.seltool button:not(.primary) kbd { background: var(--sunken); border-color: var(--line); color: var(--text-2); }
+
 /* ---------- toasts ---------- */
 .toasts { position: fixed; right: 16px; bottom: 16px; z-index: 50; display: grid; gap: 6px; justify-items: end; pointer-events: none; }
 .toast { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--r-sm); background: var(--glass); backdrop-filter: blur(14px); border: 1px solid var(--line-strong); box-shadow: var(--shadow); font-size: 12.5px; max-width: min(92vw, 460px); }

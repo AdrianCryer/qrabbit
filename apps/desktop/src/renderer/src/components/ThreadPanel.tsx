@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Anchor, ConfigOption, Message, ThreadMeta } from "@qrabbit/shared";
 import { useStore, type TurnState } from "../state/store";
 import { anchorToRangeIn, offsetsForRange, rectsForRange, selectorFor, textOfElement } from "../pdf/anchoring";
+import { isTyping, matches } from "../lib/shortcuts";
 import { Dropdown } from "./Dropdown";
 import { Icon } from "./Icons";
 import { Markdown } from "./Markdown";
@@ -252,6 +253,20 @@ export function ThreadPanel() {
     document.addEventListener("selectionchange", onChange);
     return () => document.removeEventListener("selectionchange", onChange);
   }, []);
+  // E explores a selection inside an answer while its toolbar is showing.
+  const msgSelRef = useRef(msgSel);
+  msgSelRef.current = msgSel;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const cur = msgSelRef.current;
+      if (!cur || isTyping(e) || !matches(e, "E")) return;
+      e.preventDefault();
+      setMsgSel(null);
+      void branch(cur.messageId, cur.anchor);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [branch]);
 
   if (!thread) return null;
   const hue = thread.hue;
@@ -392,7 +407,7 @@ export function ThreadPanel() {
           <div className="seltool msg-tool" role="toolbar" style={{ left: msgSel.left, top: msgSel.top }} onMouseDown={(e) => e.preventDefault()}>
             <button className="primary" onClick={() => { const s = msgSel; setMsgSel(null); void branch(s.messageId, s.anchor); }}>
               <Icon name="branch" />
-              Explore
+              Explore <kbd>E</kbd>
             </button>
           </div>
         )}

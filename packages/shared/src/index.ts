@@ -169,6 +169,8 @@ export type QrabbitApi = {
     openDialog(): Promise<CollectionSnapshot | null>;
     open(path: string): Promise<CollectionSnapshot>;
     forget(path: string): Promise<CollectionInfo[]>;
+    /** Merge settings into the collection manifest (defaults for new threads, etc.). */
+    updateSettings(path: string, patch: CollectionManifest["settings"]): Promise<CollectionManifest>;
   };
   sources: {
     importDialog(collectionPath: string): Promise<SourceInfo[]>;

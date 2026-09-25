@@ -51,7 +51,14 @@ type State = {
   agent: AgentStatus | null;
   turns: Record<string, TurnState>;
   configOptions: Record<string, ConfigOption[]>;
+  /** The last config options any session reported; Settings uses them to offer model and effort choices. */
+  knownOptions: ConfigOption[];
+  settingsOpen: boolean;
+  /** Which header menu a shortcut opened, if any. */
+  menu: "collection" | "source" | "threads" | null;
 };
+
+export type MenuId = State["menu"];
 
 type Actions = {
   init(): Promise<void>;
@@ -81,6 +88,12 @@ type Actions = {
   dismissToast(id: number): void;
   /** Delete a thread and its branches. The panel moves to the parent, or closes. */
   deleteThread(id: string): Promise<void>;
+  setSettingsOpen(open: boolean): void;
+  setMenu(menu: MenuId): void;
+  /** Show the panel with the current thread, or hide it. */
+  togglePanel(): void;
+  openParent(): Promise<void>;
+  updateCollectionSettings(patch: { model?: string; effort?: string }): Promise<void>;
 };
 
 let subscribed = false;
@@ -100,12 +113,21 @@ export const useStore = create<State & Actions>((set, get) => ({
   agent: null,
   turns: {},
   configOptions: {},
+  knownOptions: [],
+  settingsOpen: false,
+  menu: null,
 
   async init() {
     const [platform, recent] = await Promise.all([api.app.platform(), api.collections.recent()]);
     set({ platform, recent });
     if (subscribed) return;
     subscribed = true;
+    // Optional: go straight back into the last collection.
+    try {
+      if (localStorage.getItem("qrabbit:reopen-last") === "1" && recent[0]) void get().openCollection(recent[0].path);
+    } catch {
+      /* ignore */
+    }
     api.agent.onStatus((collectionPath, status) => {
       if (get().collection?.info.path === collectionPath) set({ agent: status });
     });
@@ -122,7 +144,10 @@ export const useStore = create<State & Actions>((set, get) => ({
         const t = { ...(s.turns[threadId] ?? emptyTurn()) };
         applyEvent(t, event);
         const patch: Partial<State> = { turns: { ...s.turns, [threadId]: t } };
-        if (event.type === "config_options") patch.configOptions = { ...s.configOptions, [threadId]: event.options };
+        if (event.type === "config_options") {
+          patch.configOptions = { ...s.configOptions, [threadId]: event.options };
+          patch.knownOptions = event.options;
+        }
         return patch;
       });
     });
@@ -213,7 +238,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     if (!get().configOptions[id]) {
       api.agent
         .session(c.info.path, id)
-        .then(({ configOptions }) => set((s) => ({ configOptions: { ...s.configOptions, [id]: configOptions } })))
+        .then(({ configOptions }) => set((s) => ({ configOptions: { ...s.configOptions, [id]: configOptions }, knownOptions: configOptions })))
         .catch(() => { /* status pill shows the problem */ });
     }
   },
@@ -366,6 +391,35 @@ export const useStore = create<State & Actions>((set, get) => ({
 
   dismissToast(id) {
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
+  },
+
+  setSettingsOpen(open) {
+    set({ settingsOpen: open, menu: null });
+  },
+
+  setMenu(menu) {
+    set({ menu });
+  },
+
+  togglePanel() {
+    const { panelOpen, thread, collection: c } = get();
+    if (panelOpen) { get().closePanel(); return; }
+    if (thread) { set({ panelOpen: true }); return; }
+    const latest = c?.threads.find((t) => !t.parent) ?? c?.threads[0];
+    if (latest) void get().openThread(latest.id);
+    else get().toast("No thread yet. Highlight the paper and choose Explore.");
+  },
+
+  async openParent() {
+    const t = get().thread;
+    if (t?.parent) await get().openThread(t.parent.thread);
+  },
+
+  async updateCollectionSettings(patch) {
+    const c = get().collection;
+    if (!c) return;
+    const manifest = await api.collections.updateSettings(c.info.path, patch);
+    set((s) => (s.collection ? { collection: { ...s.collection, manifest } } : {}));
   },
 }));
 

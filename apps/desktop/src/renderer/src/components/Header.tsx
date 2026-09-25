@@ -24,7 +24,9 @@ export function Header() {
   const { goHome, openCollection, openCollectionDialog, selectSource, importSources, openThread } = useStore.getState();
 
   const agent = useStore((s) => s.agent);
-  const { connectAgent, loginAgent } = useStore.getState();
+  const menu = useStore((s) => s.menu);
+  const { connectAgent, loginAgent, setMenu, setSettingsOpen } = useStore.getState();
+  const controlled = (id: "collection" | "source" | "threads") => ({ open: menu === id, onOpenChange: (v: boolean) => setMenu(v ? id : menu === id ? null : menu) });
   const source = collection?.sources.find((s) => s.id === sourceId) ?? null;
   // Branches are reached from their parent's outline; the popover lists root threads only.
   const threads = (collection?.threads ?? []).filter((t) => !t.parent);
@@ -39,14 +41,22 @@ export function Header() {
 
   return (
     <header className="hdr">
-      <button className="brand" onClick={goHome} title="All collections">
+      <button className="brand" onClick={goHome} title="All collections (Ctrl+Shift+H)">
         <span className="q">Q</span>
         {screen === "home" && <span>QRabbit</span>}
       </button>
+      {screen === "home" && (
+        <div className="hright">
+          <button className="ibtn" title="Settings and shortcuts (Ctrl+,)" onClick={() => setSettingsOpen(true)}>
+            <Icon name="gear" />
+          </button>
+        </div>
+      )}
 
       {screen === "reader" && collection && (
         <>
           <Dropdown
+            {...controlled("collection")}
             title="Switch collection"
             label={
               <>
@@ -84,6 +94,7 @@ export function Header() {
           <span className="hsep">/</span>
 
           <Dropdown
+            {...controlled("source")}
             className="hsrc"
             title="Switch source"
             label={
@@ -125,8 +136,9 @@ export function Header() {
 
           <div className="hright">
             <Dropdown
+              {...controlled("threads")}
               align="right"
-              title="Threads in this collection"
+              title="Threads in this collection (Ctrl+Shift+T)"
               label={
                 <>
                   <Icon name="branch" />
@@ -212,6 +224,9 @@ export function Header() {
                 </>
               )}
             </Dropdown>
+            <button className="ibtn" title="Settings and shortcuts (Ctrl+,)" onClick={() => setSettingsOpen(true)}>
+              <Icon name="gear" />
+            </button>
           </div>
         </>
       )}

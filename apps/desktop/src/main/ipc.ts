@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from "electron";
 import { basename } from "node:path";
-import type { Anchor, CollectionSnapshot, Message, ReaderPosition } from "@qrabbit/shared";
+import type { Anchor, CollectionManifest, CollectionSnapshot, Message, ReaderPosition } from "@qrabbit/shared";
 import {
   appendMessage,
   createThread,
@@ -15,6 +15,7 @@ import {
   readThread,
   saveSourceText,
   setReaderPosition,
+  updateSettings,
 } from "@qrabbit/workspace";
 import { forgetRecent, recentCollections, touchRecent } from "./recent";
 import { AgentHost, type AgentEmitter } from "./agent";
@@ -65,6 +66,7 @@ export function registerIpc(): void {
   ipcMain.handle("collections:recent", () => recentCollections());
   ipcMain.handle("collections:open", (_e, path: string) => snapshot(path));
   ipcMain.handle("collections:forget", (_e, path: string) => forgetRecent(path));
+  ipcMain.handle("collections:updateSettings", (_e, path: string, patch: CollectionManifest["settings"]) => updateSettings(guard(path), patch));
   ipcMain.handle("collections:openDialog", async (e) => {
     const win = windowOf(e);
     const r = await dialog.showOpenDialog(win!, {

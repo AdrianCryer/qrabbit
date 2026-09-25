@@ -17,7 +17,7 @@ import {
   type SpawnedAgent,
 } from "@qrabbit/acp-client";
 import type { AgentEvent, AgentStatus, Anchor, ConfigOption, PermissionRequest, Thread } from "@qrabbit/shared";
-import { appendMessage, createThread, listThreads, readThread, updateThread } from "@qrabbit/workspace";
+import { appendMessage, createThread, listThreads, openCollection, readThread, updateThread } from "@qrabbit/workspace";
 import { branchContextBlock, branchIntroBlocks, buildPromptBlocks, handoffPrompt, historyBlock, parseSummary, PREAMBLE, SUMMARY_PROMPT } from "./context";
 import { dirtyBranches } from "./tree";
 
@@ -207,8 +207,10 @@ export class AgentHost {
     const entry: SessionEntry = { session, configOptions: flattenOptions(session.newSessionResponse.configOptions), turns: 0, lock: Promise.resolve() };
     this.sessions.set(threadId, entry);
     this.threadBySession.set(session.sessionId, threadId);
+    // A thread's own choice wins; otherwise the collection's defaults from Settings apply.
     const thread = readThread(this.collection, threadId);
-    for (const [id, value] of [["model", thread?.model], ["effort", thread?.effort]] as const) {
+    const defaults = openCollection(this.collection).manifest.settings;
+    for (const [id, value] of [["model", thread?.model ?? defaults.model], ["effort", thread?.effort ?? defaults.effort]] as const) {
       const opt = entry.configOptions.find((o) => o.id === id);
       if (value && opt && opt.currentValue !== value) {
         try {

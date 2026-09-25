@@ -15,6 +15,7 @@ const api: QrabbitApi = {
     openDialog: () => invoke("collections:openDialog"),
     open: (path) => invoke("collections:open", path),
     forget: (path) => invoke("collections:forget", path),
+    updateSettings: (path, patch) => invoke("collections:updateSettings", path, patch),
   },
   sources: {
     importDialog: (collection) => invoke("sources:importDialog", collection),

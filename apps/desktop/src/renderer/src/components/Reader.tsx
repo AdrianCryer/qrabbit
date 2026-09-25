@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { ensureWorker, pdfjs, type PDFDocumentProxy, type TextItem } from "../pdf/pdfjs";
 import { buildTextMd, pageTextFromItems } from "../pdf/text";
 import { anchorToRange, layerText, rectsForRange, selectionToAnchor, type PageContext } from "../pdf/anchoring";
+import { isTyping, matches } from "../lib/shortcuts";
 import { Icon } from "./Icons";
 
 type Highlight = { threadId: string; hue: number; anchor: Anchor };
@@ -150,18 +151,23 @@ export function Reader(props: Props) {
     prevScale.current = scale;
   }, [scale]);
   const zoomBy = useCallback((factor: number) => setZoom((z) => Math.min(3, Math.max(0.5, Math.round(z * factor * 100) / 100))), []);
+  const selRef = useRef(sel);
+  selRef.current = sel;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT")) return;
-      if (e.key === "=" || e.key === "+") { e.preventDefault(); zoomBy(1.1); }
-      else if (e.key === "-") { e.preventDefault(); zoomBy(1 / 1.1); }
-      else if (e.key === "0") { e.preventDefault(); setZoom(1); }
+      if (isTyping(e)) return;
+      if (matches(e, "Mod+=")) { e.preventDefault(); zoomBy(1.1); return; }
+      if (matches(e, "Mod+-")) { e.preventDefault(); zoomBy(1 / 1.1); return; }
+      if (matches(e, "Mod+0")) { e.preventDefault(); setZoom(1); return; }
+      // Selection actions, only while the toolbar is showing.
+      const current = selRef.current;
+      if (!current) return;
+      if (matches(e, "E")) { e.preventDefault(); setSel(null); onExplore(current.anchor); }
+      else if (matches(e, "A")) { e.preventDefault(); setSel(null); onAskHere(current.anchor); }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [zoomBy]);
+  }, [zoomBy, onExplore, onAskHere]);
   useEffect(() => {
     const root = scrollRef.current;
     if (!root) return;
@@ -305,13 +311,13 @@ export function Reader(props: Props) {
           <div className="seltool" role="toolbar" style={{ left: sel.left, top: sel.top }} onMouseDown={(e) => e.preventDefault()}>
             {canAskHere ? (
               <>
-                <button className="primary" onClick={() => onAskHere(sel.anchor)}><Icon name="chat" />Ask here</button>
-                <button onClick={() => onExplore(sel.anchor)}><Icon name="branch" />New thread</button>
+                <button className="primary" onClick={() => onAskHere(sel.anchor)}><Icon name="chat" />Ask here <kbd>A</kbd></button>
+                <button onClick={() => onExplore(sel.anchor)}><Icon name="branch" />New thread <kbd>E</kbd></button>
               </>
             ) : (
               <>
-                <button className="primary" onClick={() => onExplore(sel.anchor)}><Icon name="branch" />Explore</button>
-                <button onClick={() => onAskHere(sel.anchor)}><Icon name="chat" />Ask here</button>
+                <button className="primary" onClick={() => onExplore(sel.anchor)}><Icon name="branch" />Explore <kbd>E</kbd></button>
+                <button onClick={() => onAskHere(sel.anchor)}><Icon name="chat" />Ask here <kbd>A</kbd></button>
               </>
             )}
           </div>

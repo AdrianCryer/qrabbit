@@ -11,13 +11,22 @@ type Props = {
   triggerClass?: string;
   title?: string;
   disabled?: boolean;
+  /** Controlled mode, so a shortcut can open the menu. */
+  open?: boolean;
+  onOpenChange?(open: boolean): void;
   /** Menu body. Receives a closer so items can dismiss the menu. */
   children: (close: () => void) => ReactNode;
 };
 
 /** A trigger that opens a glass menu. Closes on outside click and Escape. */
-export function Dropdown({ label, align = "left", up = false, className, triggerClass = "hpill", title, disabled, children }: Props) {
-  const [open, setOpen] = useState(false);
+export function Dropdown({ label, align = "left", up = false, className, triggerClass = "hpill", title, disabled, open: openProp, onOpenChange, children }: Props) {
+  const [openState, setOpenState] = useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : openState;
+  const setOpen = (v: boolean) => {
+    if (!controlled) setOpenState(v);
+    onOpenChange?.(v);
+  };
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -26,19 +35,23 @@ export function Dropdown({ label, align = "left", up = false, className, trigger
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+      }
     };
     document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
     return () => {
       document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey, true);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   return (
     <div className={`pop ${className ?? ""}`} ref={ref}>
-      <button className={triggerClass} aria-expanded={open} aria-haspopup="menu" title={title} disabled={disabled} onClick={() => setOpen((o) => !o)}>
+      <button className={triggerClass} aria-expanded={open} aria-haspopup="menu" title={title} disabled={disabled} onClick={() => setOpen(!open)}>
         {label}
       </button>
       {open && (

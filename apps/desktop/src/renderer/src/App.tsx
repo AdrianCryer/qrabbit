@@ -6,7 +6,9 @@ import { Home } from "./components/Home";
 import { Reader } from "./components/Reader";
 import { ThreadPanel } from "./components/ThreadPanel";
 import { Toasts } from "./components/Toasts";
+import { Settings } from "./components/Settings";
 import { Icon } from "./components/Icons";
+import { isTyping, matches } from "./lib/shortcuts";
 
 function ReaderPane() {
   const collection = useStore((s) => s.collection);
@@ -124,12 +126,24 @@ export function App() {
     void init();
   }, [init]);
 
+  // Global shortcuts. Single-letter ones live where the selection is (Reader, ThreadPanel).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT")) return;
-      if (useStore.getState().panelOpen) closePanel();
+      const s = useStore.getState();
+      if (matches(e, "Mod+,")) { e.preventDefault(); s.setSettingsOpen(!s.settingsOpen); return; }
+      if (s.settingsOpen) return;
+      if (matches(e, "Mod+O")) { e.preventDefault(); void s.openCollectionDialog(); return; }
+      if (matches(e, "Mod+Shift+H")) { e.preventDefault(); s.goHome(); return; }
+      if (s.screen !== "reader") return;
+      if (matches(e, "Mod+I")) { e.preventDefault(); void s.importSources(); return; }
+      if (matches(e, "Mod+Shift+T")) { e.preventDefault(); s.setMenu(s.menu === "threads" ? null : "threads"); return; }
+      if (matches(e, "Mod+B")) { e.preventDefault(); s.togglePanel(); return; }
+      if (matches(e, "Mod+Shift+F")) { e.preventDefault(); if (s.panelOpen) s.setFocus(!s.focus); return; }
+      if (matches(e, "Alt+ArrowUp")) { e.preventDefault(); void s.openParent(); return; }
+      if (e.key === "Escape" && !isTyping(e)) {
+        if (s.menu) { s.setMenu(null); return; }
+        if (s.panelOpen) closePanel();
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -147,6 +161,7 @@ export function App() {
           {panelOpen && <ThreadPanel />}
         </main>
       )}
+      <Settings />
       <Toasts />
     </div>
   );

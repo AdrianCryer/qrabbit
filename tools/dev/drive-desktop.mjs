@@ -152,6 +152,20 @@ try {
     };
   });
   log("layout:", JSON.stringify(layout));
+
+  // Keyboard: Escape collapses the panel, Ctrl+B brings it back, Ctrl+, opens Settings, Escape closes it.
+  await page.evaluate(() => document.body.focus());
+  await page.keyboard.press("Escape");
+  await waitFor(page, () => !window.__qrabbitStore.getState().panelOpen, { label: "panel to collapse on Escape" });
+  await page.keyboard.press("Control+b");
+  await waitFor(page, () => window.__qrabbitStore.getState().panelOpen, { label: "panel to reopen on Ctrl+B" });
+  await page.keyboard.press("Control+,");
+  await page.waitForSelector(".dialog", { timeout: 5_000 });
+  await sleep(300);
+  await shot(page, "04b-settings");
+  await page.keyboard.press("Escape");
+  await waitFor(page, () => !document.querySelector(".dialog"), { label: "settings to close on Escape" });
+  log("keyboard: escape, ctrl+b, ctrl+, all handled");
   const threadsDir = join(collection, "threads");
   const files = existsSync(threadsDir) ? readdirSync(threadsDir).filter((f) => f.endsWith(".md")) : [];
   log("thread files:", files.join(", ") || "(none)");
