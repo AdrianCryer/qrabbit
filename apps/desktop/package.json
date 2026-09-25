@@ -5,7 +5,7 @@
   "description": "QRabbit desktop app: read, highlight, explore in branches, keep what you learned.",
   "main": "./out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "electron-vite dev --watch",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",

@@ -249,7 +249,10 @@ body.resizing .rscroll, body.resizing .msgs { pointer-events: none; }
 .cite { display: inline-flex; align-items: center; padding: 0 5px; border-radius: 5px; background: var(--accent-soft); color: var(--accent); font-family: var(--font-mono); font-size: 11px; font-weight: 500; cursor: pointer; border: 1px solid transparent; }
 .cite:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
 .pnote { color: var(--text-3); font-size: 12px; padding: 10px 12px; border-radius: var(--r-sm); border: 1px dashed var(--line-strong); line-height: 1.5; }
-.composer { margin: 8px 12px 12px; background: var(--raised); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 10px 8px; display: grid; gap: 8px; box-shadow: var(--shadow-sm); }
+.composer { margin: 8px 12px 12px; background: var(--raised); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 10px 8px; display: grid; gap: 8px; box-shadow: var(--shadow-sm); transition: border-color 0.12s, box-shadow 0.12s; }
+/* Focus lights up the whole card, following its radius, instead of a square ring on the text area. */
+.composer:focus-within { border-color: color-mix(in srgb, var(--accent) 65%, transparent); box-shadow: var(--shadow-sm), 0 0 0 3px var(--accent-soft); }
+.composer textarea:focus-visible { outline: none; }
 .composer textarea { width: 100%; resize: none; background: none; border: 0; color: var(--text); font: inherit; font-size: 13.5px; line-height: 1.5; min-height: 44px; padding: 2px 4px; user-select: text; }
 .composer textarea::placeholder { color: var(--text-3); }
 .cq { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; padding: 7px 8px 7px 10px; border-left: 3px solid var(--hl); border-radius: 6px; background: var(--sunken); font-family: var(--font-paper); font-size: 13px; line-height: 1.45; color: var(--text); }

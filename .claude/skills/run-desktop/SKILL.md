@@ -32,9 +32,11 @@ To poke at something else, edit the driver: it exposes the app's store as `windo
 ## Run (human path)
 
 ```bash
-pnpm --filter @qrabbit/desktop dev      # dev server with hot reload, opens a window
+pnpm --filter @qrabbit/desktop dev      # dev server, opens a window; renderer hot-reloads, main/preload restart the app
 pnpm --filter @qrabbit/desktop preview  # runs the last build
 ```
+
+The dev script passes `--watch`, so a change under `src/main` or `src/preload` restarts Electron. Without it only the renderer reloads, and a renderer that calls a new IPC channel hits "No handler registered for '…'" until the app is restarted.
 
 ## Gotchas
 

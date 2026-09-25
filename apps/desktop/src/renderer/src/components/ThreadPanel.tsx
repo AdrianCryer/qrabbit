@@ -420,7 +420,8 @@ export function ThreadPanel() {
           placeholder={running ? `${agentName} is answering. Type to queue a follow-up.` : composerQuote ? `Ask about this passage in ${thread.title}` : thread.parent ? "Ask about this branch" : "Ask a follow-up, or highlight the paper and choose Ask here"}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            // Enter sends; Shift+Enter adds a line. Never send while an IME is composing.
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               if (!running) send();
             } else if (e.key === "Escape" && composerQuote) {
@@ -437,7 +438,7 @@ export function ThreadPanel() {
           </span>
           {modelOpt && <Picker option={modelOpt} onPick={(v) => void setConfig(modelOpt.id, v)} />}
           {effortOpt && <Picker option={effortOpt} onPick={(v) => void setConfig(effortOpt.id, v)} />}
-          <button className={`send ${running ? "stop" : ""}`} title={running ? "Stop" : "Send (Ctrl+Enter)"} onClick={send} disabled={!running && !draft.trim() && !composerQuote}>
+          <button className={`send ${running ? "stop" : ""}`} title={running ? "Stop" : "Send (Enter · Shift+Enter for a new line)"} onClick={send} disabled={!running && !draft.trim() && !composerQuote}>
             {running ? <Icon name="stop" /> : <Icon name="up" />}
           </button>
         </div>
