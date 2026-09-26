@@ -195,6 +195,44 @@ try {
   await waitFor(page, () => !document.querySelector(".dialog"), { label: "settings to close on Escape" });
   log("keyboard: escape, ctrl+b, ctrl+, all handled");
 
+  // Focus mode (paper hidden): a canned answer shows how wide the text runs when the panel is the window.
+  await page.evaluate(async (p) => {
+    const s = window.__qrabbitStore.getState();
+    const body = [
+      "The claim is that the representation lies near a **low-dimensional manifold** inside $\\mathbb{R}^d$, and that its intrinsic dimension $k \\ll d$ settles as depth increases [p.1]. The two-nearest-neighbour estimator used here compares the distances from each point to its closest and second-closest neighbour, which only needs local information and is therefore insensitive to the global shape of the set.",
+      "",
+      "A flat baseline such as PCA overestimates $k$ because a curved manifold needs more linear directions to be captured to a fixed variance than its intrinsic dimension suggests; the gap between the two estimates is a rough measure of curvature [p.1].",
+      "",
+      "```python\nfrom sklearn.neighbors import NearestNeighbors\nnn = NearestNeighbors(n_neighbors=3).fit(h)\nd, _ = nn.kneighbors(h)\nmu = d[:, 2] / d[:, 1]\n```",
+    ].join("\n");
+    await window.qrabbit.threads.appendMessage(p, s.thread.id, { role: "assistant", body });
+    await s.openThread(s.thread.id);
+    s.setFocus(true);
+  }, collection);
+  await waitFor(page, () => window.__qrabbitStore.getState().focus && document.querySelectorAll(".msg.assistant").length > 0, { label: "focus mode with the canned answer" });
+  await sleep(500);
+  await shot(page, "04b2-focus");
+  const focusWidths = await page.evaluate(() => {
+    const panel = document.querySelector(".panel").getBoundingClientRect();
+    const body = document.querySelector(".msg.assistant .body").getBoundingClientRect();
+    return { panel: Math.round(panel.width), body: Math.round(body.width), left: Math.round(body.left - panel.left) };
+  });
+  log("focus mode widths:", JSON.stringify(focusWidths));
+  await page.evaluate(() => window.__qrabbitStore.getState().setFocus(false));
+  await sleep(300);
+  // A widened side panel: the answer should follow the panel's width, not stop at a fixed measure.
+  await page.evaluate(() => document.querySelector(".app").style.setProperty("--panel-w", "760px"));
+  await sleep(400);
+  const wideWidths = await page.evaluate(() => {
+    const panel = document.querySelector(".panel").getBoundingClientRect();
+    const body = document.querySelector(".msg.assistant .body").getBoundingClientRect();
+    return { panel: Math.round(panel.width), body: Math.round(body.width) };
+  });
+  log("wide panel widths:", JSON.stringify(wideWidths));
+  await shot(page, "04b3-wide-panel");
+  await page.evaluate(() => document.querySelector(".app").style.removeProperty("--panel-w"));
+  await sleep(300);
+
   // Marks: comment on a passage, bookmark the page, open the Marks menu.
   await page.evaluate(() => {
     const spans = [...document.querySelectorAll(".page[data-page='1'] .textLayer span")];

@@ -140,6 +140,12 @@ svg.i { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-widt
 .divider { cursor: col-resize; background: transparent; position: relative; z-index: 3; }
 /* Keep the divider in the grid so the panel stays in the third column; just make it inert. */
 .app[data-focus="true"] .divider { visibility: hidden; pointer-events: none; }
+/* Focus mode hides the paper, so the panel is the window: messages are centred in a column
+   capped at a long line, since text across a whole window is hard to read. */
+.app[data-focus="true"] .msgs { padding: 20px 28px 8px; align-items: center; }
+.app[data-focus="true"] .msgs > * { width: 100%; max-width: 120ch; }
+.app[data-focus="true"] .msg.assistant .body, .app[data-focus="true"] .msg.system .body { font-size: 14.5px; }
+.app[data-focus="true"] .composer { width: calc(100% - 56px); max-width: 120ch; margin: 8px auto 14px; }
 .divider::after { content: ""; position: absolute; inset: 0 2px; border-radius: 2px; background: transparent; transition: background 0.15s; }
 .divider:hover::after, body.resizing .divider::after { background: var(--accent); }
 body.resizing { cursor: col-resize; user-select: none; }
@@ -292,14 +298,14 @@ body.resizing .rscroll, body.resizing .msgs { pointer-events: none; }
 .handoff summary { list-style: none; display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--text-2); font-weight: 500; }
 .handoff summary::-webkit-details-marker { display: none; }
 .handoff summary .chip { margin-left: auto; }
-.handoff p { margin: 6px 0 0; line-height: 1.55; max-width: 62ch; white-space: pre-wrap; }
+.handoff p { margin: 6px 0 0; line-height: 1.55; white-space: pre-wrap; }
 .handoff .md { margin-top: 6px; font-size: 12.5px; color: var(--text-2); }
 .handoff .md p { white-space: normal; }
 .msg { display: grid; gap: 8px; }
 .msg .who { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-3); }
 .msg .who b { color: var(--text-2); font-weight: 500; }
 .msg.user .body { background: var(--raised); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px 11px; display: grid; gap: 9px; }
-.msg.assistant .body, .msg.system .body { display: grid; gap: 10px; font-size: 13.5px; line-height: 1.6; max-width: 62ch; }
+.msg.assistant .body, .msg.system .body { display: grid; gap: 10px; font-size: 13.5px; line-height: 1.6; }
 .msg .body p { margin: 0; white-space: pre-wrap; }
 .quote { display: grid; gap: 6px; padding: 8px 10px 8px 12px; border-left: 3px solid var(--hl); border-radius: 6px; background: var(--sunken); font-family: var(--font-paper); font-size: 13.5px; color: var(--text); line-height: 1.5; }
 .quote .from { display: flex; align-items: center; gap: 6px; font-family: var(--font-ui); font-size: 11px; color: var(--text-3); }
@@ -330,14 +336,14 @@ body.resizing .rscroll, body.resizing .msgs { pointer-events: none; }
 .msg .who .spin, .act .spin { display: inline-flex; color: var(--accent); }
 .msg .who .spin svg, .act .spin svg { animation: spin 1.1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.act { display: grid; gap: 5px; padding: 8px 10px; border-radius: var(--r-sm); background: var(--sunken); border: 1px solid var(--line); font-size: 12px; color: var(--text-2); max-width: 62ch; }
+.act { display: grid; gap: 5px; padding: 8px 10px; border-radius: var(--r-sm); background: var(--sunken); border: 1px solid var(--line); font-size: 12px; color: var(--text-2); }
 .act .row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .act .row svg.i { width: 13px; height: 13px; }
 .act .row .ok { color: var(--ok); display: inline-flex; }
 .act .row .bad { color: #ff8a8a; display: inline-flex; }
 .act .row .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .act .row .d { color: var(--text-3); font-family: var(--font-mono); font-size: 11px; flex: none; }
-.perm { display: grid; gap: 9px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--raised); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); max-width: 62ch; }
+.perm { display: grid; gap: 9px; padding: 10px 12px; border-radius: var(--r-sm); background: var(--raised); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); }
 .perm .q { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: var(--text); line-height: 1.5; }
 .perm .q svg.i { color: var(--accent); margin-top: 2px; }
 .perm code { font-family: var(--font-mono); font-size: 11.5px; word-break: break-all; }
@@ -352,7 +358,8 @@ body.resizing .rscroll, body.resizing .msgs { pointer-events: none; }
 .crow .pop .menu { min-width: 220px; }
 
 /* ---------- markdown ---------- */
-.md { display: grid; gap: 10px; font-size: 13.5px; line-height: 1.6; max-width: 62ch; min-width: 0; user-select: text; overflow-wrap: anywhere; }
+/* No fixed measure: the panel width is the reader's choice, and focus mode centres a long line. */
+.md { display: grid; gap: 10px; font-size: 13.5px; line-height: 1.6; min-width: 0; user-select: text; overflow-wrap: anywhere; }
 .md > * { margin: 0; }
 .md p { white-space: normal; }
 .md h1, .md h2, .md h3, .md h4 { font-size: 14px; font-weight: 600; margin-top: 4px; }
