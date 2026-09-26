@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 import type * as acp from "@agentclientprotocol/sdk";
 import { embeddedText, resourceLink, text } from "@qrabbit/acp-client";
 import type { Anchor, Thread } from "@qrabbit/shared";
-import { readSourceText } from "@qrabbit/workspace";
+import { locateQuote, readSourceText } from "@qrabbit/workspace";
 
 export const PREAMBLE =
   "You are helping the reader understand a source in this collection (see AGENTS.md). " +
@@ -18,17 +18,18 @@ function textUri(collection: string, sourceId: string): string {
   return pathToFileURL(join(collection, "sources", sourceId, "text.md")).href;
 }
 
-/** The quoted span plus the text around it, straight from text.md by the anchor's offsets. */
+/** The quoted span plus the text around it from text.md (offsets for PDFs, a quote search otherwise). */
 function passageBlocks(collection: string, anchor: Anchor, label: string): acp.ContentBlock[] {
   if (!anchor.source) return [text(`${label}:\n${anchor.quote}`)];
   const uri = textUri(collection, anchor.source);
   const page = anchor.page ? ` (p.${anchor.page})` : "";
   const blocks: acp.ContentBlock[] = [embeddedText(`${uri}#quote`, `${label}${page}:\n${anchor.quote}`)];
   const full = readSourceText(collection, anchor.source);
-  if (full && anchor.end > anchor.start && anchor.end <= full.length) {
-    const before = full.slice(Math.max(0, anchor.start - CONTEXT_CHARS), anchor.start);
-    const after = full.slice(anchor.end, anchor.end + CONTEXT_CHARS);
-    blocks.push(text(`Surrounding text from text.md${page}:\n…${before}[[${anchor.quote}]]${after}…`));
+  const at = full ? locateQuote(full, anchor) : null;
+  if (full && at) {
+    const before = full.slice(Math.max(0, at[0] - CONTEXT_CHARS), at[0]);
+    const after = full.slice(at[1], at[1] + CONTEXT_CHARS);
+    blocks.push(text(`Surrounding text from text.md${page}:\n…${before}[[${full.slice(at[0], at[1])}]]${after}…`));
   }
   blocks.push(resourceLink(uri, `sources/${anchor.source}/text.md`));
   return blocks;

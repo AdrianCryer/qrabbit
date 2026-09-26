@@ -25,7 +25,11 @@ export function Header() {
 
   const agent = useStore((s) => s.agent);
   const menu = useStore((s) => s.menu);
-  const { connectAgent, loginAgent, setMenu, setSettingsOpen } = useStore.getState();
+  const { connectAgent, loginAgent, setMenu, setSettingsOpen, setUrlDialogOpen } = useStore.getState();
+  const kindIcon = (kind: string) => (kind === "web" ? "globe" : kind === "markdown" ? "lines" : "file");
+  // Page numbers mean something for PDFs only; articles are one page.
+  const pageChip = (sourceId: string | undefined, page: number | undefined) =>
+    page && collection?.sources.find((s) => s.id === sourceId)?.kind === "pdf" ? <span className="chip">p.{page}</span> : null;
   const controlled = (id: "collection" | "source" | "threads" | "marks") => ({ open: menu === id, onOpenChange: (v: boolean) => setMenu(v ? id : menu === id ? null : menu) });
   const annotations = collection?.annotations ?? [];
   const { goToAnnotation } = useStore.getState();
@@ -101,9 +105,9 @@ export function Header() {
             title="Switch source"
             label={
               <>
-                <Icon name={source?.kind === "markdown" ? "lines" : "file"} />
+                <Icon name={source ? kindIcon(source.kind) : "file"} />
                 <span className="txt">{source ? source.title : "No source"}</span>
-                {source?.pages ? <span className="lbl">{source.pages} p.</span> : null}
+                {source?.kind === "pdf" && source.pages ? <span className="lbl">{source.pages} p.</span> : null}
                 <Icon name="chevron" />
               </>
             }
@@ -114,12 +118,12 @@ export function Header() {
                 {collection.sources.length === 0 && <div className="mempty">No sources yet.</div>}
                 {collection.sources.map((s) => (
                   <button key={s.id} className={`mi ${s.id === sourceId ? "cur" : ""}`} role="menuitem" onClick={() => { close(); selectSource(s.id); }}>
-                    <Icon name={s.kind === "markdown" ? "lines" : "file"} />
+                    <Icon name={kindIcon(s.kind)} />
                     <span className="txt">
                       <span className="t">{s.title}</span>
                       <span className="m">
-                        {s.kind === "pdf" ? "PDF" : "Markdown"}
-                        {s.pages ? ` · ${s.pages} pages` : ""} · {threads.filter((t) => t.anchor?.source === s.id).length} threads
+                        {s.kind === "pdf" ? `PDF${s.pages ? ` · ${s.pages} pages` : ""}` : s.kind === "web" ? (s.url ?? "Web page") : "Markdown"}
+                        {" · "}{threads.filter((t) => t.anchor?.source === s.id).length} threads
                       </span>
                     </span>
                   </button>
@@ -128,8 +132,15 @@ export function Header() {
                 <button className="mi" role="menuitem" onClick={() => { close(); void importSources(); }}>
                   <Icon name="plus" />
                   <span className="txt">
-                    <span className="t">Add sources…</span>
+                    <span className="t">Add files…</span>
                     <span className="m">PDF or Markdown</span>
+                  </span>
+                </button>
+                <button className="mi" role="menuitem" onClick={() => { close(); setUrlDialogOpen(true); }}>
+                  <Icon name="globe" />
+                  <span className="txt">
+                    <span className="t">Add a web page…</span>
+                    <span className="m">Saved as reader-mode Markdown</span>
                   </span>
                 </button>
               </>
@@ -168,7 +179,7 @@ export function Header() {
                                   {relTime(t.created)} · {t.messageCount} messages
                                 </span>
                               </span>
-                              <span className="meta">{t.anchor?.page ? <span className="chip">p.{t.anchor.page}</span> : null}</span>
+                              <span className="meta">{pageChip(t.anchor?.source, t.anchor?.page)}</span>
                             </button>
                           ))}
                       </div>
@@ -217,7 +228,7 @@ export function Header() {
                                 <span className="t">{a.text}</span>
                                 {a.anchor && <span className="m">{a.anchor.quote}</span>}
                               </span>
-                              <span className="meta">{a.page ? <span className="chip">p.{a.page}</span> : null}</span>
+                              <span className="meta">{pageChip(a.source, a.page)}</span>
                             </button>
                           ))}
                       </div>

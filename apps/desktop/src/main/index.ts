@@ -26,9 +26,14 @@ function createWindow(): BrowserWindow {
   });
 
   win.on("ready-to-show", () => win.show());
+  // Links in articles open in the system browser; the window itself never navigates away.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url);
+    if (/^https?:/i.test(url)) void shell.openExternal(url);
     return { action: "deny" };
+  });
+  win.webContents.on("will-navigate", (e, url) => {
+    e.preventDefault();
+    if (/^https?:/i.test(url)) void shell.openExternal(url);
   });
 
   if (rendererUrl) void win.loadURL(rendererUrl);

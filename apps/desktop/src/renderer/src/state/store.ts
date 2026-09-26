@@ -56,6 +56,7 @@ type State = {
   /** The last config options any session reported; Settings uses them to offer model and effort choices. */
   knownOptions: ConfigOption[];
   settingsOpen: boolean;
+  urlDialogOpen: boolean;
   /** Which header menu a shortcut opened, if any. */
   menu: "collection" | "source" | "threads" | "marks" | null;
 };
@@ -69,6 +70,9 @@ type Actions = {
   goHome(): void;
   selectSource(id: string | null): void;
   importSources(): Promise<void>;
+  /** Fetch a web page into the collection and open it. Throws with a readable message on failure. */
+  importUrl(url: string): Promise<void>;
+  setUrlDialogOpen(open: boolean): void;
   updateSource(info: SourceInfo): void;
   refreshThreads(): Promise<void>;
   openThread(id: string | null): Promise<void>;
@@ -124,6 +128,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   configOptions: {},
   knownOptions: [],
   settingsOpen: false,
+  urlDialogOpen: false,
   menu: null,
 
   async init() {
@@ -209,6 +214,19 @@ export const useStore = create<State & Actions>((set, get) => ({
       get().selectSource(newest.id);
       get().toast(sources.length - before === 1 ? `Added ${newest.title}` : `Added ${sources.length - before} sources`);
     }
+  },
+
+  async importUrl(url) {
+    const c = get().collection;
+    if (!c) return;
+    const info = await api.sources.importUrl(c.info.path, url);
+    set((s) => (s.collection ? { collection: { ...s.collection, sources: [info, ...s.collection.sources.filter((x) => x.id !== info.id)] } } : {}));
+    get().selectSource(info.id);
+    get().toast(`Added ${info.title}`);
+  },
+
+  setUrlDialogOpen(open) {
+    set({ urlDialogOpen: open, menu: null });
   },
 
   updateSource(info) {
@@ -434,11 +452,12 @@ export const useStore = create<State & Actions>((set, get) => ({
   async addBookmark(sourceId, page, anchor) {
     const c = get().collection;
     if (!c) return;
-    const label = anchor ? titleFromQuote(anchor.quote, 50) : `Page ${page}`;
+    const isPdf = c.sources.find((s) => s.id === sourceId)?.kind === "pdf";
+    const label = anchor ? titleFromQuote(anchor.quote, 50) : isPdf ? `Page ${page}` : "This article";
     const a = await api.annotations.create(c.info.path, { kind: "bookmark", source: sourceId, page, ...(anchor ? { anchor } : {}), text: label });
     set((s) => (s.collection ? { collection: { ...s.collection, annotations: [a, ...s.collection.annotations] } } : {}));
     window.getSelection()?.removeAllRanges();
-    get().toast(anchor ? "Bookmarked the passage" : `Bookmarked page ${page}`, { label: "Undo", run: () => void get().deleteAnnotation(a.id) });
+    get().toast(anchor ? "Bookmarked the passage" : isPdf ? `Bookmarked page ${page}` : "Bookmarked the article", { label: "Undo", run: () => void get().deleteAnnotation(a.id) });
   },
 
   async addComment(sourceId, page, anchor, text) {

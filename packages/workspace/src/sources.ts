@@ -3,6 +3,7 @@ import { basename, extname, join } from "node:path";
 import { slugify, type SourceInfo } from "@qrabbit/shared";
 import { DIRS } from "./collection.js";
 import { readJson, readText, writeAtomic, writeJson } from "./fs.js";
+import { fetchWebPage } from "./web.js";
 
 const SOURCE_JSON = "source.json";
 const TEXT_MD = "text.md";
@@ -50,6 +51,39 @@ export function importFile(collection: string, filePath: string): SourceInfo {
     info.pages = 1;
     info.hasText = true;
   }
+  writeJson(join(dir, SOURCE_JSON), info);
+  return info;
+}
+
+/** Add a web page as a source: reader-mode Markdown, with the URL kept in the file for the agent. */
+export async function importWebPage(collection: string, url: string): Promise<SourceInfo> {
+  const page = await fetchWebPage(url);
+  let host = "";
+  try {
+    host = new URL(page.url).hostname.replace(/^www\./, "");
+  } catch {
+    /* ignore */
+  }
+  const id = uniqueId(collection, slugify(page.title || host || "web-page"));
+  const dir = sourceDir(collection, id);
+  mkdirSync(dir, { recursive: true });
+  const meta = [page.url, page.siteName, page.byline].filter(Boolean).join(" · ");
+  const md = `# ${page.title}\n\nSource: ${meta}\n\n${page.markdown}\n`;
+  writeAtomic(join(dir, "source.md"), md);
+  writeAtomic(join(dir, TEXT_MD), `<!-- page 1 -->\n${md}`);
+  const info: SourceInfo = {
+    id,
+    kind: "web",
+    title: page.title,
+    file: "source.md",
+    pages: 1,
+    added: page.fetched,
+    hasText: true,
+    url: page.url,
+    fetched: page.fetched,
+    ...(page.siteName ? { siteName: page.siteName } : {}),
+    ...(page.byline ? { byline: page.byline } : {}),
+  };
   writeJson(join(dir, SOURCE_JSON), info);
   return info;
 }

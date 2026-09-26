@@ -4,9 +4,11 @@ import { api } from "./lib/api";
 import { Header } from "./components/Header";
 import { Home } from "./components/Home";
 import { Reader } from "./components/Reader";
+import { TextReader } from "./components/TextReader";
 import { ThreadPanel } from "./components/ThreadPanel";
 import { Toasts } from "./components/Toasts";
 import { Settings } from "./components/Settings";
+import { UrlDialog } from "./components/UrlDialog";
 import { Icon } from "./components/Icons";
 import { isTyping, matches } from "./lib/shortcuts";
 
@@ -36,16 +38,27 @@ function ReaderPane() {
     );
   }
 
-  if (source.kind === "markdown") {
+  if (source.kind !== "pdf") {
     return (
-      <div className="reader">
-        <div className="empty">
-          <div className="box">
-            <h3>{source.title}</h3>
-            <p>Markdown sources open in the reader in a later step. For now, pick a PDF from the source switcher.</p>
-          </div>
-        </div>
-      </div>
+      <TextReader
+        key={source.id}
+        collectionPath={collection.info.path}
+        source={source}
+        threads={collection.threads}
+        annotations={collection.annotations}
+        position={collection.readerState[source.id]}
+        focusedThreadId={thread?.id ?? null}
+        focusTarget={focusTarget}
+        canAskHere={!!thread}
+        onPosition={(pos) => savePosition(source.id, pos)}
+        onExplore={(anchor) => void explore(anchor)}
+        onAskHere={askHere}
+        onOpenThread={(id) => void openThread(id)}
+        onBookmark={(page, anchor) => void addBookmark(source.id, page, anchor)}
+        onComment={(anchor, page, text) => void addComment(source.id, page, anchor, text)}
+        onUpdateAnnotation={(id, text) => void updateAnnotation(id, text)}
+        onDeleteAnnotation={(id) => void deleteAnnotation(id)}
+      />
     );
   }
 
@@ -168,6 +181,7 @@ export function App() {
         </main>
       )}
       <Settings />
+      <UrlDialog />
       <Toasts />
     </div>
   );

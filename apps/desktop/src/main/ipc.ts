@@ -10,6 +10,7 @@ import {
   createThread,
   deleteThread,
   importFile,
+  importWebPage,
   listSources,
   listThreads,
   openCollection,
@@ -107,6 +108,7 @@ export function registerIpc(): void {
     }
     return listSources(collection);
   });
+  ipcMain.handle("sources:importUrl", (_e, collection: string, url: string) => importWebPage(guard(collection), url));
   ipcMain.handle("sources:readBytes", (_e, collection: string, id: string) => readSourceBytes(guard(collection), id));
   ipcMain.handle("sources:readText", (_e, collection: string, id: string) => readSourceText(guard(collection), id));
   ipcMain.handle("sources:saveText", (_e, collection: string, id: string, text: string, pages: number, title?: string) =>

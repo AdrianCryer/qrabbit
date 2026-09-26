@@ -9,7 +9,7 @@ The plan is in [planning/plan-v2.md](planning/plan-v2.md). The clickable prototy
 ```
 apps/desktop/        Electron app (electron-vite, React, PDF.js)
 packages/shared/     types, ids, the renderer/main API contract
-packages/workspace/  the collection folder format: manifest, sources, thread files, reader state
+packages/workspace/  the collection folder format: manifest, sources (incl. web page extraction), thread files, reader state
 packages/acp-client/ generic Agent Client Protocol client (spawn, sign in, model picker, streaming, permissions)
 tools/spike-acp/     step 0: drives the Claude Code ACP adapter from a script
 tools/dev/           sample PDF generator and a Playwright driver for the desktop app
@@ -35,7 +35,8 @@ If `apps/desktop/node_modules/electron/dist` is missing after install, run `node
 my-research/
   qrabbit.json         manifest
   AGENTS.md            instructions any agent reads when its session runs here
-  sources/<id>/        source.pdf, source.json, text.md (extracted, with <!-- page N --> markers),
+  sources/<id>/        source.pdf or source.md (a web page is saved as Markdown with its link), source.json,
+                       text.md (extracted, with <!-- page N --> markers),
                        annotations.json (your bookmarks and comments; the agent never receives them)
   threads/             one Markdown file per thread; branches nest under their parent's folder
   notes/               the agent may write here
@@ -43,6 +44,8 @@ my-research/
 ```
 
 Files are the truth. Open a collection in Obsidian or track it with git whenever you like.
+
+Sources are PDFs, Markdown files, or web pages. A page is fetched once, reduced to its article text and saved as Markdown, so it reads like a paper, works offline, and can be highlighted and explored the same way. Formulas that sites publish as images, MathML or MathJax markup are recovered as LaTeX, so they render inline and the agent can read them.
 
 ## The agent
 

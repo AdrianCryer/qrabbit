@@ -3,6 +3,7 @@ import type { Anchor, ConfigOption, Message, ThreadMeta } from "@qrabbit/shared"
 import { useStore, type TurnState } from "../state/store";
 import { anchorToRangeIn, offsetsForRange, rectsForRange, selectorFor, textOfElement } from "../pdf/anchoring";
 import { isTyping, matches } from "../lib/shortcuts";
+import { highlightFor, type HL } from "../lib/highlights";
 import { Dropdown } from "./Dropdown";
 import { Icon } from "./Icons";
 import { Markdown } from "./Markdown";
@@ -34,28 +35,16 @@ function treeRows(all: ThreadMeta[], rootId: string): Array<{ t: ThreadMeta; dep
   return rows;
 }
 
-// ---------- highlight registry (Custom Highlight API) ----------
-type HL = { add(r: Range): void; delete(r: Range): boolean };
-function highlightFor(name: string): HL | null {
-  const g = globalThis as unknown as { CSS?: { highlights?: Map<string, HL> }; Highlight?: new () => HL };
-  const reg = g.CSS?.highlights;
-  if (!reg || !g.Highlight) return null;
-  let hl = reg.get(name);
-  if (!hl) {
-    hl = new g.Highlight();
-    reg.set(name, hl);
-  }
-  return hl;
-}
-
 // ---------- pieces ----------
 function QuoteCard({ anchor, hue, from }: { anchor: Anchor; hue: number; from?: string }) {
+  const source = useStore((s) => s.collection?.sources.find((x) => x.id === anchor.source));
+  const kind = source?.kind ?? "pdf";
   return (
     <div className={`quote h${hue}`}>
       <span className="from">
-        <Icon name={anchor.target === "message" ? "branch" : "file"} />
-        {anchor.target === "message" ? `from ${from ?? "the parent thread"}` : anchor.source}
-        {anchor.page ? <span className="cite">p.{anchor.page}</span> : null}
+        <Icon name={anchor.target === "message" ? "branch" : kind === "web" ? "globe" : kind === "markdown" ? "lines" : "file"} />
+        {anchor.target === "message" ? `from ${from ?? "the parent thread"}` : source?.title ?? anchor.source}
+        {anchor.page && kind === "pdf" ? <span className="cite">p.{anchor.page}</span> : null}
       </span>
       {anchor.quote}
     </div>
@@ -218,6 +207,10 @@ function Picker({ option, onPick }: { option: ConfigOption; onPick: (value: stri
 export function ThreadPanel() {
   const thread = useStore((s) => s.thread);
   const allThreads = useStore((s) => s.collection?.threads ?? []);
+  const sources = useStore((s) => s.collection?.sources ?? []);
+  // Page numbers mean something for PDFs only; an article is one page.
+  const pageLabel = (anchor: Anchor | undefined) =>
+    anchor?.page && sources.find((x) => x.id === anchor.source)?.kind === "pdf" ? `p.${anchor.page}` : "";
   const focus = useStore((s) => s.focus);
   const composerQuote = useStore((s) => s.composerQuote);
   const agent = useStore((s) => s.agent);
@@ -368,7 +361,7 @@ export function ThreadPanel() {
           <button key={t.id} className={`node ${t.id === thread.id ? "cur" : ""}`} style={{ paddingLeft: 8 + depth * 16 }} onClick={() => void openThread(t.id)}>
             <span className={`dot h${t.hue}`} />
             <span className="t">{t.title}</span>
-            <span className="st">{t.anchor?.page ? `p.${t.anchor.page}` : t.parent ? "branch" : ""}</span>
+            <span className="st">{pageLabel(t.anchor) || (t.parent ? "branch" : "")}</span>
           </button>
         ))}
       </div>
@@ -419,7 +412,7 @@ export function ThreadPanel() {
             <div>
               <div className="from">
                 <Icon name="file" />
-                Quoting {composerQuote.page ? `p.${composerQuote.page}` : composerQuote.source} · anchored to this thread
+                Quoting {pageLabel(composerQuote) || sources.find((x) => x.id === composerQuote.source)?.title || composerQuote.source} · anchored to this thread
               </div>
               {composerQuote.quote}
             </div>

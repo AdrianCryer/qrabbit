@@ -24,7 +24,7 @@ The first thing to validate:
 - **Explore inside answers is the core feature.** Any span in any message can be explored as a branch.
 - **Users bring their own agent subscription.** The app is an **Agent Client Protocol (ACP) client**. Users sign into Claude Code, Codex, Copilot or another agent with the plan they already pay for, and pick a model per thread. No API key required.
 - **The workspace is a plain folder.** Markdown, JSON and the PDFs are the truth; SQLite is a rebuildable index. Git-trackable, Obsidian-compatible, readable by the agent with its own file tools.
-- **Sources in the MVP are PDF and Markdown/text.** Web pages come later.
+- **Sources are PDF, Markdown/text and web pages.** A web page is fetched once, reduced to its article text and saved as Markdown with the link kept, so it reads like a paper and is there offline. The app never renders live sites.
 - **Desktop stack is Electron + TypeScript + React + PDF.js, in a pnpm monorepo.**
 - **Branches start with a handoff; parents learn about them lazily.** The parent session writes a compact handoff when a branch is created. Nothing happens when the reader leaves a branch. When they next send a message in an ancestor thread, digests of branches active since that thread's last turn ride along with the prompt, shown as a passive chip. No Back, Close or return note.
 - **No understanding state, not even a soft one.** Whether someone understood is an estimate, even to themselves, and asking for it adds friction that turns reading into a chore. Threads are never closed, flagged or graded. If an estimate is ever wanted, the event log can produce one from behaviour without asking (§13.6).
@@ -38,7 +38,7 @@ The first thing to validate:
 ### 3.1 Objects
 
 - **Collection** — a reading list: a folder on disk holding sources, threads, notes, and an index. The home screen lists recently opened collections. (Called a workspace in the persistence section; same thing.)
-- **Source** — a PDF or Markdown/text file, with extracted text and page markers.
+- **Source** — a PDF, a Markdown/text file, or a saved web page, with extracted text and page markers (a text source is one page).
 - **Anchor** — a pointer to a span of text. The target is either a *source* or a *message*. Stored as a text quote with prefix/suffix, a character range in the extracted text, and (for PDFs) a page number. Rectangles for drawing are derived at render time and cached, not stored as truth.
 - **Thread** — a linear conversation. Has an optional anchor (the span it was started from), an optional parent (thread id + message id), a status, and an agent/model choice.
   - A **root thread** has no parent. It is what users see as "a chat".
@@ -79,7 +79,7 @@ No persistent sidebar. It cost a quarter of the width and earned little, and it 
 
 - **Home** — a list of collections (reading lists) with a *Continue reading* card for the last position. Opening a collection opens its reader.
 - **Header** — one 44px bar: brand, collection switcher, source switcher with the current page, a *Threads* popover with the collection's threads grouped by source and ordered by recency, search, agent status. Switching collection or source is a dropdown, not a panel.
-- **Reader** — PDF.js viewer (or Markdown view), full width when no thread is focused. Selection toolbar: *Explore*, *Ask here*, *Comment*, *Bookmark*. Margin markers for anchored threads (colour-coded), comments and bookmarks; markers that share a line step sideways; clicking one opens the thread or an inline editor for the comment or label. A page can be bookmarked without a selection (Ctrl+D or the bookmark button by the zoom control).
+- **Reader** — PDF.js viewer for PDFs, and a paper-styled article view for Markdown and web sources with the same selection, marks and keys; full width when no thread is focused. Selection toolbar: *Explore*, *Ask here*, *Comment*, *Bookmark*. Margin markers for anchored threads (colour-coded), comments and bookmarks; markers that share a line step sideways; clicking one opens the thread or an inline editor for the comment or label. A page can be bookmarked without a selection (Ctrl+D or the bookmark button by the zoom control).
 - **Thread panel** — the focused thread, beside the reader. A branch opens *in place* (push), with a breadcrumb of ancestors at the top and a clickable outline of the branch tree under it. There are no Back, Close or Done actions. The breadcrumb, the outline, the margin markers, the Threads popover and Escape are the only ways to move, and moving is all that ever happens. The panel collapses with a header control (Escape from a root thread does the same); the current thread stays current and reopens where it was. A *Focus* toggle hides the paper when the reader wants the full width for the conversation. The paper never moves unless the reader clicks an anchor or a citation, and positions persist per source and per thread across sessions.
 
 While the agent works, the panel shows a compact activity list above the streamed text (files read, searches run, what it is waiting on), permission requests inline with *Allow once*, *Always for this collection* and *Deny* (§5.6), and the send button becomes *Stop*. A message that carried branch digests shows a small "included 1 branch" chip (§5.5).
@@ -288,6 +288,10 @@ my-research/
       source.json               # title, authors, sha256, page count, added date
       text.md                   # extracted text with <!-- page N --> markers
       annotations.json          # the reader's bookmarks and comments on this source
+    manifold-hypothesis/        # a saved web page
+      source.md                 # reader-mode Markdown; the first lines carry the title and the URL
+      source.json               # kind "web", url, site name, byline, fetched date
+      text.md                   # the same Markdown behind a single <!-- page 1 --> marker
   threads/
     2026-09-25-low-dimensional-manifold.md
     2026-09-25-low-dimensional-manifold/
@@ -409,7 +413,7 @@ Rules: pnpm workspaces; TypeScript project references; one Vitest config per pac
 ### Must have
 
 1. Electron app; home screen of collections; open/create a collection folder; header switchers for collection and source; threads popover.
-2. Add PDF and Markdown sources; extract text with page markers.
+2. Add PDF, Markdown and web-page sources; extract text with page markers.
 3. PDF reader with selection, highlights, margin markers, saved reading position.
 4. Selection actions: *Explore*, *Ask here*, *Note*.
 5. Threads: root chat list, linear messages, quoted anchored spans.
@@ -426,7 +430,6 @@ Rules: pnpm workspaces; TypeScript project references; one Vitest config per pac
 
 - Codex and Copilot adapters (should be nearly free once the generic client exists).
 - Full-text search across sources and threads.
-- Web page sources (readability extraction to Markdown).
 - Direct-API provider (Anthropic SDK) behind the `Provider` interface, with server-side citations and caching.
 - Workspace MCP server exposing thread/concept search to the agent.
 - Export a thread or workspace to a single Markdown document.
@@ -450,7 +453,7 @@ Rules: pnpm workspaces; TypeScript project references; one Vitest config per pac
 1. **Collections + reader — done 2026-09-25.** `apps/desktop` with the home screen, folder open through the OS dialog, header switchers for collection, source and threads, PDF import, PDF.js 6 rendering with lazy pages and fit-to-width, text extraction to `text.md` with page markers, selection → anchor (quote, prefix, suffix, offsets, page) → highlight rendering with margin markers, remembered page per source. Threads came in early so anchors have a home: *Explore* creates a thread file with the anchor, *Ask here* puts a quoted span into the focused thread's composer and saves the message. Verified by a scripted Playwright run with screenshots (`tools/dev/drive-desktop.mjs`, `.claude/skills/run-desktop`). Zoom (Ctrl with plus, minus, 0, or Ctrl+wheel, remembered per source) and a draggable, remembered divider between paper and panel were added after the first dogfooding notes, along with PDF.js's end-of-content selection guard, which had been missing and made drag-selection flicker to the whole page. Not yet: Markdown sources in the reader, first-run polish.
 2. **Threads — done 2026-09-25** (root threads with step 1, branches after step 3). Selecting inside an answer offers *Explore*; the branch file is created at once under the parent's folder with a message anchor, and the parent session writes the handoff in the background (§5.5), shown in the branch and used by its first turn, with the parent transcript as the fallback. Branch spans are lit inside answers with the Custom Highlight API and carry a marker that opens the branch. Breadcrumb and outline navigate the tree; the Threads popover lists roots only. After a branch turn its session writes a cached summary with concept tags; when an ancestor is next asked, digests of branches active since its last turn ride along and the message records them in `context`, shown as an "included N branches" chip. Verified by the scripted drive: branch, handoff, branch answer, marker in the parent, and a parent follow-up that carried the branch over. Not yet: the background summary prefetch when an ancestor's composer gains focus (summaries are written right after each branch turn instead), Markdown sources in the reader.
 3. **Agent wiring — done 2026-09-25.** One agent process per open collection in the main process, spawned on Electron's bundled Node with the collection as its working directory; one ACP session per thread; the §5.5 first-turn context (preamble, thread history when a session restarts, the anchored passage with surrounding text from `text.md`, a resource link) and per-message quoted passages; streaming into the panel with the activity list, permission cards for anything outside the §5.6 auto-allow policy, a Stop button, and model and effort pickers fed by the agent's config options and remembered per thread; replies saved to the thread file; sign-in from the header through the agent's own terminal flow; Markdown with KaTeX for answers. Verified end to end by the scripted drive: a real turn on the Max plan answered with page citations in about 20 s. Not yet exercised in the UI: a permission card (the run's only tool call was an auto-allowed read). Not yet built: the handoff, because branches from message spans are still to come (step 2's remainder), lazy branch context, and the embedded sign-in terminal.
-4. **Branch summaries + events + polish:** lazy branch context and cached summaries are done (step 2). Keyboard shortcuts and a Settings dialog (agent connection and sign-in, per-collection defaults for model and effort stored in the manifest, reopen-last-collection, the shortcut reference) were added 2026-09-25. Still to do: event log, error handling for agent failures and oversized sources, packaging.
+4. **Branch summaries + events + polish:** lazy branch context and cached summaries are done (step 2). Keyboard shortcuts and a Settings dialog (agent connection and sign-in, per-collection defaults for model and effort stored in the manifest, reopen-last-collection, the shortcut reference) were added 2026-09-25. Web-page sources and the article reader arrived 2026-09-26: a URL is fetched in the main process, reduced to its article with Readability, turned into Markdown with turndown (links and images made absolute, editing chrome stripped, and formulas recovered as LaTeX from image alt text, MathML annotations, MathJax spans and scripts, so `$…$` and `$$…$$` render with KaTeX in the reader and reach the agent as maths rather than image links) and saved under `sources/<slug>/` as `source.md` plus `text.md` with the link on its first lines; Markdown and web sources open in a paper-styled article view where selection, threads, comments and bookmarks work as for PDFs, links open in the system browser, and anchors are located by quote search rather than offsets, both in the reader and when the passage is assembled for the agent. Still to do: event log, error handling for agent failures and oversized sources, packaging.
 5. **Dogfood milestone:** read three hard papers with QRabbit and three with plain Claude. Record events. Decide what to build next from that, not from this document.
 
 ---

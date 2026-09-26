@@ -19,6 +19,7 @@ const api: QrabbitApi = {
   },
   sources: {
     importDialog: (collection) => invoke("sources:importDialog", collection),
+    importUrl: (collection, url) => invoke("sources:importUrl", collection, url),
     readBytes: (collection, id) => invoke("sources:readBytes", collection, id),
     readText: (collection, id) => invoke("sources:readText", collection, id),
     saveText: (collection, id, text, pages, title) => invoke("sources:saveText", collection, id, text, pages, title),

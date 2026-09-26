@@ -31,7 +31,7 @@ export type CollectionInfo = {
 };
 
 // ---------- sources ----------
-export type SourceKind = "pdf" | "markdown";
+export type SourceKind = "pdf" | "markdown" | "web";
 
 export type SourceInfo = {
   id: string;
@@ -43,13 +43,19 @@ export type SourceInfo = {
   added: string;
   /** true once text.md has been extracted */
   hasText: boolean;
+  /** Web sources only. */
+  url?: string;
+  siteName?: string;
+  byline?: string;
+  fetched?: string;
 };
 
 // ---------- anchors ----------
 /**
  * W3C Web Annotation style selector set. `quote`/`prefix`/`suffix` re-anchor after
- * re-extraction; `start`/`end` are offsets into text.md for the source target, or into the
- * message body for a message target; `page` scopes the search for PDFs.
+ * re-extraction. `start`/`end` are offsets into text.md for PDF sources, into the rendered
+ * text for Markdown and web sources, and into the message body for a message target; they are
+ * hints, and the quote is what locates a span. `page` scopes the search for PDFs.
  */
 export type Anchor = {
   target: "source" | "message";
@@ -191,6 +197,8 @@ export type QrabbitApi = {
   };
   sources: {
     importDialog(collectionPath: string): Promise<SourceInfo[]>;
+    /** Fetch a web page, reduce it to an article, and add it as a source. */
+    importUrl(collectionPath: string, url: string): Promise<SourceInfo>;
     readBytes(collectionPath: string, sourceId: string): Promise<Uint8Array>;
     saveText(collectionPath: string, sourceId: string, text: string, pages: number, title?: string): Promise<SourceInfo>;
     readText(collectionPath: string, sourceId: string): Promise<string | null>;

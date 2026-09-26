@@ -18,7 +18,19 @@ function normalizeMath(src: string): string {
 export function Markdown({ text }: { text: string }) {
   return (
     <div className="md">
-      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
+        components={{
+          // Links open in the system browser; the window never navigates away from the app.
+          a: ({ href, children }) => (
+            <a href={href} title={href} onClick={(e) => { e.preventDefault(); if (href) window.open(href); }}>
+              {children}
+            </a>
+          ),
+          img: ({ src, alt }) => (typeof src === "string" ? <img src={src} alt={alt ?? ""} loading="lazy" /> : null),
+        }}
+      >
         {normalizeMath(text)}
       </ReactMarkdown>
     </div>

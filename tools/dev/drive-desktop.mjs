@@ -45,6 +45,18 @@ async function waitFor(page, fn, { timeout = 30_000, interval = 300, label = "co
 }
 const shot = async (page, name) => { const f = join(shots, `${name}.png`); await page.screenshot({ path: f }); log("screenshot", f); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Wait until the first page keeps the same width for two consecutive checks. */
+async function settle(page, { interval = 400, timeout = 15_000 } = {}) {
+  const t0 = Date.now();
+  let last = -1;
+  for (;;) {
+    const w = await page.evaluate(() => document.querySelector(".page canvas")?.getBoundingClientRect().width ?? -1);
+    if (w === last && w > 0) return;
+    if (Date.now() - t0 > timeout) throw new Error("timeout waiting for the reader layout to settle");
+    last = w;
+    await sleep(interval);
+  }
+}
 
 const consoleErrors = [];
 // Tools that themselves run inside Electron export ELECTRON_RUN_AS_NODE, which would turn our
@@ -121,6 +133,9 @@ try {
   await shot(page, "04a-thread-undo");
   await page.evaluate(() => document.querySelector(".toast .taction").click());
   await waitFor(page, () => !document.querySelector(".panel") && !document.querySelector(".hl"), { label: "the undo to remove the thread" });
+  // Closing the panel widens the reader, and the pages re-render at the new fit width; a selection
+  // made on the old spans would collapse when they are replaced, so wait for the width to settle.
+  await settle(page);
   const afterUndo = existsSync(join(collection, "threads")) ? readdirSync(join(collection, "threads")).filter((f) => f.endsWith(".md")) : [];
   log("thread files after undo:", afterUndo.join(", ") || "(none)");
   // …and Explore once more to carry on
@@ -136,7 +151,16 @@ try {
     sel.addRange(range);
     document.querySelector(".rscroll").dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
   });
-  await page.waitForSelector(".seltool", { timeout: 10_000 });
+  await page.waitForSelector(".seltool", { timeout: 10_000 }).catch(async (err) => {
+    const diag = await page.evaluate(() => {
+      const s = window.getSelection();
+      const st = window.__qrabbitStore.getState();
+      return { selection: s.toString().slice(0, 80), rangeCount: s.rangeCount, spans: document.querySelectorAll(".textLayer span").length, selecting: document.querySelectorAll(".textLayer.selecting").length, hl: document.querySelectorAll(".hl").length, seltool: !!document.querySelector(".seltool"), panel: !!document.querySelector(".panel"), thread: st.thread?.id ?? null, threads: st.collection.threads.length, toasts: st.toasts.length };
+    });
+    log("second selection did not show the toolbar:", JSON.stringify(diag));
+    await shot(page, "04a-debug");
+    throw err;
+  });
   await page.evaluate(() => document.querySelector(".seltool .primary").click());
   await page.waitForSelector(".panel", { timeout: 10_000 });
   await page.waitForSelector(".hl", { timeout: 10_000 });
@@ -195,6 +219,85 @@ try {
   await page.keyboard.press("Escape");
   const annFile = join(srcDir, "annotations.json");
   log("annotations.json:", existsSync(annFile) ? readFileSync(annFile, "utf8").replace(/\s+/g, " ").slice(0, 400) : "(missing)");
+
+  // Web source: fetch a live page into the collection, read it, start a thread from a sentence in it.
+  const webUrl = process.env.DRIVE_URL ?? "https://en.wikipedia.org/wiki/Manifold_hypothesis";
+  const imported = await page.evaluate((u) => window.__qrabbitStore.getState().importUrl(u).then(() => "ok", (e) => "error: " + (e?.message ?? e)), webUrl);
+  log("web import:", imported);
+  if (imported === "ok") {
+    await page.waitForSelector(".sheet.article .md p", { timeout: 30_000 });
+    await sleep(800);
+    await shot(page, "04e-web");
+    // DRIVE_WEB_SCROLL="some heading text" also captures the article scrolled to that text.
+    if (process.env.DRIVE_WEB_SCROLL) {
+      await page.evaluate((t) => {
+        const el = [...document.querySelectorAll(".sheet.article h2, .sheet.article h3, .sheet.article p")].find((e) => e.textContent.includes(t));
+        el?.scrollIntoView({ block: "start" });
+      }, process.env.DRIVE_WEB_SCROLL);
+      await sleep(400);
+      await shot(page, "04e2-web-scrolled");
+      // A close crop of the top of the article, since formula details vanish at full-window scale.
+      const clip = await page.evaluate(() => { const r = document.querySelector(".sheet.article").getBoundingClientRect(); return { x: r.left, y: 44, width: r.width, height: 300 }; });
+      await page.screenshot({ path: join(shots, "04e3-web-clip.png"), clip });
+      log("screenshot", join(shots, "04e3-web-clip.png"));
+      // How KaTeX laid out the first subscript: the base and the script's boxes, and the rules that place it.
+      const sub = await page.evaluate(() => {
+        const ms = document.querySelector(".sheet.article .katex .msupsub");
+        if (!ms) return null;
+        const base = ms.previousElementSibling?.getBoundingClientRect();
+        const script = ms.querySelector(".mtight")?.getBoundingClientRect();
+        const lifted = ms.querySelector(".vlist > span");
+        const cs = lifted ? getComputedStyle(lifted) : null;
+        const vlist = ms.querySelector(".vlist");
+        return { base: base && { top: base.top, bottom: base.bottom, h: base.height }, script: script && { top: script.top, bottom: script.bottom, h: script.height }, lifted: cs && { position: cs.position, top: cs.top, display: cs.display, height: cs.height }, vlist: vlist && { display: getComputedStyle(vlist).display, position: getComputedStyle(vlist).position }, sizing: ms.querySelector(".sizing") && getComputedStyle(ms.querySelector(".sizing")).fontSize, katexFont: getComputedStyle(document.querySelector(".sheet.article .katex")).fontSize };
+      });
+      log("subscript layout:", JSON.stringify(sub));
+      await page.evaluate(() => document.querySelector(".rscroll").scrollTo(0, 0));
+      await sleep(300);
+    }
+    const webSel = await page.evaluate(() => {
+      const ps = [...document.querySelectorAll(".sheet.article .md p")].filter((p) => p.textContent.trim().length > 120 && !/^Source:/.test(p.textContent.trim()));
+      const p = ps[0];
+      const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node && node.data.trim().length < 40) node = walker.nextNode();
+      if (!node) return { ok: false };
+      const range = document.createRange();
+      range.setStart(node, 0);
+      range.setEnd(node, Math.min(node.data.length, 90));
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      document.querySelector(".rscroll").dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+      return { ok: true, text: sel.toString() };
+    });
+    log("web selection:", JSON.stringify(webSel));
+    await page.waitForSelector(".seltool", { timeout: 10_000 });
+    await page.evaluate(() => [...document.querySelectorAll(".seltool button")].find((b) => /New thread|Explore/.test(b.textContent)).click());
+    await waitFor(page, () => !!document.querySelector(".sheet.article .marker"), { label: "a thread marker in the article" });
+    await sleep(500);
+    await shot(page, "04f-web-thread");
+    if (!process.env.DRIVE_NO_AGENT) {
+      // One real turn on the web thread: the passage must reach the agent although the anchor's
+      // offsets index the rendered text rather than text.md.
+      await page.fill(".composer textarea", "In one short paragraph: what does this sentence claim, and what is the strongest objection to it?");
+      await page.evaluate(() => document.querySelector(".composer .send").click());
+      await waitFor(page, () => { const s = window.__qrabbitStore.getState(); return !!(s.thread && !s.turns[s.thread.id] && s.thread.messages.some((m) => m.role === "assistant")); }, { timeout: 240_000, interval: 1000, label: "the web thread answer" });
+      await sleep(500);
+      await shot(page, "04g-web-answer");
+      const webAnswer = await page.evaluate(() => window.__qrabbitStore.getState().thread.messages.find((m) => m.role === "assistant")?.body ?? "");
+      log("web answer:", JSON.stringify(webAnswer.slice(0, 300)));
+    }
+    const webSrc = await page.evaluate(() => { const s = window.__qrabbitStore.getState(); return s.collection.sources.find((x) => x.kind === "web"); });
+    const webText = readFileSync(join(collection, "sources", webSrc.id, "text.md"), "utf8");
+    log("web text.md head:", JSON.stringify(webText.slice(0, 200)));
+    // back to the PDF for the rest of the run
+    await page.evaluate(() => window.__qrabbitStore.getState().selectSource("intrinsic-dimension"));
+    await page.waitForSelector(".page canvas", { timeout: 30_000 });
+    await page.evaluate(() => window.__qrabbitStore.getState().openThread(window.__qrabbitStore.getState().collection.threads.find((t) => t.anchor?.source === "intrinsic-dimension").id));
+    await waitFor(page, () => window.__qrabbitStore.getState().thread?.anchor?.source === "intrinsic-dimension", { label: "the PDF thread to reopen" });
+    await sleep(500);
+  }
   const threadsDir = join(collection, "threads");
   const files = existsSync(threadsDir) ? readdirSync(threadsDir).filter((f) => f.endsWith(".md")) : [];
   log("thread files:", files.join(", ") || "(none)");
