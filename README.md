@@ -4,7 +4,7 @@ Read difficult material with AI. Highlight a passage, explore it in a thread, br
 
 QRabbit runs on the coding agent you already pay for. It talks to Claude Code through the Agent Client Protocol, so turns draw on your Claude subscription rather than an API key, and the app never sees a credential.
 
-![A paper with a highlighted passage and its thread, with maths rendered in the answer](docs/screenshots/thread.png)
+![Highlighting a passage in an article, exploring it in a thread, branching from a phrase in the answer, and returning to the parent](docs/screenshots/demo.webp)
 
 ## How it works
 
@@ -14,11 +14,9 @@ QRabbit runs on the coding agent you already pay for. It talks to Claude Code th
 - **Web pages read like papers.** Add a URL and it is fetched once, reduced to its article text and saved as Markdown, so it can be highlighted, explored and read offline. Formulas published as images, MathML or MathJax come back as real LaTeX, code blocks keep their language, and callouts stay callouts.
 - **Out of the way.** No sidebar: collections, sources, threads and marks live in header menus. The divider between paper and panel drags, Ctrl+Shift+F hides the paper, and everything has a shortcut (Ctrl+, lists them).
 
-![A branch opened from a phrase in an answer, with the outline of the thread tree](docs/screenshots/branch.png)
+![A PDF with a highlighted passage and its thread, with maths rendered in the answer](docs/screenshots/raw/thread.png)
 
-![A saved web article with a thread started from a sentence in it](docs/screenshots/web-page.png)
-
-![Formulas recovered from a page that publishes them as images, including the site's own macros](docs/screenshots/web-maths.png)
+![Formulas recovered from a page that publishes them as images, including the site's own macros](docs/screenshots/raw/web-maths.png)
 
 ## A collection is a folder
 
@@ -71,7 +69,7 @@ apps/desktop/        Electron app (electron-vite, React, PDF.js, KaTeX)
 packages/shared/     types, ids, the renderer/main API contract
 packages/workspace/  the collection folder format: manifest, sources and web extraction, threads, reader state
 packages/acp-client/ generic Agent Client Protocol client: spawn, sign in, model picker, streaming, permissions
-tools/dev/           sample PDF generator, Playwright driver, icon and probe tools
+tools/dev/           sample PDF generator, Playwright driver, icon, screenshot staging and probe tools
 tools/spike-acp/     step 0: drives the Claude Code ACP adapter from a script
 planning/            the plan (plan-v2.md), design notes and the clickable prototype
 ```

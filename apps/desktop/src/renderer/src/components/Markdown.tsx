@@ -8,13 +8,20 @@ import rehypeKatex from "rehype-katex";
 import { useMacros } from "../lib/macros";
 import "katex/dist/katex.min.css";
 
-/** Agents write maths with either delimiter style; normalise to dollars outside code fences. */
-function normalizeMath(src: string): string {
+/**
+ * Agents write maths with either delimiter style; normalise to dollars outside code fences.
+ * remark-math only treats `$$` as display maths when the fences stand on lines of their own; a
+ * one-line `$$ … $$`, which agents write all the time, would otherwise render as small inline maths.
+ */
+export function normalizeMath(src: string): string {
   const parts = src.split(/(```[\s\S]*?```|`[^`\n]*`)/g);
   return parts
     .map((p, i) => {
       if (i % 2 === 1) return p; // code
-      return p.replace(/\\\[([\s\S]*?)\\\]/g, (_m, inner: string) => `$$${inner}$$`).replace(/\\\((.+?)\\\)/g, (_m, inner: string) => `$${inner}$`);
+      return p
+        .replace(/\\\[([\s\S]*?)\\\]/g, (_m, inner: string) => `\n$$\n${inner.trim()}\n$$\n`)
+        .replace(/\\\((.+?)\\\)/g, (_m, inner: string) => `$${inner}$`)
+        .replace(/^([ \t>]*)\$\$((?:(?!\$\$).)+)\$\$[ \t]*$/gm, (_m, lead: string, inner: string) => `${lead}$$\n${lead}${inner.trim()}\n${lead}$$`);
     })
     .join("");
 }
