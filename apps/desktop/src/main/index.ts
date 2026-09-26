@@ -1,8 +1,13 @@
 import { app, BrowserWindow, shell } from "electron";
 import { join } from "node:path";
 import { disposeAgents, registerIpc } from "./ipc";
+// The app icon, rendered by tools/dev/make-icon.mjs. Windows uses the .ico for the window and the
+// taskbar; the .png serves everywhere else. Packaged builds will take theirs from the same files.
+import iconIco from "../../resources/icon.ico?asset";
+import iconPng from "../../resources/icon.png?asset";
 
 const rendererUrl = process.env["ELECTRON_RENDERER_URL"];
+const icon = process.platform === "win32" ? iconIco : iconPng;
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -10,6 +15,7 @@ function createWindow(): BrowserWindow {
     height: 920,
     minWidth: 720,
     minHeight: 520,
+    icon,
     show: false,
     backgroundColor: "#121417",
     titleBarStyle: "hidden",
@@ -60,7 +66,11 @@ function createWindow(): BrowserWindow {
   return win;
 }
 
+// Group the app's windows under their own taskbar entry rather than Electron's.
+app.setAppUserModelId("dev.qrabbit.app");
+
 void app.whenReady().then(() => {
+  if (process.platform === "darwin") app.dock?.setIcon(iconPng);
   registerIpc();
   createWindow();
   app.on("activate", () => {

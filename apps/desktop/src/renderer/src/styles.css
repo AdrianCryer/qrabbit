@@ -60,7 +60,7 @@ svg.i { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-widt
 .app[data-platform="win32"] .hdr { padding-right: 146px; }
 .app[data-platform="darwin"] .hdr { padding-left: 84px; }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 500; margin-right: 6px; flex: none; }
-.brand .q { width: 20px; height: 20px; border-radius: 6px; background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; font-weight: 600; font-size: 12px; }
+.brand .q { width: 20px; height: 20px; display: block; flex: none; }
 .hsep { color: var(--text-3); flex: none; padding: 0 2px; }
 .hright { display: flex; align-items: center; gap: 2px; margin-left: auto; flex: none; }
 .agent { display: flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 12px; padding: 0 8px; white-space: nowrap; }

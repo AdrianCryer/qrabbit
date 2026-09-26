@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="#c9f24d"/>
+  <text x="256" y="278" text-anchor="middle" dominant-baseline="central"
+        font-family="Inter, 'Segoe UI', system-ui, Arial, sans-serif" font-weight="700" font-size="340" fill="#101407">Q</text>
+</svg>

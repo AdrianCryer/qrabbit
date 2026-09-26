@@ -1,4 +1,6 @@
 import { useStore } from "../state/store";
+// The same file the window and taskbar icon are rendered from, so the mark matches everywhere.
+import logo from "../../../../resources/icon.svg";
 import { relTime } from "../lib/time";
 import { Dropdown } from "./Dropdown";
 import { Icon } from "./Icons";
@@ -51,7 +53,7 @@ export function Header() {
   return (
     <header className="hdr">
       <button className="brand" onClick={goHome} title="All collections (Ctrl+Shift+H)">
-        <span className="q">Q</span>
+        <img className="q" src={logo} alt="" draggable={false} />
         {screen === "home" && <span>QRabbit</span>}
       </button>
       {screen === "home" && (
