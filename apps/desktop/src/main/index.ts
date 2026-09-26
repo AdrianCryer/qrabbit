@@ -25,7 +25,26 @@ function createWindow(): BrowserWindow {
     },
   });
 
-  win.on("ready-to-show", () => win.show());
+  // `ready-to-show` waits for the compositor's first non-empty paint, and on this Windows GPU
+  // stack that report sometimes never comes for the first window of a process ("GPU state
+  // invalid after WaitForGetOffsetInRange" in the log), leaving a loaded page in an invisible
+  // window that looks like a hang at "starting electron app". Show on whichever comes first:
+  // the paint report, the page having loaded, or a deadline; the background colour covers
+  // the flash the paint report exists to avoid.
+  let shown = false;
+  const show = (why: string) => {
+    if (shown || win.isDestroyed()) return;
+    shown = true;
+    win.show();
+    if (why !== "ready-to-show") console.warn(`[qrabbit] window shown on ${why}; ready-to-show never fired`);
+  };
+  win.once("ready-to-show", () => show("ready-to-show"));
+  win.webContents.once("did-finish-load", () => setTimeout(() => show("did-finish-load"), 200));
+  win.webContents.once("did-fail-load", (_e, code, desc, url) => {
+    console.error(`[qrabbit] renderer failed to load ${url}: ${code} ${desc}`);
+    show("did-fail-load");
+  });
+  setTimeout(() => show("deadline"), 5000);
   // Links in articles open in the system browser; the window itself never navigates away.
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) void shell.openExternal(url);
