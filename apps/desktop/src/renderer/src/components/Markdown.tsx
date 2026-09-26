@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import "katex/dist/katex.min.css";
 
@@ -20,7 +21,11 @@ export function Markdown({ text }: { text: string }) {
     <div className="md">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
+        rehypePlugins={[
+          [rehypeKatex, { throwOnError: false, strict: false }],
+          // Fenced blocks that name a language get highlight.js token classes; styles.css colours them.
+          [rehypeHighlight, { detect: false }],
+        ]}
         components={{
           // Links open in the system browser; the window never navigates away from the app.
           a: ({ href, children }) => (

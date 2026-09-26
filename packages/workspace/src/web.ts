@@ -3,6 +3,7 @@ import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
+import { normalizeCallouts, normalizeCodeBlocks } from "./web-blocks.js";
 import { MATH_TAG, mathToTex } from "./web-math.js";
 
 export type WebPage = {
@@ -57,6 +58,9 @@ export function htmlToArticle(html: string, baseUrl: string): Omit<WebPage, "url
   // Formulas become <qr-math> elements holding LaTeX before extraction, so none of them is lost
   // as an image, a hidden MathML twin, or a script.
   mathToTex(document as unknown as Parameters<typeof mathToTex>[0]);
+  // Likewise code blocks get their <code> child and language, and admonitions become quotes.
+  normalizeCodeBlocks(document as unknown as Parameters<typeof normalizeCodeBlocks>[0]);
+  normalizeCallouts(document as unknown as Parameters<typeof normalizeCallouts>[0]);
 
   let article: ReturnType<Readability["parse"]> = null;
   try {
@@ -73,6 +77,17 @@ export function htmlToArticle(html: string, baseUrl: string): Omit<WebPage, "url
   const escape = td.escape.bind(td);
   td.escape = (s: string) => escape(s).replace(/\\([[\]])/g, "$1");
   td.remove((node) => /^(script|style|noscript|iframe|svg)$/i.test(node.nodeName));
+  td.addRule("fencedCode", {
+    filter: (node) => node.nodeName === "PRE" && !!node.firstChild && node.firstChild.nodeName === "CODE",
+    replacement: (_content, node) => {
+      const code = node.firstChild as unknown as Elementish & { textContent: string | null };
+      const lang = code.getAttribute("data-lang") ?? /(?:^|\s)language-(\S+)/.exec(code.getAttribute("class") ?? "")?.[1] ?? "";
+      const text = (code.textContent ?? "").replace(/\n+$/, "");
+      let fence = "```";
+      while (text.includes(fence)) fence += "`";
+      return `\n\n${fence}${lang}\n${text}\n${fence}\n\n`;
+    },
+  });
   td.addRule("math", {
     filter: (node) => node.nodeName.toLowerCase() === MATH_TAG,
     replacement: (_content, node) => {

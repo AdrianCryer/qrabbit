@@ -34,7 +34,42 @@ a_t &amp;\\sim \\pi_{\\theta}(\\cdot | s_t)."/></p>
 </article>
 </body></html>`;
 
+const blocksPage = `<!doctype html><html><head><title>Deterministic Policies</title></head><body>
+<article>
+<h1>Deterministic Policies</h1>
+<p>Here is a code snippet for building a simple deterministic policy for a continuous action space in PyTorch, using the <code class="docutils literal notranslate"><span class="pre">torch.nn</span></code> package, followed by enough prose for the extractor to keep this page as an article rather than boilerplate.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">pi_net</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+              <span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">obs_dim</span><span class="p">,</span> <span class="mi">64</span><span class="p">),</span>
+            <span class="p">)</span>
+</pre></div></div>
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2</pre></div></td><td class="code"><div class="highlight"><pre><span class="n">a</span> = 1
+b = 2
+</pre></div></td></tr></table>
+<pre><code class="language-js">const x = 1;</code></pre>
+<pre>line one<br>line two</pre>
+<div class="admonition-you-should-know admonition">
+<p class="first admonition-title">You Should Know</p>
+<p>Reinforcement learning notation sometimes puts the symbol for state in places where it would be more appropriate to write the symbol for observation.</p>
+</div>
+<div class="admonition warning"><p>Do not do this at home.</p></div>
+</article>
+</body></html>`;
+
 describe("web extraction", () => {
+  it("keeps code blocks fenced with their language and turns admonitions into titled quotes", () => {
+    const a = htmlToArticle(blocksPage, "https://example.org/policies.html");
+    expect(a.markdown).toContain("using the \`torch.nn\` package");
+    expect(a.markdown).toContain("\`\`\`python\npi_net = nn.Sequential(\n              nn.Linear(obs_dim, 64),\n            )\n\`\`\`");
+    expect(a.markdown).toContain("\`\`\`\na = 1\nb = 2\n\`\`\`");
+    expect(a.markdown).not.toMatch(/\`\`\`\n1\n2\n\`\`\`/);
+    expect(a.markdown).toContain("\`\`\`js\nconst x = 1;\n\`\`\`");
+    expect(a.markdown).toContain("\`\`\`\nline one\nline two\n\`\`\`");
+    expect(a.markdown).toMatch(/> \*\*You Should Know\*\*\n> ?\n> Reinforcement learning notation/);
+    expect(a.markdown).toMatch(/> \*\*Warning\*\*\n> ?\n> Do not do this at home\./);
+    expect(a.markdown).not.toContain("obs\\_dim");
+  });
+
   it("turns formula images, MathML and MathJax spans into LaTeX", () => {
     const a = htmlToArticle(mathPage, "https://example.org/rl_intro.html");
     expect(a.title).toBe("Key Concepts in RL");

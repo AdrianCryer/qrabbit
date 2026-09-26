@@ -252,6 +252,14 @@ try {
         return { base: base && { top: base.top, bottom: base.bottom, h: base.height }, script: script && { top: script.top, bottom: script.bottom, h: script.height }, lifted: cs && { position: cs.position, top: cs.top, display: cs.display, height: cs.height }, vlist: vlist && { display: getComputedStyle(vlist).display, position: getComputedStyle(vlist).position }, sizing: ms.querySelector(".sizing") && getComputedStyle(ms.querySelector(".sizing")).fontSize, katexFont: getComputedStyle(document.querySelector(".sheet.article .katex")).fontSize };
       });
       log("subscript layout:", JSON.stringify(sub));
+      const codeDom = await page.evaluate(() => {
+        const pre = document.querySelector(".sheet.article pre");
+        if (!pre) return null;
+        const code = pre.querySelector("code");
+        const spans = [...pre.querySelectorAll("span")].slice(0, 6).map((s) => ({ cls: s.className, text: s.textContent.slice(0, 20), bg: getComputedStyle(s).backgroundColor }));
+        return { html: pre.innerHTML.slice(0, 500), codeBg: code && getComputedStyle(code).backgroundColor, codeDisplay: code && getComputedStyle(code).display, spans };
+      });
+      log("code block dom:", JSON.stringify(codeDom));
       await page.evaluate(() => document.querySelector(".rscroll").scrollTo(0, 0));
       await sleep(300);
     }

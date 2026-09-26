@@ -226,8 +226,13 @@ body.resizing .rscroll, body.resizing .msgs { pointer-events: none; }
 .sheet.article .md img { max-width: 100%; height: auto; border-radius: 4px; display: block; margin: 0.4em 0; }
 .sheet.article .md code { background: rgba(0, 0, 0, 0.06); border-color: rgba(0, 0, 0, 0.1); color: inherit; font-size: 0.85em; }
 .sheet.article .md pre { background: rgba(0, 0, 0, 0.05); border-color: rgba(0, 0, 0, 0.1); }
-.sheet.article .md pre code { font-size: 0.8em; }
-.sheet.article .md blockquote { border-left-color: rgba(0, 0, 0, 0.2); color: #4a4f57; }
+.sheet.article .md pre code { font-size: 0.8em; background: none; border: 0; padding: 0; }
+/* Quotes and callouts ("Note", "You Should Know") share one treatment: a tinted box with an accent edge. */
+.sheet.article .md blockquote { margin: 0.2em 0; padding: 10px 16px; border-left: 3px solid color-mix(in srgb, var(--accent) 75%, #6b7280); background: rgba(0, 0, 0, 0.035); border-radius: 0 8px 8px 0; color: inherit; display: grid; gap: 0.6em; }
+.sheet.article .md blockquote > * { margin: 0; }
+.sheet.article .md blockquote > p:first-child > strong:only-child { font-family: var(--font-ui); font-size: 0.78em; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #4a4f57; }
+.sheet.article .md pre { padding: 12px 14px; border-radius: 8px; line-height: 1.5; }
+.sheet.article .md { --code-kw: #6d28d9; --code-str: #15803d; --code-num: #b45309; --code-cmt: #6b7280; --code-fn: #1d4ed8; --code-type: #92400e; --code-attr: #0e7490; --code-meta: #6b7280; }
 .sheet.article .md th, .sheet.article .md td { border-color: rgba(0, 0, 0, 0.15); }
 .sheet.article .md table { font-size: 0.9em; }
 .sheet.article .md hr { border-top-color: rgba(0, 0, 0, 0.12); }
@@ -361,6 +366,18 @@ body.resizing .rscroll, body.resizing .msgs { pointer-events: none; }
 .md th, .md td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; }
 .md a { color: var(--accent); }
 .md hr { border: 0; border-top: 1px solid var(--line); }
+/* Syntax colours (highlight.js token classes): a quiet set for the dark panel, overridden on paper below. */
+.md { --code-kw: #d3a8ff; --code-str: #9fd8a3; --code-num: #f0b46b; --code-cmt: #767e8a; --code-fn: #82c7ff; --code-type: #ffd479; --code-attr: #a8d5ff; --code-meta: #8a93a0; }
+.md .hljs-keyword, .md .hljs-selector-tag, .md .hljs-doctag, .md .hljs-template-tag { color: var(--code-kw); }
+.md .hljs-string, .md .hljs-regexp, .md .hljs-addition, .md .hljs-quote { color: var(--code-str); }
+.md .hljs-number, .md .hljs-literal, .md .hljs-symbol, .md .hljs-deletion { color: var(--code-num); }
+.md .hljs-comment { color: var(--code-cmt); font-style: italic; }
+.md .hljs-title, .md .hljs-title.function_, .md .hljs-section, .md .hljs-name { color: var(--code-fn); }
+.md .hljs-title.class_, .md .hljs-type, .md .hljs-built_in, .md .hljs-selector-class { color: var(--code-type); }
+.md .hljs-attr, .md .hljs-attribute, .md .hljs-property, .md .hljs-variable, .md .hljs-template-variable { color: var(--code-attr); }
+.md .hljs-meta, .md .hljs-params, .md .hljs-punctuation, .md .hljs-operator { color: var(--code-meta); }
+.md .hljs-emphasis { font-style: italic; }
+.md .hljs-strong { font-weight: 600; }
 .md .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; margin: 4px 0; }
 .md .katex { font-size: 1.08em; }
 
