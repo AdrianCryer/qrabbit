@@ -11,6 +11,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "list", keys: "Mod+L", label: "Reading list, or back to the paper", group: "Reading list" },
   { id: "listMove", keys: "Mod+ArrowUp", label: "Move the focused source up (Ctrl+↓ moves it down)", group: "Reading list" },
   { id: "listRead", keys: "R", label: "Mark the focused source read or unread", group: "Reading list" },
+  { id: "listRename", keys: "F2", label: "Rename the focused source", group: "Reading list" },
   { id: "listRemove", keys: "Delete", label: "Remove the focused source, with Undo", group: "Reading list" },
   { id: "threads", keys: "Mod+Shift+T", label: "Threads in this collection", group: "Threads" },
   { id: "panel", keys: "Mod+B", label: "Show or hide the thread panel", group: "Threads" },

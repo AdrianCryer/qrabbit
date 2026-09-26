@@ -4,6 +4,7 @@ import { basename, delimiter, resolve, sep } from "node:path";
 import type { Anchor, Annotation, CollectionManifest, CollectionSnapshot, DropResult, FolderScan, ImportResult, Message, ReaderPosition, RemovedSource } from "@qrabbit/shared";
 import {
   addAnnotation,
+  autoTitleSource,
   deleteAnnotation,
   listAnnotations,
   updateAnnotation,
@@ -20,6 +21,7 @@ import {
   readSourceText,
   readThread,
   removeSource,
+  renameSource,
   restoreSource,
   saveSourceText,
   scanFolder,
@@ -172,6 +174,8 @@ export function registerIpc(): void {
   });
   ipcMain.handle("sources:importUrl", (_e, collection: string, url: string) => importWebPage(guard(collection), url));
   ipcMain.handle("sources:setRead", (_e, collection: string, id: string, read: boolean) => setSourceRead(guard(collection), id, !!read));
+  ipcMain.handle("sources:rename", (_e, collection: string, id: string, title: string) => renameSource(guard(collection), id, String(title ?? "")));
+  ipcMain.handle("sources:autoTitle", (_e, collection: string, id: string) => autoTitleSource(guard(collection), id));
   ipcMain.handle("sources:remove", (_e, collection: string, id: string) => removeSource(guard(collection), id));
   ipcMain.handle("sources:restore", (_e, collection: string, removed: RemovedSource) => restoreSource(guard(collection), removed));
   ipcMain.handle("sources:reveal", (_e, collection: string, id: string) => {
@@ -179,8 +183,8 @@ export function registerIpc(): void {
   });
   ipcMain.handle("sources:readBytes", (_e, collection: string, id: string) => readSourceBytes(guard(collection), id));
   ipcMain.handle("sources:readText", (_e, collection: string, id: string) => readSourceText(guard(collection), id));
-  ipcMain.handle("sources:saveText", (_e, collection: string, id: string, text: string, pages: number, title?: string) =>
-    saveSourceText(guard(collection), id, text, pages, title),
+  ipcMain.handle("sources:saveText", (_e, collection: string, id: string, text: string, pages: number, titles?: { metadata?: string; guess?: string }) =>
+    saveSourceText(guard(collection), id, text, pages, titles),
   );
 
   // ----- threads -----

@@ -4,6 +4,7 @@ import { basename, dirname, extname, join, relative, resolve, sep } from "node:p
 import { slugify, type FolderFile, type FolderScan, type ImportResult, type RemovedSource, type SourceInfo, type SourceKind } from "@qrabbit/shared";
 import { DIRS, TRASH, readOrder, setOrder, trashStamp } from "./collection.js";
 import { readJson, readText, writeAtomic, writeJson } from "./fs.js";
+import { looksLikeFileName, saneMetadataTitle, sentenceCase, titleFromText } from "./title.js";
 import { fetchWebPage } from "./web.js";
 
 const SOURCE_JSON = "source.json";
@@ -250,6 +251,36 @@ export function setSourceRead(collection: string, id: string, read: boolean): So
   return { ...next, hasText: existsSync(join(dir, TEXT_MD)) };
 }
 
+// ---------- renaming ----------
+/** A title of the reader's own. The folder keeps its id, and later text extraction leaves this title alone. */
+export function renameSource(collection: string, id: string, title: string): SourceInfo {
+  const dir = sourceDir(collection, id);
+  const stored = readJson<SourceInfo>(join(dir, SOURCE_JSON));
+  if (!stored) throw new Error(`Unknown source: ${id}`);
+  const clean = title.replace(/\s+/g, " ").trim();
+  if (!clean) throw new Error("A title cannot be empty");
+  const next: SourceInfo = { ...stored, id, title: clean, renamed: new Date().toISOString() };
+  writeJson(join(dir, SOURCE_JSON), next);
+  return { ...next, hasText: existsSync(join(dir, TEXT_MD)) };
+}
+
+/** The document's own title in sentence case, or null when nothing usable is known yet. */
+export function autoTitle(collection: string, id: string): string | null {
+  const info = readInfo(collection, id);
+  if (!info) throw new Error(`Unknown source: ${id}`);
+  const raw = saneMetadataTitle(info.docTitle) ?? (info.hasText ? titleFromText(readSourceText(collection, id) ?? "", info.kind) : null);
+  const title = raw ? sentenceCase(raw) : "";
+  return title || null;
+}
+
+/** Rename the source to its document's title in sentence case. Null when no title could be found. */
+export function autoTitleSource(collection: string, id: string): SourceInfo | null {
+  const title = autoTitle(collection, id);
+  if (!title) return null;
+  const info = readInfo(collection, id)!;
+  return title === info.title ? info : renameSource(collection, id, title);
+}
+
 // ---------- removing and restoring ----------
 /** Move the source folder into the collection's trash and drop it from the reading order. */
 export function removeSource(collection: string, id: string): RemovedSource {
@@ -297,13 +328,26 @@ export function readSourceText(collection: string, id: string): string | null {
   return readText(join(sourceDir(collection, id), TEXT_MD));
 }
 
-/** Store the text the renderer extracted with PDF.js, so the same engine defines every offset. */
-export function saveSourceText(collection: string, id: string, text: string, pages: number, title?: string): SourceInfo {
+/**
+ * Store the text the renderer extracted with PDF.js, so the same engine defines every offset.
+ * `titles.metadata` is the PDF's own title field and `titles.guess` the largest upright text on the first page;
+ * the document's title is remembered as `docTitle`, and unless the reader already chose a title it becomes the
+ * source's title in sentence case: a metadata title always, a guess only when the current title is just a file name.
+ */
+export function saveSourceText(collection: string, id: string, text: string, pages: number, titles?: { metadata?: string; guess?: string }): SourceInfo {
   const dir = sourceDir(collection, id);
   const info = readJson<SourceInfo>(join(dir, SOURCE_JSON));
   if (!info) throw new Error(`Unknown source: ${id}`);
   writeAtomic(join(dir, TEXT_MD), text);
-  const next: SourceInfo = { ...info, id, pages, hasText: true, title: title?.trim() ? title.trim() : info.title };
+  const metadata = saneMetadataTitle(titles?.metadata);
+  const guess = titles?.guess?.replace(/\s+/g, " ").trim() || (info.kind === "pdf" ? titleFromText(text, "pdf") : null);
+  const docTitle = metadata ?? guess ?? info.docTitle;
+  let title = info.title;
+  if (!info.renamed) {
+    if (metadata) title = sentenceCase(metadata);
+    else if (guess && looksLikeFileName(info.title)) title = sentenceCase(guess);
+  }
+  const next: SourceInfo = { ...info, id, pages, hasText: true, title, ...(docTitle ? { docTitle } : {}) };
   writeJson(join(dir, SOURCE_JSON), next);
   return next;
 }

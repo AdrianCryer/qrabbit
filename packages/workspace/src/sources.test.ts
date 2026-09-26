@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFil
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initCollection, purgeTrash, readOrder, setOrder, TRASH, trashStamp } from "./collection.js";
-import { findDuplicate, importFiles, listSources, removeSource, restoreSource, scanFolder, setSourceRead } from "./sources.js";
+import { autoTitleSource, findDuplicate, importFiles, listSources, removeSource, renameSource, restoreSource, saveSourceText, scanFolder, setSourceRead } from "./sources.js";
 import { readJson } from "./fs.js";
 
 function collection(): string {
@@ -71,6 +71,55 @@ describe("read marks", () => {
     const cleared = setSourceRead(dir, "a", false);
     expect(cleared.read).toBeUndefined();
     expect("read" in (readJson<object>(join(dir, "sources", "a", "source.json")) ?? {})).toBe(false);
+  });
+});
+
+describe("renaming", () => {
+  it("changes the title, keeps the id, and survives a later text extraction", () => {
+    const dir = collection();
+    addSource(dir, "2301-12345", "2026-09-01T00:00:00Z");
+    // Extraction normally supplies the document's title in place of the file name, in sentence case.
+    expect(saveSourceText(dir, "2301-12345", "<!-- page 1 -->\nbody", 1, { metadata: "Title From The PDF" }).title).toBe("Title from the PDF");
+    const renamed = renameSource(dir, "2301-12345", "  Intrinsic   dimension paper ");
+    expect(renamed.id).toBe("2301-12345");
+    expect(renamed.title).toBe("Intrinsic dimension paper");
+    expect(renamed.renamed).toMatch(/^\d{4}-/);
+    expect(listSources(dir)[0]?.title).toBe("Intrinsic dimension paper");
+    // A re-extraction (or the first one, when renamed from the list before opening) leaves the reader's title alone.
+    expect(saveSourceText(dir, "2301-12345", "<!-- page 1 -->\nbody", 1, { metadata: "Title From The PDF" }).title).toBe("Intrinsic dimension paper");
+    expect(() => renameSource(dir, "2301-12345", "   ")).toThrow(/empty/);
+  });
+
+  it("titles a PDF from the first page when the file name says nothing and the metadata is junk", () => {
+    const dir = collection();
+    mkdirSync(join(dir, "sources", "2301-12345"), { recursive: true });
+    writeFileSync(join(dir, "sources", "2301-12345", "source.pdf"), "%PDF");
+    writeFileSync(join(dir, "sources", "2301-12345", "source.json"), JSON.stringify({ id: "2301-12345", kind: "pdf", title: "2301.12345", file: "source.pdf", added: "2026-09-01T00:00:00Z", hasText: false }));
+    const text = "<!-- page 1 -->\narXiv:2301.12345v2 [cs.LG] 30 Jan 2023\nIntrinsic Dimension of Learned\nRepresentations in Deep Networks\nAda Okonkwo, Bo Lindqvist\n";
+    const saved = saveSourceText(dir, "2301-12345", text, 1, { metadata: "Microsoft Word - final.docx" });
+    expect(saved.title).toBe("Intrinsic dimension of learned representations in Deep networks".replace("Deep networks", "deep networks"));
+    expect(saved.docTitle).toBe("Intrinsic Dimension of Learned Representations in Deep Networks");
+    // A file with a real name keeps it unless the metadata offers a title; the guess is only remembered.
+    addSource(dir, "good-name", "2026-09-02T00:00:00Z");
+    writeFileSync(join(dir, "sources", "good-name", "source.json"), JSON.stringify({ id: "good-name", kind: "pdf", title: "Attention is all you need", file: "source.md", added: "2026-09-02T00:00:00Z", hasText: false }));
+    const kept = saveSourceText(dir, "good-name", "<!-- page 1 -->\nSome Other Heading Here\n", 1, { guess: "Some Other Heading Here" });
+    expect(kept.title).toBe("Attention is all you need");
+    expect(kept.docTitle).toBe("Some Other Heading Here");
+  });
+
+  it("auto-titles from the document on request, in sentence case, and says when it cannot", () => {
+    const dir = collection();
+    addSource(dir, "pca-note", "2026-09-01T00:00:00Z", "# A Note on PCA and Curved Data\n\nBody.\n");
+    writeFileSync(join(dir, "sources", "pca-note", "text.md"), "<!-- page 1 -->\n# A Note on PCA and Curved Data\n\nBody.\n");
+    const titled = autoTitleSource(dir, "pca-note");
+    expect(titled?.title).toBe("A note on PCA and curved data");
+    expect(titled?.renamed).toBeTruthy();
+    // A source whose text is not extracted yet, and has no document title, has nothing to offer.
+    addSource(dir, "unopened", "2026-09-02T00:00:00Z");
+    expect(autoTitleSource(dir, "unopened")).toBeNull();
+    // Already right: nothing changes and nothing is stamped.
+    const same = autoTitleSource(dir, "pca-note");
+    expect(same?.renamed).toBe(titled?.renamed);
   });
 });
 

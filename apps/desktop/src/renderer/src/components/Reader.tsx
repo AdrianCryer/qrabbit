@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { Anchor, Annotation, ReaderPosition, SourceInfo, ThreadMeta } from "@qrabbit/shared";
 import { api } from "../lib/api";
 import { ensureWorker, pdfjs, type PDFDocumentProxy, type TextItem } from "../pdf/pdfjs";
-import { buildTextMd, pageTextFromItems } from "../pdf/text";
+import { buildTextMd, guessTitle, pageTextFromItems } from "../pdf/text";
 import { anchorToRange, layerText, rectsForRange, selectionToAnchor, type PageContext } from "../pdf/anchoring";
 import { isTyping, matches } from "../lib/shortcuts";
 import { Icon } from "./Icons";
@@ -26,7 +26,7 @@ type Props = {
   onComment(anchor: Anchor, page: number | undefined, text: string): void;
   onUpdateAnnotation(id: string, text: string): void;
   onDeleteAnnotation(id: string): void;
-  onTextExtracted(text: string, pages: number, title?: string): void;
+  onTextExtracted(text: string, pages: number, titles?: { metadata?: string; guess?: string }): void;
 };
 
 const SIDE_PADDING = 40;
@@ -100,25 +100,30 @@ export function Reader(props: Props) {
     let cancelled = false;
     (async () => {
       const pages: string[] = [];
+      let firstItems: TextItem[] = [];
       for (let i = 1; i <= doc.numPages; i++) {
         const p = await doc.getPage(i);
         const tc = await p.getTextContent();
-        pages.push(pageTextFromItems(tc.items as TextItem[]));
+        const items = tc.items as TextItem[];
+        if (i === 1) firstItems = items;
+        pages.push(pageTextFromItems(items));
         if (cancelled) return;
       }
       const built = buildTextMd(pages);
       setTexts({ pages, starts: built.starts });
       setStatus(null);
       if (!source.hasText) {
-        let title: string | undefined;
+        // The PDF's own title field, plus the largest text on the first page for files whose field is empty or junk.
+        let metadata: string | undefined;
         try {
           const md = await doc.getMetadata();
           const info = md.info as { Title?: unknown };
-          if (typeof info?.Title === "string") title = info.Title;
+          if (typeof info?.Title === "string") metadata = info.Title;
         } catch {
           /* metadata is optional */
         }
-        onTextExtracted(built.text, doc.numPages, title);
+        const guess = guessTitle(firstItems);
+        onTextExtracted(built.text, doc.numPages, { ...(metadata ? { metadata } : {}), ...(guess ? { guess } : {}) });
       }
     })();
     return () => { cancelled = true; };

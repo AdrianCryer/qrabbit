@@ -9,6 +9,9 @@ export {
   kindOf,
   scanFolder,
   setSourceRead,
+  renameSource,
+  autoTitle,
+  autoTitleSource,
   removeSource,
   restoreSource,
   readSourceBytes,
@@ -16,6 +19,7 @@ export {
   saveSourceText,
   sourceDir,
 } from "./sources.js";
+export { sentenceCase, saneMetadataTitle, titleFromText, looksLikeFileName } from "./title.js";
 export { fetchWebPage, htmlToArticle } from "./web.js";
 export { macrosInHtml, type MacroTable } from "./web-macros.js";
 export { locateQuote } from "./text.js";

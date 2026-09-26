@@ -106,6 +106,10 @@ type Actions = {
   setOrder(ids: string[]): Promise<void>;
   moveSource(id: string, to: "top" | "bottom" | -1 | 1): Promise<void>;
   toggleRead(id: string): Promise<void>;
+  /** Give a source a title of the reader's own; a blank or unchanged title is a no-op. */
+  renameSource(id: string, title: string): Promise<void>;
+  /** Rename to the document's own title in sentence case, with Undo. */
+  autoTitleSource(id: string): Promise<void>;
   /** Move the source to the collection's trash, with an Undo toast. */
   removeSource(id: string): Promise<void>;
   revealSource(id: string): void;
@@ -361,6 +365,41 @@ export const useStore = create<State & Actions>((set, get) => ({
       get().updateSource(info);
     } catch (err) {
       get().toast(`Could not save the read mark: ${errText(err)}`);
+    }
+  },
+
+  async renameSource(id, title) {
+    const c = get().collection;
+    const cur = c?.sources.find((s) => s.id === id);
+    const clean = title.replace(/\s+/g, " ").trim();
+    if (!c || !cur || !clean || clean === cur.title) return;
+    try {
+      const info = await api.sources.rename(c.info.path, id, clean);
+      get().updateSource(info);
+    } catch (err) {
+      get().toast(`Could not rename ${cur.title}: ${errText(err)}`);
+    }
+  },
+
+  async autoTitleSource(id) {
+    const c = get().collection;
+    const cur = c?.sources.find((s) => s.id === id);
+    if (!c || !cur) return;
+    try {
+      const info = await api.sources.autoTitle(c.info.path, id);
+      if (!info) {
+        get().toast(cur.hasText ? "No title was found in the document" : "Open the source once so its text is read, then try again");
+        return;
+      }
+      if (info.title === cur.title) {
+        get().toast("The title already matches the document");
+        return;
+      }
+      get().updateSource(info);
+      const before = cur.title;
+      get().toast(`Renamed to “${info.title}”`, { label: "Undo", run: () => void get().renameSource(id, before) });
+    } catch (err) {
+      get().toast(`Could not title ${cur.title}: ${errText(err)}`);
     }
   },
 

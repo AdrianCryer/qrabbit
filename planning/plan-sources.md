@@ -57,6 +57,8 @@ Rules:
 Two optional fields on `SourceInfo` and `source.json`:
 
 - `read?: string` — ISO timestamp of when the reader marked it read. Absent means unread. Cleared by "Mark as unread".
+- `renamed?: string` — ISO timestamp of when the reader gave the source a title of their own (arXiv downloads arrive as numbers). `saveSourceText` then keeps that title instead of the document's.
+- `docTitle?: string` — the document's own title as found in it: the PDF's title field when it is a real title, else the largest upright text on page one (PDF.js item heights; the rotated arXiv stamp is skipped), else the first Markdown heading. Kept even when the source keeps another title, so "Title from the document" can offer it later.
 - `sha256?: string` — hash of the source file (`source.pdf` or `source.md`). Computed on import from now on; back-filled lazily the first time a folder scan needs it. Used for duplicate detection in the picker and for `Add files` (re-adding a file already in the collection is a no-op with a toast that opens the existing source).
 
 Nothing about the original path is stored. Collections are shared and git-tracked, and a local path in a JSON file is a small leak for no feature.
@@ -119,7 +121,7 @@ A row, left to right:
 - **Kind icon** and **title** over a meta line: `PDF · 14 pages · 3 threads · 2 marks · added 2 d ago`. Clicking the title opens the source where you left it; so does `Enter`.
 - **Progress**: `p. 4 of 14`, `Opened`, `Not started`, or `Read · Tue` once marked.
 - **Read toggle**: an empty circle that appears on hover for unread rows, a green check always for read rows. Read rows dim their title and stay where they are. `R` toggles on a focused row.
-- **More** (`…`): Open, Mark as read / unread, Move to top, Move to bottom, Show in folder, Remove from collection. `Delete` removes a focused row.
+- **More** (`…`): Open, Mark as read / unread, Rename…, Title from the document, Move to top, Move to bottom, Show in folder, Remove from collection. `Delete` removes a focused row; `F2` renames it in place (Enter saves, Escape cancels). A rename changes the title only: the folder keeps its id, so threads and marks stay attached, and a later text extraction does not replace the title. **Title from the document** renames to `docTitle` in sentence case (first letter, acronyms, names with capitals inside and a short list of eponyms keep their capitals) with Undo. The same happens by itself when a PDF's text is first extracted: a real metadata title always becomes the sentence-cased title, and the page-one guess does so only when the current title is just a file name (an arXiv number, a slug), so a good file name is never replaced by a guess.
 
 Remove animates the row out and shows a toast with **Undo** for seven seconds, using the toast action the store already has. Marking read shows no toast in the app; the check is the feedback (the prototype toasts to explain the data).
 
@@ -151,6 +153,7 @@ Collection cards show `7 sources · 3 read · 12 threads` under the name, above 
 | `Ctrl+↑` `Ctrl+↓` | list | Move the row |
 | `Enter` | list | Open the source |
 | `R` | list | Mark read or unread |
+| `F2` | list | Rename in place |
 | `Delete` | list | Remove, with undo |
 | `Esc` | list | Close a menu; otherwise nothing |
 

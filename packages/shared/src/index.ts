@@ -51,6 +51,10 @@ export type SourceInfo = {
   hasText: boolean;
   /** When the reader marked it read. Absent means unread. A record, never a prompt. */
   read?: string;
+  /** When the reader gave it a title of their own; text extraction then leaves the title alone. */
+  renamed?: string;
+  /** The document's own title as found in it (PDF metadata, the largest text on page one, or the first heading). */
+  docTitle?: string;
   /** Hash of the source file, for duplicate detection. Computed on import, back-filled when first needed. */
   sha256?: string;
   /** Web sources only. */
@@ -260,6 +264,10 @@ export type QrabbitApi = {
     dropped(collectionPath: string, files: File[]): Promise<DropResult | null>;
     /** Record that the reader finished (or did not finish) a source. */
     setRead(collectionPath: string, sourceId: string, read: boolean): Promise<SourceInfo>;
+    /** Give the source a new title. Its folder and id stay, so threads and marks stay attached. */
+    rename(collectionPath: string, sourceId: string, title: string): Promise<SourceInfo>;
+    /** Rename the source to its document's title in sentence case; null when no title is known yet. */
+    autoTitle(collectionPath: string, sourceId: string): Promise<SourceInfo | null>;
     /** Move the source folder to the collection's trash; threads keep their quotes. */
     remove(collectionPath: string, sourceId: string): Promise<RemovedSource>;
     /** Put a removed source back where it was. */
@@ -267,7 +275,8 @@ export type QrabbitApi = {
     /** Show the source's folder in the file manager. */
     reveal(collectionPath: string, sourceId: string): Promise<void>;
     readBytes(collectionPath: string, sourceId: string): Promise<Uint8Array>;
-    saveText(collectionPath: string, sourceId: string, text: string, pages: number, title?: string): Promise<SourceInfo>;
+    /** Store extracted text. `titles.metadata` is the PDF's title field, `titles.guess` the largest text on page one. */
+    saveText(collectionPath: string, sourceId: string, text: string, pages: number, titles?: { metadata?: string; guess?: string }): Promise<SourceInfo>;
     readText(collectionPath: string, sourceId: string): Promise<string | null>;
   };
   threads: {

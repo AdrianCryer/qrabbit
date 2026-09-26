@@ -36,10 +36,11 @@ writeFileSync(join(notes, "source.json"), JSON.stringify({ id: "manifold-notes",
 const pdf = src("intrinsic-dimension");
 copyFileSync(samplePdf, join(pdf, "source.pdf"));
 writeFileSync(join(pdf, "source.json"), JSON.stringify({ id: "intrinsic-dimension", kind: "pdf", title: "Intrinsic Dimension of Learned Representations", file: "source.pdf", added: "2026-09-21T10:00:00Z", hasText: false }, null, 2));
+// A note whose file was an arXiv-style number: its heading carries the real title, in Title Case.
 const pca = src("pca-note");
-writeFileSync(join(pca, "source.md"), "# A note on PCA and curved data\n\nShort note.\n");
+writeFileSync(join(pca, "source.md"), "# A Note on PCA and Curved Data\n\nShort note.\n");
 writeFileSync(join(pca, "text.md"), `<!-- page 1 -->\n${readFileSync(join(pca, "source.md"), "utf8")}`);
-writeFileSync(join(pca, "source.json"), JSON.stringify({ id: "pca-note", kind: "markdown", title: "A note on PCA and curved data", file: "source.md", pages: 1, added: "2026-09-22T10:00:00Z", hasText: true }, null, 2));
+writeFileSync(join(pca, "source.json"), JSON.stringify({ id: "pca-note", kind: "markdown", title: "2301.12345v2", file: "source.md", pages: 1, added: "2026-09-22T10:00:00Z", hasText: true }, null, 2));
 // A fresh id per run: the app remembers the last source per collection id in local storage, and this run
 // expects the first source in order to open.
 writeFileSync(join(collection, "qrabbit.json"), JSON.stringify({ id: `col_drive_${runId.replace(/[^a-z0-9]/gi, "").toLowerCase()}`, name: "Representation geometry", created: "2026-09-20T09:00:00Z", settings: {} }, null, 2));
@@ -179,6 +180,43 @@ try {
   expect(existsSync(join(collection, "sources", "intrinsic-dimension", "source.pdf")), "the source folder is back");
   expect(readdirSync(trash).length === 0, "the trash is empty again");
   await shot(page, "08-restored");
+
+  // ----- rename in place: F2 on a focused row, type, Enter; Escape cancels -----
+  await page.focus(".list .row:nth-child(2)");
+  await page.keyboard.press("F2");
+  await page.waitForSelector(".list .row:nth-child(2) input.rename", { timeout: 5_000 });
+  await page.fill(".list .row:nth-child(2) input.rename", "Manifold notes, annotated");
+  await sleep(150);
+  await shot(page, "08b-rename");
+  await page.keyboard.press("Enter");
+  await waitFor(page, () => document.querySelector(".list .row:nth-child(2) .t")?.textContent === "Manifold notes, annotated", { label: "the new title to show" });
+  const renamedJson = JSON.parse(readFileSync(join(notes, "source.json"), "utf8"));
+  expect(renamedJson.title === "Manifold notes, annotated" && typeof renamedJson.renamed === "string", `source.json carries the new title, renamed=${renamedJson.renamed}`);
+  expect(await page.evaluate(() => document.activeElement?.dataset.id) === "manifold-notes", "the row keeps focus after the rename");
+  await page.keyboard.press("F2");
+  await page.waitForSelector(".list .row:nth-child(2) input.rename", { timeout: 5_000 });
+  await page.keyboard.type(" (draft)");
+  await page.keyboard.press("Escape");
+  await waitFor(page, () => !document.querySelector("input.rename") && document.querySelector(".list .row:nth-child(2) .t")?.textContent === "Manifold notes, annotated", { label: "Escape to cancel the rename" });
+  expect(JSON.parse(readFileSync(join(notes, "source.json"), "utf8")).title === "Manifold notes, annotated", "a cancelled rename changes nothing");
+
+  // ----- title from the document: the arXiv-style name becomes the heading, in sentence case, with Undo -----
+  await page.hover(".list .row:nth-child(3)");
+  await page.click(".list .row:nth-child(3) .more");
+  await page.waitForSelector(".list .row .menu", { timeout: 5_000 });
+  await page.click(".list .row .menu .mi:has-text('Title from the document')");
+  await waitFor(page, () => document.querySelector(".list .row:nth-child(3) .t")?.textContent === "A note on PCA and curved data", { label: "the document title to show" });
+  expect(JSON.parse(readFileSync(join(pca, "source.json"), "utf8")).title === "A note on PCA and curved data", "source.json carries the heading in sentence case");
+  await page.waitForSelector(".toast .taction", { timeout: 5_000 });
+  await sleep(200);
+  await shot(page, "08c-auto-title");
+  await page.click(".toast .taction");
+  await waitFor(page, () => document.querySelector(".list .row:nth-child(3) .t")?.textContent === "2301.12345v2", { label: "undo to restore the old title" });
+  await page.hover(".list .row:nth-child(3)");
+  await page.click(".list .row:nth-child(3) .more");
+  await page.click(".list .row .menu .mi:has-text('Title from the document')");
+  await waitFor(page, () => document.querySelector(".list .row:nth-child(3) .t")?.textContent === "A note on PCA and curved data", { label: "the document title again" });
+  expect(true, "auto-title applied, undone and applied again");
 
   // ----- Ctrl+L: back to the paper, then the list again -----
   await page.evaluate(() => document.body.focus());

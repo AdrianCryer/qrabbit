@@ -68,9 +68,9 @@ function ReaderPane() {
       onComment={(anchor, page, text) => void addComment(source.id, page, anchor, text)}
       onUpdateAnnotation={(id, text) => void updateAnnotation(id, text)}
       onDeleteAnnotation={(id) => void deleteAnnotation(id)}
-      onTextExtracted={(text, pages, title) => {
+      onTextExtracted={(text, pages, titles) => {
         void api.sources
-          .saveText(collection.info.path, source.id, text, pages, title)
+          .saveText(collection.info.path, source.id, text, pages, titles)
           .then((info) => updateSource(info))
           .catch((err) => toast(`Could not save extracted text: ${String(err)}`));
       }}

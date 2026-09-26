@@ -22,9 +22,12 @@ type Drag = { id: string; over: string | null; before: boolean };
 /** The collection as a list, in the reader pane: reading order, read marks, removal and the ways to add. */
 export function ReadingList() {
   const collection = useStore((s) => s.collection);
-  const { selectSource, toggleRead, removeSource, moveSource, setOrder, revealSource, importSources, addFromFolder, setUrlDialogOpen, dropFiles } = useStore.getState();
+  const { selectSource, toggleRead, renameSource, autoTitleSource, removeSource, moveSource, setOrder, revealSource, importSources, addFromFolder, setUrlDialogOpen, dropFiles } = useStore.getState();
   const dragRef = useRef<Drag | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
+  // Inline rename: the row's title becomes a field until Enter, Escape or a click elsewhere.
+  const [renaming, setRenaming] = useState<{ id: string; value: string } | null>(null);
+  const renamingRef = useRef<string | null>(null);
   const [fileOver, setFileOver] = useState(false);
   const overDepth = useRef(0);
   const focusNext = useRef<string | null>(null);
@@ -85,10 +88,31 @@ export function ReadingList() {
     void setOrder(ids);
   };
 
+  const focusRow = (id: string) => (document.querySelector(`.row[data-id="${CSS.escape(id)}"]`) as HTMLElement | null)?.focus();
+  const startRename = (s: SourceInfo) => {
+    renamingRef.current = s.id;
+    setRenaming({ id: s.id, value: s.title });
+  };
+  const commitRename = () => {
+    const r = renaming;
+    if (!r || renamingRef.current !== r.id) return;
+    renamingRef.current = null;
+    setRenaming(null);
+    void renameSource(r.id, r.value);
+    focusRow(r.id);
+  };
+  const cancelRename = () => {
+    const id = renamingRef.current;
+    renamingRef.current = null;
+    setRenaming(null);
+    if (id) focusRow(id);
+  };
+
   const onRowKey = (e: React.KeyboardEvent<HTMLLIElement>, s: SourceInfo) => {
     if (e.target !== e.currentTarget) return;
     const mod = e.ctrlKey || e.metaKey;
     if (e.key === "Enter") { e.preventDefault(); selectSource(s.id); }
+    else if (e.key === "F2") { e.preventDefault(); startRename(s); }
     else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); void removeSource(s.id); }
     else if (mod && e.key === "ArrowUp") { e.preventDefault(); focusNext.current = s.id; void moveSource(s.id, -1); }
     else if (mod && e.key === "ArrowDown") { e.preventDefault(); focusNext.current = s.id; void moveSource(s.id, 1); }
@@ -189,10 +213,29 @@ export function ReadingList() {
                       <Icon name="grip" />
                     </span>
                     <span className="kind"><Icon name={kindIcon(s.kind)} /></span>
-                    <button className="txt" onClick={() => selectSource(s.id)} tabIndex={-1} title="Open where you left it">
-                      <span className="t">{s.title}</span>
-                      <span className="m">{bits.join(" · ")}</span>
-                    </button>
+                    {renaming?.id === s.id ? (
+                      <span className="txt">
+                        <input
+                          className="rename"
+                          aria-label="New title"
+                          value={renaming.value}
+                          autoFocus
+                          onFocus={(e) => e.currentTarget.select()}
+                          onChange={(e) => setRenaming({ id: s.id, value: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") { e.preventDefault(); commitRename(); }
+                            else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cancelRename(); }
+                          }}
+                          onBlur={commitRename}
+                        />
+                        <span className="m">{bits.join(" · ")}</span>
+                      </span>
+                    ) : (
+                      <button className="txt" onClick={() => selectSource(s.id)} tabIndex={-1} title="Open where you left it">
+                        <span className="t">{s.title}</span>
+                        <span className="m">{bits.join(" · ")}</span>
+                      </button>
+                    )}
                     <span className={`prog ${p.muted ? "new" : ""}`}>{p.text}</span>
                     <button className="done" aria-pressed={!!s.read} title={s.read ? "Mark as unread" : "Mark as read"} onClick={() => void toggleRead(s.id)} tabIndex={-1}>
                       <Icon name="check" />
@@ -202,6 +245,8 @@ export function ReadingList() {
                         <>
                           <button className="mi" role="menuitem" onClick={() => { close(); selectSource(s.id); }}><Icon name="open" /><span className="txt"><span className="t">Open</span></span><span className="meta"><kbd>Enter</kbd></span></button>
                           <button className="mi" role="menuitem" onClick={() => { close(); void toggleRead(s.id); }}><Icon name="check" /><span className="txt"><span className="t">{s.read ? "Mark as unread" : "Mark as read"}</span></span><span className="meta"><kbd>R</kbd></span></button>
+                          <button className="mi" role="menuitem" onClick={() => { close(); startRename(s); }}><Icon name="pen" /><span className="txt"><span className="t">Rename…</span><span className="m">The folder keeps its name</span></span><span className="meta"><kbd>F2</kbd></span></button>
+                          <button className="mi" role="menuitem" onClick={() => { close(); void autoTitleSource(s.id); }}><Icon name="lines" /><span className="txt"><span className="t">Title from the document</span><span className="m">{s.docTitle ? `“${s.docTitle}”, in sentence case` : "Its own title, in sentence case"}</span></span></button>
                           <div className="msep" />
                           <button className="mi" role="menuitem" onClick={() => { close(); focusNext.current = s.id; void moveSource(s.id, "top"); }}><Icon name="top" /><span className="txt"><span className="t">Move to top</span></span></button>
                           <button className="mi" role="menuitem" onClick={() => { close(); focusNext.current = s.id; void moveSource(s.id, "bottom"); }}><Icon name="bottom" /><span className="txt"><span className="t">Move to bottom</span></span></button>
