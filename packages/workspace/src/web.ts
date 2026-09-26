@@ -3,7 +3,8 @@ import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
-import { normalizeCallouts, normalizeCodeBlocks } from "./web-blocks.js";
+import { normalizeCallouts, normalizeCodeBlocks, unwrapBareQuotes } from "./web-blocks.js";
+import { macrosInHtml, type MacroTable } from "./web-macros.js";
 import { MATH_TAG, mathToTex } from "./web-math.js";
 
 export type WebPage = {
@@ -13,6 +14,8 @@ export type WebPage = {
   siteName?: string;
   byline?: string;
   excerpt?: string;
+  /** LaTeX macros the page declared for its formulas, when it declared any. */
+  macros?: MacroTable;
   fetched: string;
 };
 
@@ -60,6 +63,7 @@ export function htmlToArticle(html: string, baseUrl: string): Omit<WebPage, "url
   mathToTex(document as unknown as Parameters<typeof mathToTex>[0]);
   // Likewise code blocks get their <code> child and language, and admonitions become quotes.
   normalizeCodeBlocks(document as unknown as Parameters<typeof normalizeCodeBlocks>[0]);
+  unwrapBareQuotes(document as unknown as Parameters<typeof unwrapBareQuotes>[0]);
   normalizeCallouts(document as unknown as Parameters<typeof normalizeCallouts>[0]);
 
   let article: ReturnType<Readability["parse"]> = null;
@@ -130,9 +134,11 @@ export function htmlToArticle(html: string, baseUrl: string): Omit<WebPage, "url
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   const title = cleanTitle(article?.title?.trim() || docTitle || titleFromUrl(baseUrl));
+  const macros = macrosInHtml(html);
   return {
     title,
     markdown,
+    ...(Object.keys(macros).length ? { macros } : {}),
     ...(article?.siteName ? { siteName: article.siteName } : {}),
     ...(article?.byline ? { byline: article.byline } : {}),
     ...(article?.excerpt ? { excerpt: article.excerpt } : {}),

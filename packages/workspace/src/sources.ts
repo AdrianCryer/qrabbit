@@ -83,6 +83,7 @@ export async function importWebPage(collection: string, url: string): Promise<So
     fetched: page.fetched,
     ...(page.siteName ? { siteName: page.siteName } : {}),
     ...(page.byline ? { byline: page.byline } : {}),
+    ...(page.macros ? { macros: page.macros } : {}),
   };
   writeJson(join(dir, SOURCE_JSON), info);
   return info;

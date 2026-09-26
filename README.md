@@ -45,7 +45,7 @@ my-research/
 
 Files are the truth. Open a collection in Obsidian or track it with git whenever you like.
 
-Sources are PDFs, Markdown files, or web pages. A page is fetched once, reduced to its article text and saved as Markdown, so it reads like a paper, works offline, and can be highlighted and explored the same way. Formulas that sites publish as images, MathML or MathJax markup are recovered as LaTeX, so they render inline and the agent can read them. Code blocks keep their language and are syntax-highlighted, and admonitions ("Note", "You Should Know") become callouts.
+Sources are PDFs, Markdown files, or web pages. A page is fetched once, reduced to its article text and saved as Markdown, so it reads like a paper, works offline, and can be highlighted and explored the same way. Formulas that sites publish as images, MathML or MathJax markup are recovered as LaTeX, so they render inline and the agent can read them; macros a page declares for MathJax are kept with the source, and a few common ones (`\E`, `\Var`, `\norm`, Spinning Up's `\underE`) are built in. Code blocks keep their language and are syntax-highlighted, and admonitions ("Note", "You Should Know") become callouts.
 
 ## The agent
 

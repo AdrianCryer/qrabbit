@@ -1,6 +1,7 @@
 export { MANIFEST, DIRS, isCollection, initCollection, openCollection, updateSettings } from "./collection.js";
 export { listSources, importFile, importWebPage, readSourceBytes, readSourceText, saveSourceText, sourceDir } from "./sources.js";
 export { fetchWebPage, htmlToArticle } from "./web.js";
+export { macrosInHtml, type MacroTable } from "./web-macros.js";
 export { locateQuote } from "./text.js";
 export { listThreads, readThread, createThread, appendMessage, updateThread, deleteThread, parseThreadFile, serializeThread } from "./threads.js";
 export { readReaderState, setReaderPosition } from "./reader-state.js";

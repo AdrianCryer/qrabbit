@@ -260,6 +260,8 @@ try {
         return { html: pre.innerHTML.slice(0, 500), codeBg: code && getComputedStyle(code).backgroundColor, codeDisplay: code && getComputedStyle(code).display, spans };
       });
       log("code block dom:", JSON.stringify(codeDom));
+      const katexErrors = await page.evaluate(() => [...document.querySelectorAll(".sheet.article .katex-error")].map((e) => e.textContent.slice(0, 80)));
+      log("katex errors on the page:", katexErrors.length, JSON.stringify(katexErrors.slice(0, 3)));
       await page.evaluate(() => document.querySelector(".rscroll").scrollTo(0, 0));
       await sleep(300);
     }

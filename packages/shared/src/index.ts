@@ -48,6 +48,8 @@ export type SourceInfo = {
   siteName?: string;
   byline?: string;
   fetched?: string;
+  /** LaTeX macros the page defined for its own formulas, as KaTeX takes them: `{"\\E": "{\\mathrm E}"}`. */
+  macros?: Record<string, string>;
 };
 
 // ---------- anchors ----------

@@ -79,6 +79,22 @@ const TITLE_BY_KIND: Record<string, string> = {
   attention: "Attention", danger: "Danger", error: "Error", seealso: "See also", info: "Info", todo: "To do",
 };
 
+/**
+ * docutils wraps an indented formula or code block inside a list item in a <blockquote>, which
+ * the reader would draw as a callout around a lone equation. Unwrap quotes that hold nothing else.
+ */
+export function unwrapBareQuotes(document: Doc): number {
+  let count = 0;
+  for (const quote of all(document, "blockquote")) {
+    const bare = all(quote, "qr-math, pre");
+    if (bare.length !== 1) continue;
+    if ((quote.textContent ?? "").trim() !== (bare[0]!.textContent ?? "").trim()) continue;
+    quote.replaceWith(...Array.from(quote.childNodes));
+    count++;
+  }
+  return count;
+}
+
 /** Turn admonitions and callouts into blockquotes that open with a bold title. */
 export function normalizeCallouts(document: Doc): number {
   const selector = [

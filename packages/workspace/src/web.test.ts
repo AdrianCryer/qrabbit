@@ -53,10 +53,36 @@ b = 2
 <p>Reinforcement learning notation sometimes puts the symbol for state in places where it would be more appropriate to write the symbol for observation.</p>
 </div>
 <div class="admonition warning"><p>Do not do this at home.</p></div>
+<ol><li><p>The value function, which gives the expected return:</p>
+<blockquote><div><div class="math"><p><img src="../_images/math/v.svg" alt="V(s) = 1"/></p></div></div></blockquote></li></ol>
+<blockquote><p>A real quotation, which stays a quote.</p></blockquote>
 </article>
 </body></html>`;
 
+const macroPage = `<!doctype html><html><head><title>Macros</title>
+<script type="text/x-mathjax-config">
+MathJax.Hub.Config({ TeX: { Macros: { E: "{\\\\mathrm E}", underE: ["\\\\underset{#1}{\\\\E}\\\\left[ #2 \\\\right]", 2], R: '\\\\mathbb{R}' } } });
+</script>
+<script>window.MathJax = {"tex": {"macros": {"KL": "\\\\mathrm{KL}", "expect": ["\\\\mathbb{E}_{#1}", 1]}}};</script>
+</head><body><article>
+<div style="display:none">\\(\\newcommand{\\Var}{\\mathrm{Var}} \\newcommand{\\norm}[1]{\\left\\lVert #1 \\right\\rVert}\\)</div>
+<h1>Macros</h1><p>Some prose, long enough for the extractor to keep this page as an article rather than boilerplate, which it decides by the amount of text it can find in paragraphs like this one.</p>
+</article></body></html>`;
+
 describe("web extraction", () => {
+  it("recovers the LaTeX macros a page declares for MathJax", () => {
+    const a = htmlToArticle(macroPage, "https://example.org/macros.html");
+    expect(a.macros).toEqual({
+      "\\E": "{\\mathrm E}",
+      "\\underE": "\\underset{#1}{\\E}\\left[ #2 \\right]",
+      "\\R": "\\mathbb{R}",
+      "\\KL": "\\mathrm{KL}",
+      "\\expect": "\\mathbb{E}_{#1}",
+      "\\Var": "\\mathrm{Var}",
+      "\\norm": "\\left\\lVert #1 \\right\\rVert",
+    });
+  });
+
   it("keeps code blocks fenced with their language and turns admonitions into titled quotes", () => {
     const a = htmlToArticle(blocksPage, "https://example.org/policies.html");
     expect(a.markdown).toContain("using the \`torch.nn\` package");
@@ -68,6 +94,9 @@ describe("web extraction", () => {
     expect(a.markdown).toMatch(/> \*\*You Should Know\*\*\n> ?\n> Reinforcement learning notation/);
     expect(a.markdown).toMatch(/> \*\*Warning\*\*\n> ?\n> Do not do this at home\./);
     expect(a.markdown).not.toContain("obs\\_dim");
+    expect(a.markdown).toMatch(/expected return:\s*\$\$\s*V\(s\) = 1\s*\$\$/);
+    expect(a.markdown).not.toMatch(/>\s*\$\$/);
+    expect(a.markdown).toContain("> A real quotation, which stays a quote.");
   });
 
   it("turns formula images, MathML and MathJax spans into LaTeX", () => {
