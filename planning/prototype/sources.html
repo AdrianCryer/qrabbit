@@ -1,0 +1,885 @@
+<title>QRabbit Sources</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* ---------- tokens (same as central-loop.html) ---------- */
+  :root{
+    color-scheme: dark;
+    --backdrop:#0a0b0d;
+    --bg:#121417;
+    --raised:#1a1d22;
+    --raised-2:#20242a;
+    --sunken:#0c0e11;
+    --line:rgba(255,255,255,.08);
+    --line-strong:rgba(255,255,255,.15);
+    --text:#e9ebee;
+    --text-2:#a3a8b0;
+    --text-3:#6e747d;
+    --paper:#fbfaf6;
+    --paper-text:#1e2227;
+    --paper-2:#5a6068;
+    --paper-line:#e4e1d8;
+    --accent:#c9f24d;
+    --accent-fg:#101407;
+    --accent-soft:rgba(201,242,77,.14);
+    --hl-1:#ffd85c;
+    --hl-2:#79cfff;
+    --hl-3:#f7a1c4;
+    --hl-4:#9fe3ab;
+    --ok:#5fd18a;
+    --danger:#ff8a8a;
+    --sel:rgba(110,160,255,.38);
+    --glass:rgba(22,25,30,.86);
+    --shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 10px 28px rgba(0,0,0,.4);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.5);
+    --r:14px; --r-sm:9px; --r-pill:999px;
+    --font-ui:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --font-paper:'STIX Two Text','Times New Roman',Times,serif;
+    --font-mono:'JetBrains Mono',ui-monospace,Consolas,'Courier New',monospace;
+  }
+  :root[data-accent="amber"]{
+    --accent:#f2a64b; --accent-fg:#1a1006; --accent-soft:rgba(242,166,75,.16);
+  }
+  :root[data-mode="light"]{
+    color-scheme: light;
+    --backdrop:#d6d9df; --bg:#f3f4f7; --raised:#ffffff; --raised-2:#f7f8fa; --sunken:#e6e8ed;
+    --line:rgba(16,20,28,.09); --line-strong:rgba(16,20,28,.16);
+    --text:#1b1f26; --text-2:#5b6270; --text-3:#8a909b;
+    --accent:#5f8f00; --accent-fg:#ffffff; --accent-soft:rgba(95,143,0,.12);
+    --ok:#2f9a5b; --danger:#c8403f;
+    --sel:rgba(80,140,255,.3);
+    --glass:rgba(255,255,255,.9);
+    --shadow:0 1px 2px rgba(16,20,28,.06), 0 10px 28px rgba(16,20,28,.1);
+    --shadow-sm:0 1px 2px rgba(16,20,28,.12);
+  }
+  :root[data-mode="light"][data-accent="amber"]{
+    --accent:#c2641a; --accent-fg:#ffffff; --accent-soft:rgba(194,100,26,.12);
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--backdrop); color:var(--text);
+    font-family:var(--font-ui); font-size:13px; line-height:1.45;
+    padding:16px 16px calc(16px + 68px + env(safe-area-inset-bottom,0px));
+    -webkit-font-smoothing:antialiased;
+  }
+  body.dragging{user-select:none; cursor:grabbing}
+  button{font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer}
+  button:disabled{cursor:default; opacity:.55}
+  button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  kbd{font-family:var(--font-mono); font-size:10.5px; padding:1px 5px; border-radius:5px; background:var(--sunken); border:1px solid var(--line); color:var(--text-2); white-space:nowrap}
+  svg.i{width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; flex:none}
+  .chip{display:inline-flex; align-items:center; gap:5px; padding:2px 7px; border-radius:var(--r-pill); background:var(--sunken); border:1px solid var(--line); color:var(--text-2); font-size:11px; font-family:var(--font-mono); white-space:nowrap}
+  .chip.ok{color:var(--ok); border-color:color-mix(in srgb, var(--ok) 35%, transparent)}
+  .dot{width:8px; height:8px; border-radius:50%; flex:none}
+
+  /* ---------- window ---------- */
+  .win{
+    height:100%; display:grid; grid-template-rows:44px minmax(0,1fr); position:relative;
+    background:var(--bg); border:1px solid var(--line-strong); border-radius:12px; overflow:hidden;
+    box-shadow:var(--shadow);
+  }
+
+  /* ---------- header (mirrors the app) ---------- */
+  .hdr{display:flex; align-items:center; gap:4px; padding:0 6px 0 12px; border-bottom:1px solid var(--line); min-width:0}
+  .brand{display:flex; align-items:center; gap:8px; font-weight:500; margin-right:6px; flex:none}
+  .brand .q{width:20px; height:20px; border-radius:6px; background:var(--accent); color:var(--accent-fg); display:grid; place-items:center; font-weight:600; font-size:12px}
+  .hsep{color:var(--text-3); flex:none; padding:0 2px}
+  .pop{position:relative; min-width:0}
+  .hpill{display:inline-flex; align-items:center; gap:6px; padding:5px 8px; border-radius:var(--r-sm); color:var(--text); font-weight:500; min-width:0; max-width:100%}
+  .hpill:hover, .hpill[aria-expanded="true"]{background:var(--raised-2)}
+  .hpill .txt{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .hpill .lbl{color:var(--text-3); font-weight:400; white-space:nowrap}
+  .hpill svg.i.chev{width:13px; height:13px; color:var(--text-3)}
+  .hpill .n{font-family:var(--font-mono); font-size:11px; color:var(--text-3); padding:0 5px; border-radius:5px; background:var(--sunken); border:1px solid var(--line)}
+  .hright{display:flex; align-items:center; gap:2px; margin-left:auto; flex:none}
+  .agent{display:flex; align-items:center; gap:6px; color:var(--text-3); font-size:12px; padding:0 8px}
+  .agent .dot{background:var(--ok); width:7px; height:7px}
+  .agent span{white-space:nowrap}
+  .ibtn{width:32px; height:30px; display:grid; place-items:center; color:var(--text-2); border-radius:7px}
+  .ibtn:hover{background:var(--raised-2); color:var(--text)}
+  .winctl{display:flex; margin-left:6px; border-left:1px solid var(--line); padding-left:6px}
+  .winctl button{width:36px; height:30px; display:grid; place-items:center; color:var(--text-3); border-radius:6px}
+  .winctl button:hover{background:var(--raised-2); color:var(--text)}
+  .pill-list, .pill-src{display:none}
+  :root[data-view="list"] .pill-list{display:inline-flex}
+  :root[data-view="read"] .pill-src{display:inline-flex}
+
+  .menu{position:absolute; top:calc(100% + 6px); left:0; min-width:280px; max-width:min(92vw, 440px); background:var(--glass); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid var(--line-strong); border-radius:var(--r-sm); box-shadow:var(--shadow); padding:6px; z-index:20; display:grid; gap:2px}
+  .menu.right{left:auto; right:0}
+  .menu[hidden]{display:none}
+  .mh{font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-3); padding:7px 9px 3px; font-weight:500}
+  .mi{display:flex; align-items:center; gap:10px; padding:7px 9px; border-radius:7px; text-align:left; width:100%; min-width:0}
+  .mi:hover{background:var(--raised-2)}
+  .mi.cur{background:var(--raised)}
+  .mi .txt{flex:1; min-width:0; display:grid; gap:2px}
+  .mi .txt .t{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500}
+  .mi .txt .m{color:var(--text-3); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .mi .meta{margin-left:auto; color:var(--text-3); font-size:11px; font-family:var(--font-mono); flex:none; display:flex; gap:6px; align-items:center}
+  .mi svg.i{color:var(--text-2)}
+  .mi.danger, .mi.danger svg.i{color:var(--danger)}
+  .mi[data-read] .t{color:var(--text-2)}
+  .msep{height:1px; background:var(--line); margin:4px 4px}
+  .mnote{color:var(--text-3); padding:4px 9px 7px; font-size:11.5px; line-height:1.45}
+  /* read toggle inside the source switcher: visible on hover, always when read */
+  .mchk{width:22px; height:22px; border-radius:50%; display:grid; place-items:center; color:var(--text-3); border:1px solid transparent; opacity:0}
+  .mi:hover .mchk, .mi[data-read] .mchk{opacity:1}
+  .mchk:hover{border-color:var(--line-strong); color:var(--text)}
+  .mi[data-read] .mchk{color:var(--ok)}
+  .mi[data-read] .mchk svg.i{stroke-width:2.2}
+
+  /* ---------- layout ---------- */
+  .main{display:grid; grid-template-columns:minmax(0,1fr); min-height:0; height:100%}
+  .reader{display:none; flex-direction:column; min-height:0; min-width:0}
+  :root[data-view="read"] .reader{display:flex}
+  .rscroll{overflow:auto; min-height:0; padding:22px 20px 40px}
+  .sheet{width:min(100%, 700px); margin:0 auto; background:var(--paper); color:var(--paper-text); padding:50px 60px 44px; border-radius:6px; box-shadow:0 1px 0 rgba(0,0,0,.2), 0 18px 40px rgba(0,0,0,.35); font-family:var(--font-paper); font-size:15px; line-height:1.58}
+  .sheet .run{display:flex; justify-content:space-between; font-size:11px; color:var(--paper-2); letter-spacing:.02em; margin-bottom:26px; border-bottom:1px solid var(--paper-line); padding-bottom:6px}
+  .sheet h3{font-size:16px; font-weight:600; margin:0 0 10px}
+  .sheet p{margin:0 0 12px; text-wrap:pretty}
+  .sheet .foot{margin-top:26px; text-align:center; font-size:12px; color:var(--paper-2)}
+
+  /* ---------- reading list page (lives in the reader pane) ---------- */
+  .list{display:none; overflow:auto; min-height:0; padding:34px 24px 60px; position:relative}
+  :root[data-view="list"] .list{display:block}
+  .list .col{width:min(100%, 760px); margin:0 auto; display:grid; gap:16px}
+  .lhead{display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap}
+  .lhead h1{font-size:20px; font-weight:600; margin:0; letter-spacing:-.01em}
+  .lhead .sub{color:var(--text-3); margin:4px 0 0}
+  .lactions{display:flex; gap:6px; align-items:center}
+  .btn{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:var(--r-sm); font-weight:500; border:1px solid var(--line); background:var(--raised); color:var(--text); white-space:nowrap}
+  .btn:hover{background:var(--raised-2)}
+  .btn.primary{background:var(--accent); color:var(--accent-fg); border-color:transparent}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .btn.icon{padding:6px; color:var(--text-2); background:none; border-color:transparent}
+  .btn.icon:hover{background:var(--raised-2); color:var(--text)}
+  .btn.quiet{background:none; color:var(--text-2)}
+  .btn.quiet:hover{background:var(--raised-2); color:var(--text)}
+  .btn svg.i.chev{width:13px; height:13px; color:currentColor; opacity:.7}
+  .lactions .menu{top:calc(100% + 6px)}
+
+  .rows{list-style:none; margin:0; padding:0; display:grid; gap:6px; position:relative}
+  .row{display:grid; grid-template-columns:26px 18px minmax(0,1fr) auto 26px 26px; align-items:center; gap:10px; padding:9px 8px 9px 8px; border-radius:var(--r-sm); background:var(--raised); border:1px solid var(--line); position:relative; transition:background .12s, border-color .12s, opacity .16s, transform .16s}
+  .row:hover, .row:focus-within, .row.menu-open{background:var(--raised-2); border-color:var(--line-strong)}
+  .row .ord{width:26px; height:26px; display:grid; place-items:center; font-family:var(--font-mono); font-size:11px; color:var(--text-3); border-radius:6px; cursor:grab; touch-action:none; user-select:none}
+  .row .ord svg.i{display:none; width:14px; height:14px; stroke-width:2.6}
+  .row:hover .ord span, .row.dragging .ord span{display:none}
+  .row:hover .ord svg.i, .row.dragging .ord svg.i{display:block}
+  .row .ord:hover{background:var(--sunken); color:var(--text-2)}
+  .row .kind{color:var(--text-2); display:grid; place-items:center}
+  .row .txt{min-width:0; display:grid; gap:3px; cursor:pointer}
+  .row .t{font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .row .m{color:var(--text-3); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .row .prog{font-family:var(--font-mono); font-size:11px; color:var(--text-3); white-space:nowrap; padding:0 4px}
+  .row .prog.new{color:var(--text-3); opacity:.7}
+  .row .done{width:26px; height:26px; border-radius:50%; display:grid; place-items:center; color:var(--text-3); border:1px solid transparent; opacity:0; transition:opacity .12s}
+  .row:hover .done, .row:focus-within .done, .row[data-read] .done{opacity:1}
+  .row .done:hover{border-color:var(--line-strong); color:var(--text)}
+  .row[data-read] .done{color:var(--ok)}
+  .row[data-read] .done svg.i{stroke-width:2.2}
+  .row[data-read] .t{color:var(--text-2)}
+  .row[data-read] .kind{color:var(--text-3)}
+  .row .more{width:26px; height:26px; border-radius:6px; display:grid; place-items:center; color:var(--text-3); opacity:0; transition:opacity .12s}
+  .row:hover .more, .row:focus-within .more, .row .more[aria-expanded="true"]{opacity:1}
+  .row .more:hover, .row .more[aria-expanded="true"]{background:var(--sunken); color:var(--text)}
+  .row.dragging{opacity:.92; box-shadow:var(--shadow); border-color:var(--line-strong); z-index:2; transform:scale(1.01)}
+  .row.drop-before::before, .row.drop-after::after{content:""; position:absolute; left:8px; right:8px; height:2px; background:var(--accent); border-radius:2px; z-index:3}
+  .row.drop-before::before{top:-5px} .row.drop-after::after{bottom:-5px}
+  .row.leaving{opacity:0; transform:translateX(14px)}
+  .row.arriving{animation:arrive .25s ease-out}
+  @keyframes arrive{from{opacity:0; transform:translateY(-4px)} to{opacity:1; transform:none}}
+  .row .menu{top:calc(100% - 2px); left:auto; right:8px; min-width:230px}
+  .rows.over::after{content:"Drop to add"; position:absolute; inset:-8px; border:2px dashed color-mix(in srgb, var(--accent) 70%, transparent); border-radius:var(--r); display:grid; place-items:center; color:var(--accent); font-weight:500; background:color-mix(in srgb, var(--bg) 80%, transparent); pointer-events:none}
+  .hint{color:var(--text-3); font-size:12px; display:flex; gap:8px; align-items:center}
+
+  /* empty collection */
+  .emptybox{display:none; gap:14px; padding:26px 22px 22px; border-radius:var(--r); border:1px dashed var(--line-strong); text-align:center; justify-items:center}
+  :root[data-state="empty"] .emptybox{display:grid}
+  :root[data-state="empty"] .rows, :root[data-state="empty"] .lactions, :root[data-state="empty"] .hint.rowsh{display:none}
+  .emptybox h2{margin:0; font-size:15px; font-weight:500}
+  .emptybox p{margin:0; color:var(--text-3); max-width:46ch}
+  .addcards{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:8px; width:100%; margin-top:6px}
+  .addcard{display:grid; gap:4px; justify-items:center; align-content:start; padding:16px 12px 14px; border-radius:var(--r-sm); background:var(--raised); border:1px solid var(--line); color:var(--text-2)}
+  .addcard:hover{background:var(--raised-2); border-color:var(--line-strong); color:var(--text)}
+  .addcard b{font-weight:500; color:var(--text); font-size:13px; margin-top:4px}
+  .addcard span{font-size:11.5px; color:var(--text-3)}
+  .addcard kbd{margin-top:4px}
+  .emptybox .hint{justify-content:center; margin-top:2px}
+
+  /* ---------- folder picker dialog ---------- */
+  .overlay{position:absolute; inset:0; z-index:40; background:rgba(0,0,0,.45); display:grid; place-items:center; padding:24px}
+  .overlay[hidden]{display:none}
+  .dialog{width:min(100%, 620px); max-height:min(88%, 720px); display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; background:var(--bg); border:1px solid var(--line-strong); border-radius:var(--r); box-shadow:var(--shadow); overflow:hidden}
+  .dhead{display:flex; align-items:center; gap:10px; padding:12px 12px 12px 18px; border-bottom:1px solid var(--line)}
+  .dhead h2{margin:0; font-size:15px; font-weight:600; flex:none}
+  .dhead .path{font-family:var(--font-mono); font-size:11.5px; color:var(--text-3); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:1}
+  .dhead .path b{color:var(--text-2); font-weight:500}
+  .dtools{display:flex; align-items:center; gap:10px; padding:10px 18px; border-bottom:1px solid var(--line)}
+  .filter{display:flex; align-items:center; gap:8px; flex:1; min-width:0; background:var(--sunken); border:1px solid var(--line); border-radius:var(--r-sm); padding:6px 10px; color:var(--text-3)}
+  .filter input{flex:1; min-width:0; background:none; border:0; color:var(--text); font:inherit; font-size:13px; outline:none}
+  .filter input::placeholder{color:var(--text-3)}
+  .switch{display:inline-flex; align-items:center; gap:8px; color:var(--text-2); font-size:12.5px; cursor:pointer; user-select:none; white-space:nowrap}
+  .switch input{appearance:none; width:30px; height:18px; border-radius:var(--r-pill); background:var(--sunken); border:1px solid var(--line-strong); position:relative; margin:0; cursor:pointer; transition:background .15s}
+  .switch input::after{content:""; position:absolute; top:2px; left:2px; width:12px; height:12px; border-radius:50%; background:var(--text-3); transition:transform .15s, background .15s}
+  .switch input:checked{background:var(--accent); border-color:transparent}
+  .switch input:checked::after{transform:translateX(12px); background:var(--accent-fg)}
+  .dlist{overflow:auto; min-height:0; padding:8px 10px}
+  .frow{display:grid; grid-template-columns:auto 18px minmax(0,1fr) auto; align-items:center; gap:10px; padding:7px 9px; border-radius:7px; cursor:pointer}
+  .frow:hover{background:var(--raised)}
+  .frow.off{opacity:.55; cursor:default}
+  .frow.off:hover{background:none}
+  .frow input[type="checkbox"]{appearance:none; width:16px; height:16px; border-radius:5px; border:1px solid var(--line-strong); background:var(--sunken); display:grid; place-items:center; margin:0; cursor:pointer}
+  .frow input[type="checkbox"]::after{content:""; width:9px; height:5px; border-left:2px solid var(--accent-fg); border-bottom:2px solid var(--accent-fg); transform:rotate(-45deg) translate(1px,-1px); opacity:0}
+  .frow input[type="checkbox"]:checked{background:var(--accent); border-color:transparent}
+  .frow input[type="checkbox"]:checked::after{opacity:1}
+  .frow input[type="checkbox"]:disabled{opacity:.6; cursor:default}
+  .frow .kind{color:var(--text-2); display:grid; place-items:center}
+  .frow .txt{min-width:0; display:grid; gap:2px}
+  .frow .t{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500}
+  .frow .t .dir{color:var(--text-3); font-weight:400}
+  .frow .m{color:var(--text-3); font-size:11.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .frow .meta{font-family:var(--font-mono); font-size:11px; color:var(--text-3); display:flex; align-items:center; gap:8px; white-space:nowrap}
+  .dnote{color:var(--text-3); font-size:11.5px; padding:8px 9px 4px}
+  .dfoot{display:flex; align-items:center; gap:10px; padding:10px 12px 12px 18px; border-top:1px solid var(--line)}
+  .dfoot .cnt{color:var(--text-2); font-size:12.5px; flex:1; min-width:0}
+  .dfoot .link{color:var(--text-3); font-size:12.5px; padding:4px 6px; border-radius:6px}
+  .dfoot .link:hover{color:var(--text); background:var(--raised-2)}
+
+  /* ---------- toast + prototype bar ---------- */
+  .toast{position:absolute; right:16px; bottom:16px; z-index:50; display:flex; align-items:center; gap:10px; padding:8px 10px 8px 12px; border-radius:var(--r-sm); background:var(--glass); backdrop-filter:blur(14px); border:1px solid var(--line-strong); box-shadow:var(--shadow); font-size:12.5px; opacity:0; transform:translateY(6px); transition:opacity .2s, transform .2s; pointer-events:none; max-width:min(92%, 460px)}
+  .toast.show{opacity:1; transform:none; pointer-events:auto}
+  .toast .act{font-weight:500; color:var(--accent); padding:3px 8px; border-radius:6px; border:1px solid color-mix(in srgb, var(--accent) 40%, transparent)}
+  .toast .act:hover{background:var(--accent-soft)}
+  .toast .act[hidden]{display:none}
+  .pbar{position:fixed; left:0; right:0; bottom:0; z-index:60; display:flex; justify-content:center; padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px)); pointer-events:none}
+  .pbar .card{pointer-events:auto; display:flex; align-items:center; gap:14px; flex-wrap:wrap; justify-content:center; padding:8px 12px; border-radius:var(--r); background:var(--glass); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid var(--line-strong); box-shadow:var(--shadow); max-width:100%}
+  .pbar .grp{display:flex; align-items:center; gap:6px}
+  .pbar .lbl{font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-3); font-weight:500; margin-right:2px}
+  .seg{display:flex; background:var(--sunken); border:1px solid var(--line); border-radius:var(--r-pill); padding:2px; gap:2px}
+  .seg button{padding:5px 10px; border-radius:var(--r-pill); color:var(--text-2); font-weight:500; font-size:12px; display:flex; align-items:center; gap:6px}
+  .seg button[aria-pressed="true"]{background:var(--accent); color:var(--accent-fg); box-shadow:var(--shadow-sm)}
+  .seg button kbd{margin-left:2px; font-size:10px}
+  .seg button[aria-pressed="true"] kbd{background:rgba(0,0,0,.18); border-color:transparent; color:inherit}
+
+  /* ---------- responsive ---------- */
+  @media (max-width:760px){
+    .winctl, .agent span, .pbar .lbl{display:none}
+    .row{grid-template-columns:26px 18px minmax(0,1fr) 26px 26px}
+    .row .prog{display:none}
+    .addcards{grid-template-columns:1fr}
+    .sheet{padding:28px 22px 24px}
+    .dtools{flex-wrap:wrap}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none !important; transition:none !important}
+  }
+</style>
+
+<div class="win" id="win">
+  <!-- ================= header ================= -->
+  <header class="hdr">
+    <div class="brand"><span class="q">Q</span></div>
+    <div class="pop">
+      <button class="hpill" id="pill-coll" aria-expanded="false" aria-haspopup="menu"><span class="txt">Representation geometry</span><svg class="i chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="menu" id="menu-coll" hidden role="menu">
+        <div class="mh">Collections</div>
+        <button class="mi cur" role="menuitem"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="txt"><span class="t">Representation geometry</span><span class="m">7 sources · 3 read · 12 threads</span></span><span class="meta">now</span></button>
+        <button class="mi" role="menuitem"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="txt"><span class="t">Neural ODEs</span><span class="m">5 sources · 5 read · 3 threads</span></span><span class="meta">Tue</span></button>
+        <div class="msep"></div>
+        <button class="mi" role="menuitem"><svg class="i" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span class="txt"><span class="t">All collections</span></span><span class="meta"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>H</kbd></span></button>
+      </div>
+    </div>
+    <span class="hsep">/</span>
+    <div class="pop">
+      <!-- the pill reads "Reading list" on the list page and the source title while reading -->
+      <button class="hpill pill-list" id="pill-list" aria-expanded="false" aria-haspopup="menu"><svg class="i" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span class="txt">Reading list</span><span class="n" id="pill-list-n">7</span><svg class="i chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+      <button class="hpill pill-src" id="pill-src" aria-expanded="false" aria-haspopup="menu"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg><span class="txt">Intrinsic Dimension of Learned Representations</span><span class="lbl">14 p.</span><svg class="i chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="menu" id="menu-src" hidden role="menu"></div>
+    </div>
+    <div class="hright">
+      <button class="hpill" id="pill-threads" title="Threads in this collection"><svg class="i" viewBox="0 0 24 24"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg><span class="txt">Threads</span><span class="n">12</span></button>
+      <button class="hpill" id="pill-marks" title="Bookmarks and comments"><svg class="i" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span class="txt">Marks</span><span class="n">5</span></button>
+      <div class="agent" title="Claude Code · signed in"><span class="dot"></span><span>Claude Code</span></div>
+      <button class="ibtn" id="btn-gear" title="Settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+      <div class="winctl" aria-hidden="true">
+        <button title="Minimise"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+        <button title="Maximise"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1.5"/></svg></button>
+        <button title="Close"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- ================= reader (only behind the switcher state) ================= -->
+    <section class="reader" aria-label="Reader">
+      <div class="rscroll">
+        <article class="sheet" aria-label="Page 4">
+          <div class="run"><span>Okonkwo, Lindqvist &amp; Tanaka</span><span>Intrinsic dimension of learned representations</span></div>
+          <h3>3&nbsp;&nbsp;Geometry of the representation</h3>
+          <p>Let <i>h</i>(<i>x</i>) denote the activation of the penultimate layer for an input <i>x</i>, with <i>d</i> = 4096 throughout. We are interested not in the span of these vectors but in the shape of the set they occupy. Following Facco et&nbsp;al., we estimate the intrinsic dimension from the ratio of each point's second- and first-nearest-neighbour distances, which uses only the two closest points to each sample.</p>
+          <p>We hypothesise that the representation lies on a low-dimensional manifold embedded in the ambient space, and that the intrinsic dimension <i>k</i> ≪ <i>d</i> is stable across the later layers. Figure&nbsp;2 supports the second half of this claim: from layer 18 onward the estimate settles between 22 and 26 while <i>d</i> is unchanged.</p>
+          <p>A linear baseline is instructive. PCA retaining 95% of the variance overestimates <i>k</i> by a factor of three to six on every model we tested (Table&nbsp;2), which we take as evidence that the manifold is curved rather than a subspace. The gap widens with depth.</p>
+          <div class="foot">4</div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ================= reading list page ================= -->
+    <section class="list" aria-label="Reading list" id="listpage">
+      <div class="col">
+        <div class="lhead">
+          <div>
+            <h1>Representation geometry</h1>
+            <p class="sub" id="lsub">7 sources · 3 read · 12 threads</p>
+          </div>
+          <div class="lactions">
+            <div class="pop sortpop">
+              <button class="btn quiet" id="btn-sort" aria-expanded="false" aria-haspopup="menu"><svg class="i" viewBox="0 0 24 24"><path d="M3 6h18M6 12h12M9 18h6"/></svg>Order<svg class="i chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+              <div class="menu right" id="menu-sort" hidden role="menu">
+                <div class="mh">Reorder once by</div>
+                <button class="mi" role="menuitem" data-sort="title"><svg class="i" viewBox="0 0 24 24"><path d="M4 18h6M4 12h10M4 6h16"/></svg><span class="txt"><span class="t">Title</span></span></button>
+                <button class="mi" role="menuitem" data-sort="added"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="txt"><span class="t">Date added</span></span></button>
+                <button class="mi" role="menuitem" data-sort="unread"><svg class="i" viewBox="0 0 24 24"><path d="m5 12 5 5L20 7"/></svg><span class="txt"><span class="t">Unread first</span></span></button>
+                <div class="msep"></div>
+                <div class="mnote">Drag a row's number to set the order by hand, or press <kbd>Ctrl</kbd><kbd>↑</kbd> / <kbd>Ctrl</kbd><kbd>↓</kbd> on a focused row. The order is saved in qrabbit.json.</div>
+              </div>
+            </div>
+            <div class="pop">
+              <button class="btn primary" id="btn-add" aria-expanded="false" aria-haspopup="menu"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add<svg class="i chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+              <div class="menu right" id="menu-add" hidden role="menu">
+                <button class="mi" role="menuitem" data-add="files"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg><span class="txt"><span class="t">Files…</span><span class="m">PDF, Markdown or text</span></span><span class="meta"><kbd>Ctrl</kbd><kbd>I</kbd></span></button>
+                <button class="mi" role="menuitem" data-add="folder"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span class="txt"><span class="t">From a folder…</span><span class="m">Pick which files to bring in</span></span></button>
+                <button class="mi" role="menuitem" data-add="web"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9s1.3-6.4 3.8-9z"/></svg><span class="txt"><span class="t">Web page…</span><span class="m">Saved as reader-mode Markdown</span></span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <ol class="rows" id="rows"></ol>
+
+        <div class="emptybox">
+          <h2>Nothing to read yet</h2>
+          <p>Add papers, notes or web pages. Files are copied into this collection's folder, so it stays self-contained and travels with git or Obsidian.</p>
+          <div class="addcards">
+            <button class="addcard" data-add="files"><svg class="i" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg><b>Files</b><span>PDF, Markdown or text</span><kbd>Ctrl+I</kbd></button>
+            <button class="addcard" data-add="folder"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><b>From a folder</b><span>Pick which files to bring in</span></button>
+            <button class="addcard" data-add="web"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9s1.3-6.4 3.8-9z"/></svg><b>Web page</b><span>Saved as reader-mode Markdown</span></button>
+          </div>
+          <div class="hint"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>Or drop files or a folder anywhere on this page.</div>
+        </div>
+
+        <div class="hint rowsh"><svg class="i" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Each source is a folder under sources/. The order lives in qrabbit.json; a read mark is a date in the source's source.json. Removing a source keeps its threads.</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= folder picker ================= -->
+  <div class="overlay" id="picker" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-label="Add from a folder">
+      <div class="dhead">
+        <h2>Add from a folder</h2>
+        <span class="path" id="picker-path"><b>~/papers/geometry</b></span>
+        <button class="btn icon" id="picker-x" title="Close (Esc)"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <div class="dtools">
+        <label class="filter"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="picker-filter" type="search" placeholder="Filter by name"></label>
+        <label class="switch"><input type="checkbox" id="picker-sub" checked>Include subfolders</label>
+      </div>
+      <div class="dlist" id="picker-list"></div>
+      <div class="dfoot">
+        <span class="cnt" id="picker-cnt"></span>
+        <button class="link" id="picker-all">Select all</button>
+        <button class="link" id="picker-none">None</button>
+        <button class="btn primary" id="picker-add">Add 6 files</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-text"></span><button class="act" id="toast-act" hidden>Undo</button></div>
+</div>
+
+<!-- ================= prototype controls ================= -->
+<div class="pbar" aria-label="Prototype controls">
+  <div class="card">
+    <div class="grp"><span class="lbl">State</span>
+      <div class="seg" id="seg-state">
+        <button data-state="list" aria-pressed="true">List <kbd>1</kbd></button>
+        <button data-state="reorder" aria-pressed="false">Reorder <kbd>2</kbd></button>
+        <button data-state="rowmenu" aria-pressed="false">Row menu <kbd>3</kbd></button>
+        <button data-state="removed" aria-pressed="false">Removed <kbd>4</kbd></button>
+        <button data-state="folder" aria-pressed="false">From folder <kbd>5</kbd></button>
+        <button data-state="empty" aria-pressed="false">Empty <kbd>6</kbd></button>
+        <button data-state="menu" aria-pressed="false">Switcher <kbd>7</kbd></button>
+      </div>
+    </div>
+    <div class="grp"><span class="lbl">Accent</span>
+      <div class="seg" id="seg-accent">
+        <button data-accent="lime" aria-pressed="true">Lime</button>
+        <button data-accent="amber" aria-pressed="false">Amber</button>
+      </div>
+    </div>
+    <div class="grp"><span class="lbl">Theme</span>
+      <div class="seg" id="seg-mode">
+        <button data-mode="dark" aria-pressed="true">Dark</button>
+        <button data-mode="light" aria-pressed="false">Light</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const root = document.documentElement;
+    const $ = (s, el=document) => el.querySelector(s);
+    const $$ = (s, el=document) => Array.from(el.querySelectorAll(s));
+
+    // ---------- icons (same paths as the app's Icons.tsx) ----------
+    const P = {
+      file:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5',
+      lines:'M4 6h16M4 12h10M4 18h7',
+      globe:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9s1.3-6.4 3.8-9z',
+      folder:'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+      check:'m5 12 5 5L20 7',
+      more:'M5 12h.01M12 12h.01M19 12h.01',
+      grip:'M9 5h.01M9 12h.01M9 19h.01M15 5h.01M15 12h.01M15 19h.01',
+      list:'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
+      open:'M14 3h7v7M21 3l-9 9M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6',
+      top:'M12 19V8M6 14l6-6 6 6M5 4h14',
+      bottom:'M12 5v11M6 10l6 6 6-6M5 20h14',
+      reveal:'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 11v6M9 14l3 3 3-3',
+      trash:'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
+      plus:'M12 5v14M5 12h14',
+    };
+    const ico = (n, extra='') => `<svg class="i ${extra}" viewBox="0 0 24 24" aria-hidden="true"><path d="${P[n]}"/></svg>`;
+    const kindIcon = k => k === 'web' ? 'globe' : k === 'markdown' ? 'lines' : 'file';
+    const kindLabel = s => s.kind === 'pdf' ? `PDF${s.pages ? ` · ${s.pages} pages` : ''}` : s.kind === 'web' ? (s.site || 'Web page') : 'Markdown';
+    const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+    // ---------- sample data: the collection's sources in reading order ----------
+    const SOURCES = [
+      {id:'intrinsic-dimension', kind:'pdf', title:'Intrinsic Dimension of Learned Representations', pages:14, threads:3, marks:2, added:'2 d ago', addedN:2, at:4, read:null, cur:true},
+      {id:'testing-manifold', kind:'pdf', title:'Testing the Manifold Hypothesis', pages:31, threads:1, marks:1, added:'2 d ago', addedN:2.1, at:9, read:null},
+      {id:'manifold-notes', kind:'markdown', title:'Manifold hypothesis notes', threads:1, marks:0, added:'3 d ago', addedN:3, at:1, read:'Tue'},
+      {id:'facco-twonn', kind:'pdf', title:'Estimating the intrinsic dimension of datasets by a minimal neighborhood information', pages:11, threads:2, marks:1, added:'5 d ago', addedN:5, at:11, read:'Mon'},
+      {id:'colah-manifolds', kind:'web', title:'Neural Networks, Manifolds, and Topology', site:'colah.github.io', threads:2, marks:1, added:'yesterday', addedN:1, at:1, read:'yesterday'},
+      {id:'curvature', kind:'pdf', title:'Curvature of Representation Manifolds in Deep Networks', pages:22, threads:0, marks:0, added:'yesterday', addedN:1.1, at:0, read:null},
+      {id:'pca-note', kind:'markdown', title:'A note on PCA and curved data', threads:3, marks:0, added:'6 d ago', addedN:6, at:0, read:null},
+    ];
+    const FOLDER = { path:'~/papers/geometry', skipped:6, files:[
+      {name:'facco-2017-twonn.pdf', dir:'', mb:2.1, kind:'pdf', have:'Estimating the intrinsic dimension…'},
+      {name:'ansuini-2019-intrinsic-dimension.pdf', dir:'', mb:3.4, kind:'pdf'},
+      {name:'levina-bickel-2004-mle-id.pdf', dir:'', mb:0.9, kind:'pdf'},
+      {name:'fefferman-2016-testing-manifold.pdf', dir:'', mb:1.8, kind:'pdf', have:'Testing the Manifold Hypothesis'},
+      {name:'manifold-reading-notes.md', dir:'notes/', mb:0.012, kind:'markdown'},
+      {name:'pca-vs-twonn.md', dir:'notes/', mb:0.004, kind:'markdown'},
+      {name:'campadelli-2015-id-survey.pdf', dir:'surveys/', mb:5.6, kind:'pdf'},
+      {name:'README.md', dir:'surveys/', mb:0.001, kind:'markdown'},
+      {name:'tenenbaum-2000-isomap.pdf', dir:'old/', mb:2.4, kind:'pdf'},
+    ]};
+
+    let sources = [];
+    let seq = 0;
+
+    // ---------- toast ----------
+    const toastEl = $('#toast'), toastText = $('#toast-text'), toastAct = $('#toast-act');
+    let toastTimer, toastRun = null;
+    function toast(msg, action){
+      toastText.textContent = msg;
+      toastRun = action ? action.run : null;
+      toastAct.hidden = !action;
+      if (action) toastAct.textContent = action.label;
+      toastEl.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(hideToast, action ? 7000 : 2600);
+    }
+    function hideToast(){ toastEl.classList.remove('show'); toastRun = null; }
+    toastAct.addEventListener('click', () => { const r = toastRun; hideToast(); if (r) r(); });
+
+    // ---------- rendering ----------
+    function progress(s){
+      if (s.read) return `<span class="prog">Read · ${s.read}</span>`;
+      if (!s.at) return `<span class="prog new">Not started</span>`;
+      if (s.kind === 'pdf') return `<span class="prog">p. ${s.at} of ${s.pages}</span>`;
+      return `<span class="prog">Opened</span>`;
+    }
+    function rowHtml(s, i){
+      const bits = [kindLabel(s)];
+      if (s.threads) bits.push(plural(s.threads, 'thread'));
+      if (s.marks) bits.push(plural(s.marks, 'mark'));
+      bits.push(`added ${s.added}`);
+      return `<li class="row" data-id="${s.id}" ${s.read ? 'data-read' : ''} tabindex="0" aria-label="${s.title}">
+        <span class="ord" title="Drag to reorder"><span>${i + 1}</span>${ico('grip')}</span>
+        <span class="kind">${ico(kindIcon(s.kind))}</span>
+        <span class="txt" data-open><span class="t">${s.title}</span><span class="m">${bits.join(' · ')}</span></span>
+        ${progress(s)}
+        <button class="done" data-done aria-pressed="${!!s.read}" title="${s.read ? 'Mark as unread' : 'Mark as read'}">${ico('check')}</button>
+        <button class="more" data-more aria-expanded="false" aria-haspopup="menu" title="More">${ico('more')}</button>
+      </li>`;
+    }
+    function render(){
+      $('#rows').innerHTML = sources.map(rowHtml).join('');
+      counts();
+      renderSwitcher();
+    }
+    function renumber(){
+      $$('#rows .row').forEach((r, i) => { $('.ord span', r).textContent = i + 1; });
+      // the DOM is the order of record for the prototype; mirror it into the data
+      const byId = Object.fromEntries(sources.map(s => [s.id, s]));
+      sources = $$('#rows .row').map(r => byId[r.dataset.id]);
+      counts();
+      renderSwitcher();
+    }
+    function counts(){
+      const read = sources.filter(s => s.read).length;
+      const threads = sources.reduce((n, s) => n + (s.threads || 0), 0);
+      $('#lsub').textContent = sources.length ? `${plural(sources.length, 'source')} · ${read} read · ${plural(threads, 'thread')}` : 'No sources yet';
+      $('#pill-list-n').textContent = sources.length;
+    }
+    function renderSwitcher(){
+      const read = sources.filter(s => s.read).length;
+      const items = sources.map(s => `<button class="mi ${s.cur ? 'cur' : ''}" role="menuitem" data-id="${s.id}" ${s.read ? 'data-read' : ''}>
+        ${ico(kindIcon(s.kind))}
+        <span class="txt"><span class="t">${s.title}</span><span class="m">${kindLabel(s)}${s.threads ? ` · ${plural(s.threads, 'thread')}` : ''}</span></span>
+        <span class="meta">${s.cur && s.at ? `p.${s.at}` : ''}<span class="mchk" data-mchk title="${s.read ? 'Mark as unread' : 'Mark as read'}">${ico('check')}</span></span>
+      </button>`).join('');
+      $('#menu-src').innerHTML = `
+        <button class="mi" role="menuitem" data-go="list">${ico('list')}<span class="txt"><span class="t">Reading list</span><span class="m">${plural(sources.length, 'source')} · ${read} read · reorder, mark read, remove</span></span><span class="meta"><kbd>Ctrl</kbd><kbd>L</kbd></span></button>
+        <div class="msep"></div>
+        <div class="mh">In reading order</div>
+        ${items}
+        <div class="msep"></div>
+        <button class="mi" role="menuitem" data-add="files">${ico('plus')}<span class="txt"><span class="t">Add files…</span><span class="m">PDF, Markdown or text</span></span><span class="meta"><kbd>Ctrl</kbd><kbd>I</kbd></span></button>
+        <button class="mi" role="menuitem" data-add="folder">${ico('folder')}<span class="txt"><span class="t">Add from a folder…</span><span class="m">Pick which files to bring in</span></span></button>
+        <button class="mi" role="menuitem" data-add="web">${ico('globe')}<span class="txt"><span class="t">Add a web page…</span><span class="m">Saved as reader-mode Markdown</span></span></button>`;
+    }
+
+    // ---------- menus ----------
+    const pops = [['#pill-coll','#menu-coll'], ['#pill-src','#menu-src'], ['#pill-list','#menu-src'], ['#btn-sort','#menu-sort'], ['#btn-add','#menu-add']];
+    function closeMenus(){
+      pops.forEach(([b, m]) => { $(m).hidden = true; $(b).setAttribute('aria-expanded','false'); });
+      closeRowMenu();
+    }
+    pops.forEach(([b, m]) => {
+      $(b).addEventListener('click', (e) => {
+        e.stopPropagation();
+        const open = $(m).hidden;
+        closeMenus();
+        if (open) { $(m).hidden = false; $(b).setAttribute('aria-expanded','true'); }
+      });
+      $(m).addEventListener('click', e => e.stopPropagation());
+    });
+    document.addEventListener('click', closeMenus);
+    $$('#menu-coll .mi').forEach(mi => mi.addEventListener('click', () => { closeMenus(); toast('Collections · switches or goes home (see central-loop.html)'); }));
+    $('#pill-threads').addEventListener('click', (e) => { e.stopPropagation(); closeMenus(); toast('Threads popover · as in the app'); });
+    $('#pill-marks').addEventListener('click', (e) => { e.stopPropagation(); closeMenus(); toast('Marks popover · as in the app'); });
+    $('#btn-gear').addEventListener('click', (e) => { e.stopPropagation(); closeMenus(); toast('Settings · as in the app'); });
+
+    // source switcher: go to the list, switch source, toggle read without leaving the paper, add
+    $('#menu-src').addEventListener('click', (e) => {
+      const chk = e.target.closest('[data-mchk]');
+      if (chk) { e.stopPropagation(); const mi = chk.closest('.mi'); toggleRead(mi.dataset.id, true); return; }
+      const mi = e.target.closest('.mi'); if (!mi) return;
+      if (mi.dataset.go === 'list') { setView('list'); closeMenus(); toast('Reading list · the collection as a list, in the reader pane'); return; }
+      if (mi.dataset.add) { closeMenus(); addAction(mi.dataset.add); return; }
+      closeMenus();
+      const s = sources.find(x => x.id === mi.dataset.id);
+      toast(s && s.cur ? 'Already reading this source' : 'Switches the reader to that source (not in this prototype)');
+    });
+
+    // ---------- add ----------
+    function addAction(kind){
+      if (kind === 'folder') openPicker();
+      else if (kind === 'files') toast('Files · OS file dialog, then copied into sources/ (as in the app)');
+      else toast('Web page · URL dialog, fetched once, saved as Markdown (as in the app)');
+    }
+    $('#menu-add').addEventListener('click', (e) => { const mi = e.target.closest('[data-add]'); if (!mi) return; closeMenus(); addAction(mi.dataset.add); });
+    $$('.addcard').forEach(b => b.addEventListener('click', () => addAction(b.dataset.add)));
+
+    // ---------- one-shot sorts ----------
+    $('#menu-sort').addEventListener('click', (e) => {
+      const mi = e.target.closest('[data-sort]'); if (!mi) return;
+      const k = mi.dataset.sort;
+      if (k === 'title') sources.sort((a, b) => a.title.localeCompare(b.title));
+      else if (k === 'added') sources.sort((a, b) => a.addedN - b.addedN);
+      else if (k === 'unread') sources.sort((a, b) => (a.read ? 1 : 0) - (b.read ? 1 : 0));
+      closeMenus();
+      render();
+      toast(`Reordered by ${mi.textContent.trim().toLowerCase()} · saved to qrabbit.json. Drag to adjust.`);
+    });
+
+    // ---------- row actions ----------
+    const rowsEl = $('#rows');
+    function rowOf(el){ return el.closest('.row'); }
+    function toggleRead(id, keepMenu){
+      const s = sources.find(x => x.id === id); if (!s) return;
+      s.read = s.read ? null : 'just now';
+      const r = $(`#rows .row[data-id="${id}"]`);
+      if (r) { r.outerHTML = rowHtml(s, sources.indexOf(s)); }
+      counts(); renderSwitcher();
+      if (keepMenu) { $('#menu-src').hidden = false; }
+      toast(s.read ? `Marked as read · "read": "2026-09-26T…" in source.json` : 'Marked as unread · the date is removed from source.json');
+    }
+    function removeRow(id){
+      const idx = sources.findIndex(x => x.id === id); if (idx < 0) return;
+      const s = sources[idx];
+      const r = $(`#rows .row[data-id="${id}"]`);
+      closeRowMenu();
+      sources.splice(idx, 1);
+      if (r) { r.classList.add('leaving'); setTimeout(() => { r.remove(); renumber(); }, 170); } else renumber();
+      toast(`Removed "${s.title}" · moved to .qrabbit/trash, threads kept`, { label:'Undo', run(){
+        sources.splice(Math.min(idx, sources.length), 0, s);
+        render();
+        const back = $(`#rows .row[data-id="${id}"]`); if (back) { back.classList.add('arriving'); back.focus(); }
+        toast('Restored · the source folder is back where it was');
+      }});
+    }
+    function moveRow(id, to){
+      const idx = sources.findIndex(x => x.id === id); if (idx < 0) return;
+      const [s] = sources.splice(idx, 1);
+      const dest = to === 'top' ? 0 : to === 'bottom' ? sources.length : Math.max(0, Math.min(sources.length, idx + to));
+      sources.splice(dest, 0, s);
+      render();
+      const r = $(`#rows .row[data-id="${id}"]`); if (r) { r.classList.add('arriving'); r.focus(); }
+      toast('Order saved to qrabbit.json');
+    }
+
+    // row menu: one element, moved into the active row
+    const rowMenu = document.createElement('div');
+    rowMenu.className = 'menu'; rowMenu.setAttribute('role', 'menu'); rowMenu.hidden = true;
+    rowMenu.addEventListener('click', e => e.stopPropagation());
+    function openRowMenu(row){
+      closeMenus();
+      const s = sources.find(x => x.id === row.dataset.id);
+      rowMenu.innerHTML = `
+        <button class="mi" role="menuitem" data-act="open">${ico('open')}<span class="txt"><span class="t">Open</span></span><span class="meta"><kbd>Enter</kbd></span></button>
+        <button class="mi" role="menuitem" data-act="read">${ico('check')}<span class="txt"><span class="t">${s.read ? 'Mark as unread' : 'Mark as read'}</span></span><span class="meta"><kbd>R</kbd></span></button>
+        <div class="msep"></div>
+        <button class="mi" role="menuitem" data-act="top">${ico('top')}<span class="txt"><span class="t">Move to top</span></span></button>
+        <button class="mi" role="menuitem" data-act="bottom">${ico('bottom')}<span class="txt"><span class="t">Move to bottom</span></span></button>
+        <button class="mi" role="menuitem" data-act="reveal">${ico('reveal')}<span class="txt"><span class="t">Show in folder</span><span class="m">sources/${s.id}/</span></span></button>
+        <div class="msep"></div>
+        <button class="mi danger" role="menuitem" data-act="remove">${ico('trash')}<span class="txt"><span class="t">Remove from collection</span><span class="m">Threads and their quotes stay</span></span><span class="meta"><kbd>Del</kbd></span></button>`;
+      row.appendChild(rowMenu);
+      rowMenu.hidden = false;
+      row.classList.add('menu-open');
+      $('[data-more]', row).setAttribute('aria-expanded', 'true');
+    }
+    function closeRowMenu(){
+      const row = rowMenu.parentElement;
+      if (!row) return;
+      rowMenu.hidden = true;
+      row.classList.remove('menu-open');
+      const m = $('[data-more]', row); if (m) m.setAttribute('aria-expanded', 'false');
+      rowMenu.remove();
+    }
+    rowMenu.addEventListener('click', (e) => {
+      const mi = e.target.closest('[data-act]'); if (!mi) return;
+      const row = rowMenu.parentElement; const id = row.dataset.id;
+      const act = mi.dataset.act;
+      closeRowMenu();
+      if (act === 'open') toast('Opens the source in the reader where you left it');
+      else if (act === 'read') toggleRead(id);
+      else if (act === 'top') moveRow(id, 'top');
+      else if (act === 'bottom') moveRow(id, 'bottom');
+      else if (act === 'reveal') toast(`Reveals sources/${id}/ in the file manager`);
+      else if (act === 'remove') removeRow(id);
+    });
+
+    rowsEl.addEventListener('click', (e) => {
+      const row = rowOf(e.target); if (!row) return;
+      if (e.target.closest('[data-done]')) { e.stopPropagation(); toggleRead(row.dataset.id); return; }
+      if (e.target.closest('[data-more]')) { e.stopPropagation(); if (rowMenu.parentElement === row && !rowMenu.hidden) closeRowMenu(); else openRowMenu(row); return; }
+      if (e.target.closest('[data-open]')) { toast('Opens the source in the reader where you left it'); }
+    });
+    rowsEl.addEventListener('keydown', (e) => {
+      const row = rowOf(e.target); if (!row || e.target !== row) return;
+      const id = row.dataset.id;
+      if (e.key === 'Enter') { e.preventDefault(); toast('Opens the source in the reader where you left it'); }
+      else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeRow(id); }
+      else if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowUp') { e.preventDefault(); moveRow(id, -1); }
+      else if ((e.ctrlKey || e.metaKey) && e.key === 'ArrowDown') { e.preventDefault(); moveRow(id, 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); const p = row.previousElementSibling; if (p) p.focus(); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); const n = row.nextElementSibling; if (n) n.focus(); }
+      else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); toggleRead(id); }
+    });
+
+    // ---------- drag to reorder (pointer events on the number) ----------
+    let drag = null;
+    rowsEl.addEventListener('pointerdown', (e) => {
+      const grip = e.target.closest('.ord'); if (!grip || e.button !== 0) return;
+      const row = rowOf(grip);
+      clearIllustration();
+      drag = { row, over:null, before:true };
+      grip.setPointerCapture(e.pointerId);
+      row.classList.add('dragging');
+      document.body.classList.add('dragging');
+      e.preventDefault();
+    });
+    rowsEl.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const over = el && el.closest('.row');
+      $$('#rows .row').forEach(r => r.classList.remove('drop-before', 'drop-after'));
+      if (!over || over === drag.row) { drag.over = null; return; }
+      const b = over.getBoundingClientRect();
+      drag.before = e.clientY < b.top + b.height / 2;
+      drag.over = over;
+      over.classList.add(drag.before ? 'drop-before' : 'drop-after');
+    });
+    function endDrag(){
+      if (!drag) return;
+      const { row, over, before } = drag;
+      $$('#rows .row').forEach(r => r.classList.remove('drop-before', 'drop-after'));
+      row.classList.remove('dragging');
+      document.body.classList.remove('dragging');
+      drag = null;
+      if (over) {
+        if (before) over.before(row); else over.after(row);
+        renumber();
+        row.focus();
+        toast('Order saved to qrabbit.json');
+      }
+    }
+    rowsEl.addEventListener('pointerup', endDrag);
+    rowsEl.addEventListener('pointercancel', endDrag);
+
+    // files dragged from the OS: the whole list is a drop target
+    ['dragenter','dragover'].forEach(t => $('#listpage').addEventListener(t, (e) => { if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); rowsEl.classList.add('over'); } }));
+    ['dragleave','drop'].forEach(t => $('#listpage').addEventListener(t, (e) => { rowsEl.classList.remove('over'); if (t === 'drop') { e.preventDefault(); toast('Dropped · files are added; a folder opens the picker'); } }));
+
+    // ---------- folder picker ----------
+    const picker = $('#picker'), plist = $('#picker-list'), pfilter = $('#picker-filter'), psub = $('#picker-sub');
+    let pfiles = [];
+    function openPicker(){
+      closeMenus();
+      pfiles = FOLDER.files.map(f => ({ ...f, on: !f.have }));
+      pfilter.value = ''; psub.checked = true;
+      picker.hidden = false;
+      renderPicker();
+      setTimeout(() => pfilter.focus(), 0);
+      toast('Folder scanned · everything new is ticked; untick what you do not want');
+    }
+    function closePicker(){ picker.hidden = true; }
+    function visibleFiles(){
+      const q = pfilter.value.trim().toLowerCase();
+      return pfiles.filter(f => (psub.checked || !f.dir) && (!q || (f.dir + f.name).toLowerCase().includes(q)));
+    }
+    function renderPicker(){
+      const vis = visibleFiles();
+      plist.innerHTML = vis.map(f => `<label class="frow ${f.have ? 'off' : ''}">
+        <input type="checkbox" data-name="${f.dir}${f.name}" ${f.on ? 'checked' : ''} ${f.have ? 'disabled' : ''}>
+        <span class="kind">${ico(kindIcon(f.kind))}</span>
+        <span class="txt"><span class="t"><span class="dir">${f.dir}</span>${f.name}</span>${f.have ? `<span class="m">Already in the collection as "${f.have}"</span>` : ''}</span>
+        <span class="meta">${f.mb >= 1 ? f.mb.toFixed(1) + ' MB' : Math.round(f.mb * 1000) + ' KB'}${f.have ? '<span class="chip">in collection</span>' : ''}</span>
+      </label>`).join('') + `<div class="dnote">${FOLDER.skipped} other files skipped (not PDF, Markdown or text). Files are copied; the folder is left as it is.</div>`;
+      updatePickerCounts();
+    }
+    function updatePickerCounts(){
+      const sel = pfiles.filter(f => f.on && !f.have);
+      const mb = sel.reduce((n, f) => n + f.mb, 0);
+      const fresh = pfiles.filter(f => !f.have).length;
+      $('#picker-cnt').textContent = `${sel.length} of ${fresh} new files selected${sel.length ? ` · ${mb >= 1 ? mb.toFixed(1) + ' MB' : Math.round(mb * 1000) + ' KB'}` : ''}`;
+      const add = $('#picker-add');
+      add.disabled = sel.length === 0;
+      add.textContent = sel.length ? `Add ${plural(sel.length, 'file')}` : 'Add';
+    }
+    plist.addEventListener('change', (e) => {
+      const cb = e.target; if (cb.type !== 'checkbox') return;
+      const f = pfiles.find(x => x.dir + x.name === cb.dataset.name); if (f) f.on = cb.checked;
+      updatePickerCounts();
+    });
+    pfilter.addEventListener('input', renderPicker);
+    psub.addEventListener('change', renderPicker);
+    $('#picker-all').addEventListener('click', () => { visibleFiles().forEach(f => { if (!f.have) f.on = true; }); renderPicker(); });
+    $('#picker-none').addEventListener('click', () => { visibleFiles().forEach(f => { f.on = false; }); renderPicker(); });
+    $('#picker-x').addEventListener('click', closePicker);
+    picker.addEventListener('mousedown', (e) => { if (e.target === picker) closePicker(); });
+    $('#picker-add').addEventListener('click', () => {
+      const sel = pfiles.filter(f => f.on && !f.have);
+      closePicker();
+      const fresh = sel.map(f => ({ id:`${f.name.replace(/\.[^.]+$/, '')}-${++seq}`, kind:f.kind, title:f.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '), pages:f.kind === 'pdf' ? Math.max(4, Math.round(f.mb * 7)) : undefined, threads:0, marks:0, added:'just now', addedN:0, at:0, read:null }));
+      sources.push(...fresh);
+      if (root.dataset.state === 'empty') { root.dataset.state = 'list'; press('#seg-state', 'state', 'list'); }
+      render();
+      $$('#rows .row').slice(-fresh.length).forEach(r => r.classList.add('arriving'));
+      toast(`Added ${plural(fresh.length, 'source')} at the end of the reading list · copied into sources/`);
+    });
+
+    // ---------- states ----------
+    function press(groupSel, attr, value){ $$(groupSel + ' button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset[attr] === value))); }
+    function remember(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+    function setView(v){ root.dataset.view = v; }
+    function clearIllustration(){ $$('#rows .row').forEach(r => r.classList.remove('dragging', 'drop-before', 'drop-after')); }
+
+    const messages = {
+      list:    'Reading list · the collection as a list in the reader pane; hover a row for read and more',
+      reorder: 'Reorder · drag the number, or Ctrl+↑/↓ on a focused row',
+      rowmenu: 'Row menu · open, mark read, move, reveal, remove',
+      removed: 'Removed · the folder moves to .qrabbit/trash; threads keep their quotes; Undo puts it back',
+      folder:  'Add from a folder · pick which files come in; duplicates are detected by hash',
+      empty:   'Empty collection · the list page doubles as the first-run screen',
+      menu:    'Source switcher · reading order, a read check on hover, and the way to the list',
+    };
+    function setState(s, quiet){
+      closeMenus(); closePicker(); hideToast();
+      sources = (s === 'empty') ? [] : SOURCES.map(x => ({ ...x }));
+      root.dataset.state = s;
+      press('#seg-state', 'state', s);
+      setView(s === 'menu' ? 'read' : 'list');
+      render();
+      if (s === 'reorder') {
+        const rows = $$('#rows .row');
+        if (rows[3]) rows[3].classList.add('dragging');
+        if (rows[1]) rows[1].classList.add('drop-before');
+      } else if (s === 'rowmenu') {
+        const row = $$('#rows .row')[1]; if (row) openRowMenu(row);
+      } else if (s === 'removed') {
+        setTimeout(() => removeRow('colah-manifolds'), 60);
+      } else if (s === 'folder') {
+        openPicker();
+      } else if (s === 'menu') {
+        $('#menu-src').hidden = false; $('#pill-src').setAttribute('aria-expanded', 'true');
+      }
+      if (!quiet && s !== 'removed' && s !== 'folder') toast(messages[s]);
+      remember('qr-src-state', s);
+    }
+    function setAccent(a){ root.dataset.accent = a; press('#seg-accent', 'accent', a); remember('qr-proto-accent', a); }
+    function setMode(m){ root.dataset.mode = m; press('#seg-mode', 'mode', m); remember('qr-proto-mode', m); }
+
+    $$('#seg-state button').forEach(b => b.addEventListener('click', () => setState(b.dataset.state)));
+    $$('#seg-accent button').forEach(b => b.addEventListener('click', () => setAccent(b.dataset.accent)));
+    $$('#seg-mode button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+
+    // ---------- keyboard ----------
+    document.addEventListener('keydown', (e) => {
+      const typing = e.target && (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT');
+      if (e.key === 'Escape') {
+        if (!picker.hidden) { closePicker(); return; }
+        const anyOpen = pops.some(([b, m]) => !$(m).hidden) || !rowMenu.hidden;
+        if (anyOpen) { closeMenus(); return; }
+        return;
+      }
+      if (typing) return;
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'l' || e.key === 'L')) { e.preventDefault(); setView(root.dataset.view === 'list' ? 'read' : 'list'); closeMenus(); toast(root.dataset.view === 'list' ? 'Reading list' : 'Back to the paper'); return; }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'i' || e.key === 'I')) { e.preventDefault(); addAction('files'); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const k = e.key;
+      const order = ['list','reorder','rowmenu','removed','folder','empty','menu'];
+      if (k >= '1' && k <= '7') setState(order[Number(k) - 1]);
+    });
+
+    // ---------- initial state (URL ?state= wins, then what the viewer last chose) ----------
+    let s = 'list', a = 'lime', m = 'dark';
+    try {
+      s = localStorage.getItem('qr-src-state') || s;
+      a = localStorage.getItem('qr-proto-accent') || a;
+      m = localStorage.getItem('qr-proto-mode') || m;
+    } catch(e){}
+    const q = new URLSearchParams(location.search);
+    if (q.get('state')) s = q.get('state');
+    if (q.get('mode')) m = q.get('mode');
+    if (q.get('accent')) a = q.get('accent');
+    if (!messages[s]) s = 'list';
+    setAccent(a); setMode(m); setState(s, true);
+  })();
+</script>
