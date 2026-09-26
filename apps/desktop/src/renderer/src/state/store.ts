@@ -69,6 +69,9 @@ type State = {
   configOptions: Record<string, ConfigOption[]>;
   /** The last config options any session reported; Settings uses them to offer model and effort choices. */
   knownOptions: ConfigOption[];
+  /** Settings is asking the agent for its options. */
+  optionsLoading: boolean;
+  optionsError: string | null;
   settingsOpen: boolean;
   urlDialogOpen: boolean;
   /** The folder picker is open while a scan is held here. */
@@ -131,6 +134,8 @@ type Actions = {
   /** Delete a thread and its branches. The panel moves to the parent, or closes. */
   deleteThread(id: string): Promise<void>;
   setSettingsOpen(open: boolean): void;
+  /** Ask the agent for its models and effort levels, so Settings can offer them before any thread exists. */
+  refreshOptions(): Promise<void>;
   setMenu(menu: MenuId): void;
   /** Show the panel with the current thread, or hide it. */
   togglePanel(): void;
@@ -164,6 +169,8 @@ export const useStore = create<State & Actions>((set, get) => ({
   turns: {},
   configOptions: {},
   knownOptions: [],
+  optionsLoading: false,
+  optionsError: null,
   settingsOpen: false,
   urlDialogOpen: false,
   folderScan: null,
@@ -646,6 +653,19 @@ export const useStore = create<State & Actions>((set, get) => ({
 
   setSettingsOpen(open) {
     set({ settingsOpen: open, menu: null });
+    if (open && get().collection) void get().refreshOptions();
+  },
+
+  async refreshOptions() {
+    const c = get().collection;
+    if (!c) return;
+    set({ optionsLoading: true, optionsError: null });
+    try {
+      const options = await api.agent.options(c.info.path);
+      if (get().collection?.info.path === c.info.path) set({ knownOptions: options, optionsLoading: false });
+    } catch (err) {
+      set({ optionsLoading: false, optionsError: errText(err) });
+    }
   },
 
   setMenu(menu) {

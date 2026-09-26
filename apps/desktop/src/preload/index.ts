@@ -63,6 +63,7 @@ const api: QrabbitApi = {
     status: (collection) => invoke("agent:status", collection),
     connect: (collection) => invoke("agent:connect", collection),
     session: (collection, threadId) => invoke("agent:session", collection, threadId),
+    options: (collection) => invoke("agent:options", collection),
     prompt: (collection, threadId, body, quote) => invoke("agent:prompt", collection, threadId, body, quote),
     cancel: (collection, threadId) => invoke("agent:cancel", collection, threadId),
     branch: (collection, parentId, messageId, anchor) => invoke("agent:branch", collection, parentId, messageId, anchor),

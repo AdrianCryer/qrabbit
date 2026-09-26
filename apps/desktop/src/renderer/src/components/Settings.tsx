@@ -19,7 +19,9 @@ export function Settings() {
   const collection = useStore((s) => s.collection);
   const agent = useStore((s) => s.agent);
   const known = useStore((s) => s.knownOptions);
-  const { setSettingsOpen, updateCollectionSettings, loginAgent, connectAgent } = useStore.getState();
+  const optionsLoading = useStore((s) => s.optionsLoading);
+  const optionsError = useStore((s) => s.optionsError);
+  const { setSettingsOpen, updateCollectionSettings, loginAgent, connectAgent, refreshOptions } = useStore.getState();
   const [reopen, setReopen] = useState(() => readFlag(REOPEN_KEY));
 
   useEffect(() => {
@@ -36,6 +38,15 @@ export function Settings() {
   const settings = collection?.manifest.settings ?? {};
   const modelOpt = known.find((o) => o.category === "model" || o.id === "model");
   const effortOpt = known.find((o) => o.category === "thought_level" || o.id === "effort");
+  // What the agent starts on when nothing is chosen here: Claude Code's own /model choice, or its recommended default.
+  const currentName = (opt: typeof modelOpt) => {
+    if (!opt) return null;
+    const cur = opt.options?.find((o) => o.value === opt.currentValue);
+    if (!cur) return typeof opt.currentValue === "string" ? opt.currentValue : null;
+    return cur.value === "default" && cur.description ? `${cur.name} · ${cur.description}` : cur.name;
+  };
+  const agentModel = currentName(modelOpt);
+  const agentEffort = currentName(effortOpt);
   const groups = new Map<string, typeof SHORTCUTS>();
   for (const s of SHORTCUTS) {
     if (!groups.has(s.group)) groups.set(s.group, []);
@@ -77,18 +88,18 @@ export function Settings() {
                 <div className="drow">
                   <label className="field">
                     <span>Model</span>
-                    <select value={settings.model ?? ""} onChange={(e) => void updateCollectionSettings({ model: e.target.value || undefined })}>
-                      <option value="">Agent default</option>
+                    <select id="settings-model" value={settings.model ?? ""} disabled={optionsLoading && !modelOpt} onChange={(e) => void updateCollectionSettings({ model: e.target.value || undefined })}>
+                      <option value="">{agentModel ? `Agent default (${agentModel})` : "Agent default"}</option>
                       {modelOpt?.options?.map((o) => (
-                        <option key={o.value} value={o.value}>{o.name}</option>
+                        <option key={o.value} value={o.value}>{o.name}{o.value === "default" && o.description ? ` · ${o.description}` : ""}</option>
                       ))}
                       {!modelOpt && settings.model && <option value={settings.model}>{settings.model}</option>}
                     </select>
                   </label>
                   <label className="field">
                     <span>Effort</span>
-                    <select value={settings.effort ?? ""} onChange={(e) => void updateCollectionSettings({ effort: e.target.value || undefined })}>
-                      <option value="">Agent default</option>
+                    <select id="settings-effort" value={settings.effort ?? ""} disabled={optionsLoading && !effortOpt} onChange={(e) => void updateCollectionSettings({ effort: e.target.value || undefined })}>
+                      <option value="">{agentEffort ? `Agent default (${agentEffort})` : "Agent default"}</option>
                       {effortOpt?.options?.map((o) => (
                         <option key={o.value} value={o.value}>{o.name}</option>
                       ))}
@@ -96,7 +107,17 @@ export function Settings() {
                     </select>
                   </label>
                 </div>
-                {!modelOpt && <p className="dsub">Open a thread once so the agent reports its models; the lists fill in after that.</p>}
+                {optionsLoading && !modelOpt && <p className="dsub">Asking the agent for its models…</p>}
+                {optionsError && (
+                  <p className="dsub">
+                    Could not reach the agent: {optionsError} <button className="btn" onClick={() => void refreshOptions()}><Icon name="refresh" />Try again</button>
+                  </p>
+                )}
+                {modelOpt && (
+                  <p className="dsub">
+                    The agent's own default is whatever Claude Code is set to (its /model choice in ~/.claude/settings.json, or ANTHROPIC_MODEL). A choice here overrides it for new threads in this collection; a thread keeps a model only once you pick one in its composer.
+                  </p>
+                )}
               </>
             )}
           </section>

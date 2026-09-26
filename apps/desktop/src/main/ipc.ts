@@ -221,6 +221,7 @@ export function registerIpc(): void {
     const entry = await host(collection).ensureSession(threadId);
     return { configOptions: entry.configOptions };
   });
+  ipcMain.handle("agent:options", (_e, collection: string) => host(collection).options());
   ipcMain.handle("agent:prompt", (_e, collection: string, threadId: string, body: string, quote?: Anchor) =>
     host(collection).prompt(threadId, body, quote),
   );

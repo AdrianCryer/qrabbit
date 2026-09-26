@@ -292,6 +292,8 @@ export type QrabbitApi = {
     connect(collectionPath: string): Promise<AgentStatus>;
     /** Ensure a session exists for the thread and return its config options. */
     session(collectionPath: string, threadId: string): Promise<{ configOptions: ConfigOption[] }>;
+    /** The agent's config options (models, effort) for Settings, from a live session or a probe session started for the purpose. */
+    options(collectionPath: string): Promise<ConfigOption[]>;
     /** Append the user message, run one turn, append the reply; resolves with the updated thread. */
     prompt(collectionPath: string, threadId: string, body: string, quote?: Anchor): Promise<Thread>;
     /** Create a branch from a span inside a message and start its handoff in the background. */

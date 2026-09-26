@@ -30,6 +30,8 @@ export type AgentEmitter = {
 const IDENTITY = { name: "qrabbit", title: "QRabbit", version: app.getVersion() };
 const HANDOFF_WAIT_MS = 20_000;
 const SUMMARY_DELAY_MS = 1500;
+/** A session started only to learn the agent's options for Settings; it never prompts. */
+const PROBE_ID = "__settings__";
 
 function adapterEntry(): string {
   try {
@@ -88,6 +90,8 @@ function loginArgs(methodId: string): string[] {
 type SessionEntry = {
   session: acp.ActiveSession;
   configOptions: ConfigOption[];
+  /** The options as the agent first reported them, before the thread's or collection's choice was applied. */
+  native: ConfigOption[];
   /** Turns sent so far, hidden ones included; 0 means the session still needs its opening context. */
   turns: number;
   /** ACP sessions take one prompt at a time; hidden work queues behind the reader's. */
@@ -204,7 +208,8 @@ export class AgentHost {
     await this.connect();
     if (!this.ctx) throw new Error("Agent is not connected");
     const session = await this.ctx.buildSession(this.collection).start();
-    const entry: SessionEntry = { session, configOptions: flattenOptions(session.newSessionResponse.configOptions), turns: 0, lock: Promise.resolve() };
+    const native = flattenOptions(session.newSessionResponse.configOptions);
+    const entry: SessionEntry = { session, configOptions: native, native, turns: 0, lock: Promise.resolve() };
     this.sessions.set(threadId, entry);
     this.threadBySession.set(session.sessionId, threadId);
     // A thread's own choice wins; otherwise the collection's defaults from Settings apply.
@@ -221,6 +226,16 @@ export class AgentHost {
       }
     }
     return entry;
+  }
+
+  /**
+   * The agent's options for Settings, with `currentValue` showing what the agent starts on by itself
+   * (Claude Code's own model choice). Comes from any live session, else from a probe session.
+   */
+  async options(): Promise<ConfigOption[]> {
+    for (const [id, entry] of this.sessions) if (id !== PROBE_ID) return entry.native;
+    const probe = this.sessions.get(PROBE_ID) ?? (await this.ensureSession(PROBE_ID));
+    return probe.native;
   }
 
   /** Run `fn` when the session is free; the reader's turns and hidden work never overlap. */
@@ -370,11 +385,9 @@ export class AgentHost {
       this.running.delete(threadId);
     }
     if (reply.trim()) appendMessage(this.collection, threadId, { role: "assistant", body: reply.trimEnd() });
-    const model = entry.configOptions.find((o) => o.id === "model");
-    updateThread(this.collection, threadId, {
-      agent: agentShortName(this.status.agent?.name),
-      ...(model && typeof model.currentValue === "string" ? { model: model.currentValue } : {}),
-    });
+    // The model is recorded only when the reader picks one (setConfig); otherwise the thread keeps
+    // following the collection's default, and Settings can change it later.
+    updateThread(this.collection, threadId, { agent: agentShortName(this.status.agent?.name) });
     if (before.parent) this.scheduleSummary(threadId);
     return readThread(this.collection, threadId)!;
   }
