@@ -161,11 +161,15 @@ try {
     await shot(page, "04a-debug");
     throw err;
   });
-  await page.evaluate(() => document.querySelector(".seltool .primary").click());
+  // the hotkey this time: E explores the selection and the composer should take the caret
+  // a mouse selection in the paper takes the caret out of the composer; the scripted selection does not, so blur first
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press("e");
   await page.waitForSelector(".panel", { timeout: 10_000 });
   await page.waitForSelector(".hl", { timeout: 10_000 });
   await sleep(500);
   await shot(page, "04-thread");
+  log("composer focused after Explore (E):", await page.evaluate(() => document.activeElement === document.querySelector(".composer textarea")));
   const layout = await page.evaluate(() => {
     const r = (sel) => { const el = document.querySelector(sel); if (!el) return null; const b = el.getBoundingClientRect(); return { left: Math.round(b.left), right: Math.round(b.right), width: Math.round(b.width) }; };
     return {
@@ -330,8 +334,10 @@ try {
   await page.waitForSelector(".seltool", { timeout: 10_000 });
   const primaryLabel = await page.evaluate(() => document.querySelector(".seltool .primary")?.textContent?.trim());
   log("primary action with a thread focused:", primaryLabel);
-  await page.evaluate(() => document.querySelector(".seltool .primary").click());
+  await page.evaluate(() => document.activeElement?.blur?.());
+  await page.keyboard.press("a");
   await page.waitForSelector(".cq", { timeout: 10_000 });
+  log("composer focused after Ask here (A):", await page.evaluate(() => document.activeElement === document.querySelector(".composer textarea")));
   await page.fill(".composer textarea", "Why does a flat subspace overestimate k?");
   await shot(page, "05-askhere");
   if (process.env.DRIVE_NO_AGENT) {

@@ -20,7 +20,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "ask", keys: "A", label: "Ask here with the selection", group: "Selection" },
   { id: "comment", keys: "C", label: "Comment on the selection", group: "Selection" },
   { id: "bookmark", keys: "B", label: "Bookmark the selection", group: "Selection" },
-  { id: "escape", keys: "Escape", label: "Clear the quote, then collapse the panel", group: "Selection" },
+  { id: "escape", keys: "Escape", label: "Clear the quote, leave a draft, then collapse the panel", group: "Selection" },
   { id: "bookmarkPage", keys: "Mod+D", label: "Bookmark this page (or the selection)", group: "Reader" },
   { id: "marks", keys: "Mod+Shift+M", label: "Bookmarks and comments", group: "Reader" },
   { id: "send", keys: "Enter", label: "Send the message", group: "Composer" },

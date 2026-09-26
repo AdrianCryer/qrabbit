@@ -61,6 +61,8 @@ type State = {
   panelOpen: boolean;
   focus: boolean;
   composerQuote: Anchor | null;
+  /** Bumped when the composer should take keyboard focus: after Explore, Ask here and a new branch. */
+  composerFocusKey: number;
   /** Where the reader should scroll: a page, and optionally a mark on it. */
   focusTarget: { page: number; key: number; markId?: string } | null;
   toasts: Toast[];
@@ -121,6 +123,8 @@ type Actions = {
   /** Explore a span inside one of the open thread's messages: creates a branch and opens it. */
   branch(messageId: string, anchor: Anchor): Promise<void>;
   askHere(anchor: Anchor): void;
+  /** Put the caret in the composer; the next thing after choosing a passage is usually typing. */
+  focusComposer(): void;
   clearComposerQuote(): void;
   sendMessage(body: string): Promise<void>;
   cancelTurn(): void;
@@ -163,6 +167,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   panelOpen: false,
   focus: false,
   composerQuote: null,
+  composerFocusKey: 0,
   focusTarget: null,
   toasts: [],
   agent: null,
@@ -514,6 +519,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     await get().refreshThreads();
     window.getSelection()?.removeAllRanges();
     await get().openThread(thread.id);
+    get().focusComposer();
     get().toast("New thread from your highlight", { label: "Undo", run: () => void get().deleteThread(thread.id) });
   },
 
@@ -524,6 +530,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     await get().refreshThreads();
     window.getSelection()?.removeAllRanges();
     await get().openThread(child.id);
+    get().focusComposer();
     get().toast("New branch from the answer", { label: "Undo", run: () => void get().deleteThread(child.id) });
   },
 
@@ -556,6 +563,11 @@ export const useStore = create<State & Actions>((set, get) => ({
     }
     set({ composerQuote: anchor });
     window.getSelection()?.removeAllRanges();
+    get().focusComposer();
+  },
+
+  focusComposer() {
+    set((s) => ({ composerFocusKey: s.composerFocusKey + 1 }));
   },
 
   clearComposerQuote() {

@@ -203,6 +203,9 @@ function Picker({ option, onPick }: { option: ConfigOption; onPick: (value: stri
   );
 }
 
+/** The last composer-focus request the panel acted on; module-level so a remount does not replay an old one. */
+let handledFocusKey = 0;
+
 // ---------- the panel ----------
 export function ThreadPanel() {
   const thread = useStore((s) => s.thread);
@@ -230,6 +233,15 @@ export function ThreadPanel() {
 
   useEffect(() => { setDraft(""); setMsgSel(null); setConfirmDelete(false); }, [thread?.id]);
   useEffect(() => { if (composerQuote) taRef.current?.focus(); }, [composerQuote]);
+  // Explore, Ask here and a new branch ask for the caret. The panel may have just opened and the
+  // reader is still dropping its selection, so focus after the next frame.
+  const focusKey = useStore((s) => s.composerFocusKey);
+  useEffect(() => {
+    if (focusKey === handledFocusKey) return;
+    handledFocusKey = focusKey;
+    const frame = requestAnimationFrame(() => taRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [focusKey]);
   // The composer grows with its text up to a cap, then scrolls inside itself.
   useEffect(() => {
     const ta = taRef.current;
@@ -432,10 +444,13 @@ export function ThreadPanel() {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
               if (!running) send();
-            } else if (e.key === "Escape" && composerQuote) {
+            } else if (e.key === "Escape") {
+              // First the quote goes, then the caret leaves an unsent draft alone, then the panel collapses.
               e.preventDefault();
               e.stopPropagation();
-              clearComposerQuote();
+              if (composerQuote) clearComposerQuote();
+              else if (draft.trim()) e.currentTarget.blur();
+              else { e.currentTarget.blur(); closePanel(); }
             }
           }}
         />
