@@ -1,5 +1,21 @@
-export { MANIFEST, DIRS, isCollection, initCollection, openCollection, updateSettings } from "./collection.js";
-export { listSources, importFile, importWebPage, readSourceBytes, readSourceText, saveSourceText, sourceDir } from "./sources.js";
+export { MANIFEST, DIRS, TRASH, isCollection, initCollection, openCollection, updateSettings, readOrder, setOrder, purgeTrash, collectionCounts } from "./collection.js";
+export {
+  listSources,
+  importFile,
+  importFiles,
+  importWebPage,
+  findDuplicate,
+  hashFile,
+  kindOf,
+  scanFolder,
+  setSourceRead,
+  removeSource,
+  restoreSource,
+  readSourceBytes,
+  readSourceText,
+  saveSourceText,
+  sourceDir,
+} from "./sources.js";
 export { fetchWebPage, htmlToArticle } from "./web.js";
 export { macrosInHtml, type MacroTable } from "./web-macros.js";
 export { locateQuote } from "./text.js";

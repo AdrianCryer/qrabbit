@@ -21,13 +21,19 @@ export type CollectionManifest = {
   name: string;
   created: string;
   settings: { agent?: string; model?: string; effort?: string };
+  /** Source ids in reading order. Sources not listed come after, oldest first. */
+  order?: string[];
 };
+
+export type CollectionCounts = { sources: number; read: number; threads: number };
 
 export type CollectionInfo = {
   path: string;
   name: string;
   id: string;
   lastOpened?: string;
+  /** Filled in for the home screen; absent inside a snapshot. */
+  counts?: CollectionCounts;
 };
 
 // ---------- sources ----------
@@ -43,6 +49,10 @@ export type SourceInfo = {
   added: string;
   /** true once text.md has been extracted */
   hasText: boolean;
+  /** When the reader marked it read. Absent means unread. A record, never a prompt. */
+  read?: string;
+  /** Hash of the source file, for duplicate detection. Computed on import, back-filled when first needed. */
+  sha256?: string;
   /** Web sources only. */
   url?: string;
   siteName?: string;
@@ -51,6 +61,40 @@ export type SourceInfo = {
   /** LaTeX macros the page defined for its own formulas, as KaTeX takes them: `{"\\E": "{\\mathrm E}"}`. */
   macros?: Record<string, string>;
 };
+
+/** A file found by scanning a folder to add from. */
+export type FolderFile = {
+  path: string;
+  /** Relative to the scanned root, with forward slashes. */
+  rel: string;
+  name: string;
+  size: number;
+  kind: SourceKind;
+  /** Set when a source in the collection already has this content. */
+  existing?: { id: string; title: string };
+};
+
+export type FolderScan = {
+  root: string;
+  files: FolderFile[];
+  /** Files with other extensions, not listed. */
+  skipped: number;
+  /** The scan stopped at its limit; the folder has more eligible files than shown. */
+  truncated: boolean;
+};
+
+export type ImportResult = {
+  added: SourceInfo[];
+  /** Files that were already in the collection, by content; nothing was copied for these. */
+  existing: SourceInfo[];
+  /** Paths that could not be imported. */
+  failed: string[];
+};
+
+/** What `remove` hands back so `restore` can undo it. */
+export type RemovedSource = { id: string; trashPath: string; index: number };
+
+export type DropResult = { kind: "scan"; scan: FolderScan } | { kind: "imported"; result: ImportResult };
 
 // ---------- anchors ----------
 /**
@@ -196,11 +240,32 @@ export type QrabbitApi = {
     forget(path: string): Promise<CollectionInfo[]>;
     /** Merge settings into the collection manifest (defaults for new threads, etc.). */
     updateSettings(path: string, patch: CollectionManifest["settings"]): Promise<CollectionManifest>;
+    /** Write the reading order: every source id, in the order to read them. */
+    setOrder(path: string, ids: string[]): Promise<CollectionManifest>;
   };
   sources: {
-    importDialog(collectionPath: string): Promise<SourceInfo[]>;
+    /** The collection's sources in reading order. */
+    list(collectionPath: string): Promise<SourceInfo[]>;
+    /** Pick files with the OS dialog and add them; null when the dialog was cancelled. */
+    importDialog(collectionPath: string): Promise<ImportResult | null>;
     /** Fetch a web page, reduce it to an article, and add it as a source. */
     importUrl(collectionPath: string, url: string): Promise<SourceInfo>;
+    /** Add files from a folder the user picked or dropped. Only paths from such a folder are accepted. */
+    importFiles(collectionPath: string, files: string[]): Promise<ImportResult>;
+    /** Pick a folder with the OS dialog and scan it; null when cancelled. */
+    folderDialog(collectionPath: string): Promise<FolderScan | null>;
+    /** Rescan a folder the user already picked, for example with subfolders turned off. */
+    scanFolder(collectionPath: string, dir: string, opts: { recursive: boolean }): Promise<FolderScan>;
+    /** Files or a folder dropped onto the window. A folder is scanned; files are added. */
+    dropped(collectionPath: string, files: File[]): Promise<DropResult | null>;
+    /** Record that the reader finished (or did not finish) a source. */
+    setRead(collectionPath: string, sourceId: string, read: boolean): Promise<SourceInfo>;
+    /** Move the source folder to the collection's trash; threads keep their quotes. */
+    remove(collectionPath: string, sourceId: string): Promise<RemovedSource>;
+    /** Put a removed source back where it was. */
+    restore(collectionPath: string, removed: RemovedSource): Promise<SourceInfo>;
+    /** Show the source's folder in the file manager. */
+    reveal(collectionPath: string, sourceId: string): Promise<void>;
     readBytes(collectionPath: string, sourceId: string): Promise<Uint8Array>;
     saveText(collectionPath: string, sourceId: string, text: string, pages: number, title?: string): Promise<SourceInfo>;
     readText(collectionPath: string, sourceId: string): Promise<string | null>;

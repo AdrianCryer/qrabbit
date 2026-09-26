@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
 import type { AgentEvent, AgentStatus, PermissionRequest, QrabbitApi } from "@qrabbit/shared";
 
 const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> => ipcRenderer.invoke(channel, ...args) as Promise<T>;
@@ -9,6 +9,15 @@ function subscribe<Args extends unknown[]>(channel: string, cb: (...args: Args) 
   return () => ipcRenderer.removeListener(channel, handler);
 }
 
+/** The on-disk path of a File the OS handed to the page. A File the page made itself has none. */
+function pathOf(file: File): string {
+  try {
+    return webUtils.getPathForFile(file);
+  } catch {
+    return "";
+  }
+}
+
 const api: QrabbitApi = {
   collections: {
     recent: () => invoke("collections:recent"),
@@ -16,10 +25,20 @@ const api: QrabbitApi = {
     open: (path) => invoke("collections:open", path),
     forget: (path) => invoke("collections:forget", path),
     updateSettings: (path, patch) => invoke("collections:updateSettings", path, patch),
+    setOrder: (path, ids) => invoke("collections:setOrder", path, ids),
   },
   sources: {
+    list: (collection) => invoke("sources:list", collection),
     importDialog: (collection) => invoke("sources:importDialog", collection),
     importUrl: (collection, url) => invoke("sources:importUrl", collection, url),
+    importFiles: (collection, files) => invoke("sources:importFiles", collection, files),
+    folderDialog: (collection) => invoke("sources:folderDialog", collection),
+    scanFolder: (collection, dir, opts) => invoke("sources:scanFolder", collection, dir, opts),
+    dropped: (collection, files) => invoke("sources:dropped", collection, files.map(pathOf).filter(Boolean)),
+    setRead: (collection, id, read) => invoke("sources:setRead", collection, id, read),
+    remove: (collection, id) => invoke("sources:remove", collection, id),
+    restore: (collection, removed) => invoke("sources:restore", collection, removed),
+    reveal: (collection, id) => invoke("sources:reveal", collection, id),
     readBytes: (collection, id) => invoke("sources:readBytes", collection, id),
     readText: (collection, id) => invoke("sources:readText", collection, id),
     saveText: (collection, id, text, pages, title) => invoke("sources:saveText", collection, id, text, pages, title),

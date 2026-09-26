@@ -4,12 +4,13 @@ import { api } from "./lib/api";
 import { Header } from "./components/Header";
 import { Home } from "./components/Home";
 import { Reader } from "./components/Reader";
+import { ReadingList } from "./components/ReadingList";
 import { TextReader } from "./components/TextReader";
 import { ThreadPanel } from "./components/ThreadPanel";
 import { Toasts } from "./components/Toasts";
 import { Settings } from "./components/Settings";
 import { UrlDialog } from "./components/UrlDialog";
-import { Icon } from "./components/Icons";
+import { FolderDialog } from "./components/FolderDialog";
 import { isTyping, matches } from "./lib/shortcuts";
 
 function ReaderPane() {
@@ -17,26 +18,12 @@ function ReaderPane() {
   const sourceId = useStore((s) => s.sourceId);
   const thread = useStore((s) => s.thread);
   const focusTarget = useStore((s) => s.focusTarget);
-  const { importSources, explore, askHere, openThread, savePosition, updateSource, toast, addBookmark, addComment, updateAnnotation, deleteAnnotation } = useStore.getState();
+  const { explore, askHere, openThread, savePosition, updateSource, toast, addBookmark, addComment, updateAnnotation, deleteAnnotation } = useStore.getState();
   if (!collection) return null;
   const source = collection.sources.find((s) => s.id === sourceId) ?? null;
 
-  if (!source) {
-    return (
-      <div className="reader">
-        <div className="empty">
-          <div className="box">
-            <h3>{collection.sources.length === 0 ? "This collection has no sources yet" : "Pick a source"}</h3>
-            <p>Add a PDF or a Markdown file. Highlight anything in it and choose Explore to start a thread anchored to that passage.</p>
-            <button className="btn primary" onClick={() => void importSources()}>
-              <Icon name="plus" />
-              Add sources
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // No source open: the collection shows itself as a reading list.
+  if (!source) return <ReadingList />;
 
   if (source.kind !== "pdf") {
     return (
@@ -144,16 +131,17 @@ export function App() {
     void init();
   }, [init]);
 
-  // Global shortcuts. Single-letter ones live where the selection is (Reader, ThreadPanel).
+  // Global shortcuts. Single-letter ones live where the selection is (Reader, ThreadPanel, ReadingList).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = useStore.getState();
       if (matches(e, "Mod+,")) { e.preventDefault(); s.setSettingsOpen(!s.settingsOpen); return; }
-      if (s.settingsOpen) return;
+      if (s.settingsOpen || s.folderScan) return;
       if (matches(e, "Mod+O")) { e.preventDefault(); void s.openCollectionDialog(); return; }
       if (matches(e, "Mod+Shift+H")) { e.preventDefault(); s.goHome(); return; }
       if (s.screen !== "reader") return;
       if (matches(e, "Mod+I")) { e.preventDefault(); void s.importSources(); return; }
+      if (matches(e, "Mod+L")) { e.preventDefault(); s.toggleList(); return; }
       if (matches(e, "Mod+Shift+T")) { e.preventDefault(); s.setMenu(s.menu === "threads" ? null : "threads"); return; }
       if (matches(e, "Mod+Shift+M")) { e.preventDefault(); s.setMenu(s.menu === "marks" ? null : "marks"); return; }
       if (matches(e, "Mod+B")) { e.preventDefault(); s.togglePanel(); return; }
@@ -182,6 +170,7 @@ export function App() {
       )}
       <Settings />
       <UrlDialog />
+      <FolderDialog />
       <Toasts />
     </div>
   );

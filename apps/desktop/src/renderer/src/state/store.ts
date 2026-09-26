@@ -7,6 +7,8 @@ import type {
   CollectionInfo,
   CollectionSnapshot,
   ConfigOption,
+  FolderScan,
+  ImportResult,
   PermissionRequest,
   ReaderPosition,
   SourceInfo,
@@ -28,6 +30,7 @@ export type TurnState = {
 const emptyTurn = (): TurnState => ({ running: true, text: "", activity: [], permission: null, error: null });
 
 const lastSourceKey = (collectionId: string) => `qrabbit:last-source:${collectionId}`;
+const errText = (err: unknown) => String((err as Error)?.message ?? err);
 
 function titleFromQuote(quote: string, max = 60): string {
   const one = quote.replace(/\s+/g, " ").trim();
@@ -37,12 +40,23 @@ function titleFromQuote(quote: string, max = 60): string {
   return (at > 30 ? cut.slice(0, at) : cut) + "…";
 }
 
+function describeImport(r: ImportResult): string {
+  const parts: string[] = [];
+  if (r.added.length) parts.push(r.added.length === 1 ? `Added ${r.added[0]!.title}` : `Added ${r.added.length} sources`);
+  if (r.existing.length) parts.push(r.existing.length === 1 ? `${r.existing[0]!.title} was already here` : `${r.existing.length} were already here`);
+  if (r.failed.length) parts.push(r.failed.length === 1 ? "1 file could not be added" : `${r.failed.length} files could not be added`);
+  return parts.join(" · ") || "Nothing added";
+}
+
 type State = {
   platform: string;
   screen: "home" | "reader";
   recent: CollectionInfo[];
   collection: CollectionSnapshot | null;
+  /** The open source, or null for the reading list. */
   sourceId: string | null;
+  /** The source the reading list was opened from, so Ctrl+L can go back to it. */
+  lastSourceId: string | null;
   thread: Thread | null;
   panelOpen: boolean;
   focus: boolean;
@@ -57,6 +71,9 @@ type State = {
   knownOptions: ConfigOption[];
   settingsOpen: boolean;
   urlDialogOpen: boolean;
+  /** The folder picker is open while a scan is held here. */
+  folderScan: FolderScan | null;
+  folderBusy: boolean;
   /** Which header menu a shortcut opened, if any. */
   menu: "collection" | "source" | "threads" | "marks" | null;
 };
@@ -69,11 +86,30 @@ type Actions = {
   openCollection(path: string): Promise<void>;
   goHome(): void;
   selectSource(id: string | null): void;
+  /** Show the reading list in the reader pane. The last source stays remembered. */
+  showList(): void;
+  /** Ctrl+L: the list, or back to the paper. */
+  toggleList(): void;
+  refreshSources(): Promise<void>;
   importSources(): Promise<void>;
   /** Fetch a web page into the collection and open it. Throws with a readable message on failure. */
   importUrl(url: string): Promise<void>;
+  /** Show what an import did and open the first new source when a paper was open. */
+  applyImport(result: ImportResult): Promise<void>;
   setUrlDialogOpen(open: boolean): void;
   updateSource(info: SourceInfo): void;
+  setOrder(ids: string[]): Promise<void>;
+  moveSource(id: string, to: "top" | "bottom" | -1 | 1): Promise<void>;
+  toggleRead(id: string): Promise<void>;
+  /** Move the source to the collection's trash, with an Undo toast. */
+  removeSource(id: string): Promise<void>;
+  revealSource(id: string): void;
+  addFromFolder(): Promise<void>;
+  rescanFolder(recursive: boolean): Promise<void>;
+  closeFolder(): void;
+  importFromFolder(files: string[]): Promise<void>;
+  /** Files or a folder dropped on the reading list. */
+  dropFiles(files: File[]): Promise<void>;
   refreshThreads(): Promise<void>;
   openThread(id: string | null): Promise<void>;
   closePanel(): void;
@@ -117,6 +153,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   recent: [],
   collection: null,
   sourceId: null,
+  lastSourceId: null,
   thread: null,
   panelOpen: false,
   focus: false,
@@ -129,6 +166,8 @@ export const useStore = create<State & Actions>((set, get) => ({
   knownOptions: [],
   settingsOpen: false,
   urlDialogOpen: false,
+  folderScan: null,
+  folderBusy: false,
   menu: null,
 
   async init() {
@@ -181,19 +220,20 @@ export const useStore = create<State & Actions>((set, get) => ({
     } catch {
       /* storage may be unavailable */
     }
+    // The remembered source, else the first in reading order; the list itself when there is nothing to read.
     if (!sourceId || !snap.sources.some((s) => s.id === sourceId)) sourceId = snap.sources[0]?.id ?? null;
-    set({ collection: snap, recent, screen: "reader", sourceId, thread: null, panelOpen: false, focus: false, composerQuote: null, agent: null, turns: {}, configOptions: {} });
+    set({ collection: snap, recent, screen: "reader", sourceId, lastSourceId: sourceId, thread: null, panelOpen: false, focus: false, composerQuote: null, agent: null, turns: {}, configOptions: {}, folderScan: null, folderBusy: false });
     void get().connectAgent();
   },
 
   goHome() {
-    set({ screen: "home", thread: null, panelOpen: false });
+    set({ screen: "home", thread: null, panelOpen: false, folderScan: null });
     void api.collections.recent().then((recent) => set({ recent }));
   },
 
   selectSource(id) {
     const c = get().collection;
-    set({ sourceId: id });
+    set({ sourceId: id, menu: null, ...(id ? { lastSourceId: id } : {}) });
     if (c && id) {
       try {
         localStorage.setItem(lastSourceKey(c.manifest.id), id);
@@ -203,26 +243,63 @@ export const useStore = create<State & Actions>((set, get) => ({
     }
   },
 
+  showList() {
+    set({ sourceId: null, menu: null });
+  },
+
+  toggleList() {
+    const { sourceId, lastSourceId, collection: c } = get();
+    if (!c) return;
+    if (sourceId !== null) {
+      get().showList();
+      return;
+    }
+    let remembered: string | null = null;
+    try {
+      remembered = localStorage.getItem(lastSourceKey(c.manifest.id));
+    } catch {
+      /* ignore */
+    }
+    const has = (id: string | null) => !!id && c.sources.some((s) => s.id === id);
+    const back = has(lastSourceId) ? lastSourceId : has(remembered) ? remembered : (c.sources[0]?.id ?? null);
+    if (back) get().selectSource(back);
+  },
+
+  async refreshSources() {
+    const c = get().collection;
+    if (!c) return;
+    const sources = await api.sources.list(c.info.path);
+    set((s) => (s.collection?.info.path === c.info.path ? { collection: { ...s.collection, sources } } : {}));
+  },
+
   async importSources() {
     const c = get().collection;
     if (!c) return;
-    const before = c.sources.length;
-    const sources = await api.sources.importDialog(c.info.path);
-    set({ collection: { ...c, sources } });
-    if (sources.length > before) {
-      const newest = sources[0]!;
-      get().selectSource(newest.id);
-      get().toast(sources.length - before === 1 ? `Added ${newest.title}` : `Added ${sources.length - before} sources`);
-    }
+    set({ menu: null });
+    const result = await api.sources.importDialog(c.info.path);
+    if (result) await get().applyImport(result);
   },
 
   async importUrl(url) {
     const c = get().collection;
     if (!c) return;
     const info = await api.sources.importUrl(c.info.path, url);
-    set((s) => (s.collection ? { collection: { ...s.collection, sources: [info, ...s.collection.sources.filter((x) => x.id !== info.id)] } } : {}));
+    await get().refreshSources();
     get().selectSource(info.id);
     get().toast(`Added ${info.title}`);
+  },
+
+  async applyImport(result) {
+    await get().refreshSources();
+    const { added, existing, failed } = result;
+    // From the list page the new rows are visible; while reading, the first new source opens.
+    if (added.length && get().sourceId !== null) get().selectSource(added[0]!.id);
+    if (!added.length && !failed.length && existing.length === 1) {
+      const e = existing[0]!;
+      get().toast(`${e.title} is already in this collection`, { label: "Open", run: () => get().selectSource(e.id) });
+      return;
+    }
+    get().toast(describeImport(result));
   },
 
   setUrlDialogOpen(open) {
@@ -233,6 +310,151 @@ export const useStore = create<State & Actions>((set, get) => ({
     const c = get().collection;
     if (!c) return;
     set({ collection: { ...c, sources: c.sources.map((s) => (s.id === info.id ? info : s)) } });
+  },
+
+  async setOrder(ids) {
+    const c = get().collection;
+    if (!c) return;
+    const byId = new Map(c.sources.map((s) => [s.id, s]));
+    const sources = ids.map((id) => byId.get(id)).filter((s): s is SourceInfo => !!s);
+    for (const s of c.sources) if (!sources.includes(s)) sources.push(s);
+    set((s) => (s.collection ? { collection: { ...s.collection, sources } } : {}));
+    try {
+      const manifest = await api.collections.setOrder(c.info.path, sources.map((s) => s.id));
+      set((s) => (s.collection ? { collection: { ...s.collection, manifest } } : {}));
+    } catch (err) {
+      get().toast(`Could not save the order: ${errText(err)}`);
+      await get().refreshSources();
+    }
+  },
+
+  async moveSource(id, to) {
+    const c = get().collection;
+    if (!c) return;
+    const ids = c.sources.map((s) => s.id);
+    const i = ids.indexOf(id);
+    if (i < 0) return;
+    ids.splice(i, 1);
+    const dest = to === "top" ? 0 : to === "bottom" ? ids.length : Math.max(0, Math.min(ids.length, i + to));
+    ids.splice(dest, 0, id);
+    await get().setOrder(ids);
+  },
+
+  async toggleRead(id) {
+    const c = get().collection;
+    const cur = c?.sources.find((s) => s.id === id);
+    if (!c || !cur) return;
+    try {
+      const info = await api.sources.setRead(c.info.path, id, !cur.read);
+      get().updateSource(info);
+    } catch (err) {
+      get().toast(`Could not save the read mark: ${errText(err)}`);
+    }
+  },
+
+  async removeSource(id) {
+    const c = get().collection;
+    const info = c?.sources.find((s) => s.id === id);
+    if (!c || !info) return;
+    set({ menu: null });
+    let removed;
+    try {
+      removed = await api.sources.remove(c.info.path, id);
+    } catch (err) {
+      get().toast(`Could not remove ${info.title}: ${errText(err)}`);
+      return;
+    }
+    set((s) =>
+      s.collection
+        ? {
+            collection: { ...s.collection, sources: s.collection.sources.filter((x) => x.id !== id), annotations: s.collection.annotations.filter((a) => a.source !== id) },
+            ...(s.sourceId === id ? { sourceId: null } : {}),
+          }
+        : {},
+    );
+    const token = removed;
+    get().toast(`Removed ${info.title}`, {
+      label: "Undo",
+      run: () => {
+        void (async () => {
+          try {
+            await api.sources.restore(c.info.path, token);
+            await get().refreshSources();
+            const annotations = await api.annotations.list(c.info.path);
+            set((s) => (s.collection ? { collection: { ...s.collection, annotations } } : {}));
+          } catch (err) {
+            get().toast(`Could not restore ${info.title}: ${errText(err)}`);
+          }
+        })();
+      },
+    });
+  },
+
+  revealSource(id) {
+    const c = get().collection;
+    if (!c) return;
+    set({ menu: null });
+    void api.sources.reveal(c.info.path, id).catch((err) => get().toast(`Could not open the folder: ${errText(err)}`));
+  },
+
+  async addFromFolder() {
+    const c = get().collection;
+    if (!c) return;
+    set({ menu: null });
+    try {
+      const scan = await api.sources.folderDialog(c.info.path);
+      if (scan) set({ folderScan: scan, folderBusy: false });
+    } catch (err) {
+      get().toast(`Could not read that folder: ${errText(err)}`);
+    }
+  },
+
+  async rescanFolder(recursive) {
+    const { collection: c, folderScan } = get();
+    if (!c || !folderScan) return;
+    set({ folderBusy: true });
+    try {
+      const scan = await api.sources.scanFolder(c.info.path, folderScan.root, { recursive });
+      set((s) => (s.folderScan?.root === folderScan.root ? { folderScan: scan } : {}));
+    } catch (err) {
+      get().toast(`Could not read that folder: ${errText(err)}`);
+    } finally {
+      set({ folderBusy: false });
+    }
+  },
+
+  closeFolder() {
+    set({ folderScan: null, folderBusy: false });
+  },
+
+  async importFromFolder(files) {
+    const c = get().collection;
+    if (!c || files.length === 0) return;
+    set({ folderBusy: true });
+    try {
+      const result = await api.sources.importFiles(c.info.path, files);
+      set({ folderScan: null, folderBusy: false });
+      await get().applyImport(result);
+    } catch (err) {
+      set({ folderBusy: false });
+      get().toast(`Could not add those files: ${errText(err)}`);
+    }
+  },
+
+  async dropFiles(files) {
+    const c = get().collection;
+    if (!c || files.length === 0) return;
+    try {
+      const r = await api.sources.dropped(c.info.path, files);
+      if (!r) {
+        get().toast("Only files and folders from disk can be dropped here");
+        return;
+      }
+      if (r.kind === "scan") set({ folderScan: r.scan, folderBusy: false });
+      else await get().applyImport(r.result);
+    } catch (err) {
+      get().toast(`Could not add the dropped files: ${errText(err)}`);
+    }
   },
 
   async refreshThreads() {
@@ -256,7 +478,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     }
     const a = thread.anchor;
     const patch: Partial<State> = { thread, panelOpen: true, composerQuote: null };
-    if (a?.target === "source" && a.page && a.source) {
+    if (a?.target === "source" && a.page && a.source && c.sources.some((s) => s.id === a.source)) {
       if (a.source !== get().sourceId) get().selectSource(a.source);
       patch.focusTarget = { page: a.page, key: Date.now(), markId: thread.id };
     }
@@ -349,7 +571,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       });
     } catch (err) {
       // The agent could not run at all; keep the message in the file so nothing is lost.
-      const message = String((err as Error)?.message ?? err);
+      const message = errText(err);
       const saved = await api.threads.appendMessage(c.info.path, threadId, { role: "user", body: text, ...(composerQuote ? { quote: composerQuote } : {}) }).catch(() => null);
       set((s) => {
         const turns = { ...s.turns };
@@ -373,7 +595,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       const options = await api.agent.setConfig(c.info.path, thread.id, configId, value);
       set((s) => ({ configOptions: { ...s.configOptions, [thread.id]: options } }));
     } catch (err) {
-      get().toast(`Could not change ${configId}: ${String((err as Error)?.message ?? err)}`);
+      get().toast(`Could not change ${configId}: ${errText(err)}`);
     }
   },
 
@@ -393,7 +615,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       const status = await api.agent.connect(c.info.path);
       if (get().collection?.info.path === c.info.path) set({ agent: status });
     } catch (err) {
-      set({ agent: { connected: false, auth: null, authMethods: [], error: String((err as Error)?.message ?? err) } });
+      set({ agent: { connected: false, auth: null, authMethods: [], error: errText(err) } });
     }
   },
 
@@ -408,6 +630,8 @@ export const useStore = create<State & Actions>((set, get) => ({
     const c = get().collection;
     if (!c) return;
     void api.reader.setPosition(c.info.path, sourceId, pos);
+    // The list shows where each source was left; keep the snapshot in step with the file.
+    set((s) => (s.collection ? { collection: { ...s.collection, readerState: { ...s.collection.readerState, [sourceId]: pos } } } : {}));
   },
 
   toast(text, action) {

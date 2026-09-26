@@ -1,19 +1,7 @@
 import { useStore } from "../state/store";
+import { relTime } from "../lib/time";
 import { Dropdown } from "./Dropdown";
 import { Icon } from "./Icons";
-
-function relTime(iso?: string): string {
-  if (!iso) return "";
-  const d = Date.now() - new Date(iso).getTime();
-  const m = Math.round(d / 60000);
-  if (m < 1) return "now";
-  if (m < 60) return `${m} min`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h} h`;
-  const days = Math.round(h / 24);
-  if (days < 7) return `${days} d`;
-  return new Date(iso).toLocaleDateString();
-}
 
 export function Header() {
   const screen = useStore((s) => s.screen);
@@ -21,7 +9,7 @@ export function Header() {
   const collection = useStore((s) => s.collection);
   const sourceId = useStore((s) => s.sourceId);
   const threadId = useStore((s) => s.thread?.id ?? null);
-  const { goHome, openCollection, openCollectionDialog, selectSource, importSources, openThread } = useStore.getState();
+  const { goHome, openCollection, openCollectionDialog, selectSource, showList, importSources, addFromFolder, toggleRead, openThread } = useStore.getState();
 
   const agent = useStore((s) => s.agent);
   const menu = useStore((s) => s.menu);
@@ -34,8 +22,11 @@ export function Header() {
   const annotations = collection?.annotations ?? [];
   const { goToAnnotation } = useStore.getState();
   const source = collection?.sources.find((s) => s.id === sourceId) ?? null;
+  const readCount = collection?.sources.filter((s) => s.read).length ?? 0;
   // Branches are reached from their parent's outline; the popover lists root threads only.
   const threads = (collection?.threads ?? []).filter((t) => !t.parent);
+  // Threads whose source was removed keep their quotes and stay reachable.
+  const orphaned = threads.filter((t) => t.anchor?.source && !collection?.sources.some((s) => s.id === t.anchor?.source));
   const signedIn = !!agent?.connected && !!agent.auth && agent.auth.kind !== "none";
   const agentLabel = !agent ? "Agent" : agent.error ? "Agent failed" : !agent.connected ? "Connecting…" : agent.auth?.label ?? agent.agent?.name ?? "Connected";
   const loginMethods = agent?.authMethods.length
@@ -44,6 +35,18 @@ export function Header() {
         { id: "claude-ai-login", name: "Claude subscription", description: "Sign in with your Claude plan" },
         { id: "console-login", name: "Anthropic Console", description: "API usage billing" },
       ];
+  const threadItem = (t: (typeof threads)[number], close: () => void) => (
+    <button key={t.id} className={`mi ${t.id === threadId ? "cur" : ""}`} role="menuitem" onClick={() => { close(); void openThread(t.id); }}>
+      <span className={`dot h${t.hue}`} />
+      <span className="txt">
+        <span className="t">{t.title}</span>
+        <span className="m">
+          {relTime(t.created)} · {t.messageCount} messages
+        </span>
+      </span>
+      <span className="meta">{pageChip(t.anchor?.source, t.anchor?.page)}</span>
+    </button>
+  );
 
   return (
     <header className="hdr">
@@ -79,7 +82,7 @@ export function Header() {
                     <Icon name="folder" />
                     <span className="txt">
                       <span className="t">{c.name}</span>
-                      <span className="m">{c.path}</span>
+                      <span className="m">{c.counts ? `${c.counts.sources} sources · ${c.counts.read} read · ${c.counts.threads} threads` : c.path}</span>
                     </span>
                     <span className="meta">{relTime(c.lastOpened)}</span>
                   </button>
@@ -104,26 +107,56 @@ export function Header() {
             className="hsrc"
             title="Switch source"
             label={
-              <>
-                <Icon name={source ? kindIcon(source.kind) : "file"} />
-                <span className="txt">{source ? source.title : "No source"}</span>
-                {source?.kind === "pdf" && source.pages ? <span className="lbl">{source.pages} p.</span> : null}
-                <Icon name="chevron" />
-              </>
+              source ? (
+                <>
+                  <Icon name={kindIcon(source.kind)} />
+                  <span className="txt">{source.title}</span>
+                  {source.kind === "pdf" && source.pages ? <span className="lbl">{source.pages} p.</span> : null}
+                  <Icon name="chevron" />
+                </>
+              ) : (
+                <>
+                  <Icon name="list" />
+                  <span className="txt">Reading list</span>
+                  <span className="n">{collection.sources.length}</span>
+                  <Icon name="chevron" />
+                </>
+              )
             }
           >
             {(close) => (
               <>
-                <div className="mh">Sources in this collection</div>
+                <button className={`mi ${sourceId === null ? "cur" : ""}`} role="menuitem" onClick={() => { close(); showList(); }}>
+                  <Icon name="list" />
+                  <span className="txt">
+                    <span className="t">Reading list</span>
+                    <span className="m">{collection.sources.length} sources · {readCount} read</span>
+                  </span>
+                  <span className="meta"><kbd>Ctrl</kbd><kbd>L</kbd></span>
+                </button>
+                <div className="msep" />
+                <div className="mh">In reading order</div>
                 {collection.sources.length === 0 && <div className="mempty">No sources yet.</div>}
                 {collection.sources.map((s) => (
-                  <button key={s.id} className={`mi ${s.id === sourceId ? "cur" : ""}`} role="menuitem" onClick={() => { close(); selectSource(s.id); }}>
+                  <button key={s.id} className={`mi ${s.id === sourceId ? "cur" : ""}`} role="menuitem" {...(s.read ? { "data-read": "" } : {})} onClick={() => { close(); selectSource(s.id); }}>
                     <Icon name={kindIcon(s.kind)} />
                     <span className="txt">
                       <span className="t">{s.title}</span>
                       <span className="m">
-                        {s.kind === "pdf" ? `PDF${s.pages ? ` · ${s.pages} pages` : ""}` : s.kind === "web" ? (s.url ?? "Web page") : "Markdown"}
+                        {s.kind === "pdf" ? `PDF${s.pages ? ` · ${s.pages} pages` : ""}` : s.kind === "web" ? (s.siteName ?? s.url ?? "Web page") : "Markdown"}
                         {" · "}{threads.filter((t) => t.anchor?.source === s.id).length} threads
+                      </span>
+                    </span>
+                    <span className="meta">
+                      {s.id === sourceId && s.kind === "pdf" && collection.readerState[s.id] ? `p.${collection.readerState[s.id]!.page}` : null}
+                      <span
+                        className="mchk"
+                        role="button"
+                        aria-pressed={!!s.read}
+                        title={s.read ? "Mark as unread" : "Mark as read"}
+                        onClick={(e) => { e.stopPropagation(); void toggleRead(s.id); }}
+                      >
+                        <Icon name="check" />
                       </span>
                     </span>
                   </button>
@@ -133,7 +166,15 @@ export function Header() {
                   <Icon name="plus" />
                   <span className="txt">
                     <span className="t">Add files…</span>
-                    <span className="m">PDF or Markdown</span>
+                    <span className="m">PDF, Markdown or text</span>
+                  </span>
+                  <span className="meta"><kbd>Ctrl</kbd><kbd>I</kbd></span>
+                </button>
+                <button className="mi" role="menuitem" onClick={() => { close(); void addFromFolder(); }}>
+                  <Icon name="folder" />
+                  <span className="txt">
+                    <span className="t">Add from a folder…</span>
+                    <span className="m">Pick which files to bring in</span>
                   </span>
                 </button>
                 <button className="mi" role="menuitem" onClick={() => { close(); setUrlDialogOpen(true); }}>
@@ -168,22 +209,15 @@ export function Header() {
                     .map((s) => (
                       <div key={s.id}>
                         <div className="mh">{s.title}</div>
-                        {threads
-                          .filter((t) => t.anchor?.source === s.id)
-                          .map((t) => (
-                            <button key={t.id} className={`mi ${t.id === threadId ? "cur" : ""}`} role="menuitem" onClick={() => { close(); void openThread(t.id); }}>
-                              <span className={`dot h${t.hue}`} />
-                              <span className="txt">
-                                <span className="t">{t.title}</span>
-                                <span className="m">
-                                  {relTime(t.created)} · {t.messageCount} messages
-                                </span>
-                              </span>
-                              <span className="meta">{pageChip(t.anchor?.source, t.anchor?.page)}</span>
-                            </button>
-                          ))}
+                        {threads.filter((t) => t.anchor?.source === s.id).map((t) => threadItem(t, close))}
                       </div>
                     ))}
+                  {orphaned.length > 0 && (
+                    <div>
+                      <div className="mh">Removed sources</div>
+                      {orphaned.map((t) => threadItem(t, close))}
+                    </div>
+                  )}
                   {threads.some((t) => !t.anchor) && (
                     <div>
                       <div className="mh">Unanchored</div>

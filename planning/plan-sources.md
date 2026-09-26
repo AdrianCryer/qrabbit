@@ -1,6 +1,6 @@
 # QRabbit — Sources plan (v1)
 
-Status: decided 2026-09-26, ready to build. Extends plan-v2 §3.1, §4.1, §6.2 and §8. The questions raised in the draft were settled the same day; §7 records the answers.
+Status: built 2026-09-26, verified by `tools/dev/drive-sources.mjs`. Extends plan-v2 §3.1, §4.1, §6.2 and §8. The questions raised in the draft were settled the same day; §7 records the answers.
 
 Clickable prototype: `planning/prototype/sources.html`, published at https://claude.ai/artifact/2hez9TRajXkhx5wM7CYTKN. Seven states (list, reorder, row menu, removed, from folder, empty, switcher) with the same accent and theme switches as `central-loop.html`. Rows really drag, marks really toggle, remove really undoes, and the folder picker really filters and counts, so the feel can be judged before any of it is built.
 
