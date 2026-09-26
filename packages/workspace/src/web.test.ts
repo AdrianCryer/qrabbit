@@ -56,6 +56,10 @@ b = 2
 <ol><li><p>The value function, which gives the expected return:</p>
 <blockquote><div><div class="math"><p><img src="../_images/math/v.svg" alt="V(s) = 1"/></p></div></div></blockquote></li></ol>
 <blockquote><p>A real quotation, which stays a quote.</p></blockquote>
+<div class="col-span-full grid"><div class="flex flex-col overflow-hidden rounded-md">
+<div class="flex items-center justify-between"><span class="text-sm">PR test snippet</span><span class="text-xs text-primary-60">Python</span><button type="button" aria-label="Copy code block"><svg width="16" height="16"><use href="/icons/copy.svg#size-16"></use></svg></button></div>
+<div dir="ltr" class="relative flex overflow-auto py-5 style-scrollbars"><code class="flex-1 font-mono CodeBlock-module__syntaxHighlight"><pre class="flex flex-col pe-5"><div class="flex flex-row gap-4"><span class="ms-5 min-w-5 text-end text-primary-44">1</span><div class="flex-1">def test_none_username():</div></div><div class="flex flex-row gap-4"><span class="ms-5 min-w-5 text-end text-primary-44">2</span><div class="flex-1">    assert authenticate(username=None) is None</div></div></pre></code></div>
+</div></div>
 </article>
 </body></html>`;
 
@@ -97,6 +101,9 @@ describe("web extraction", () => {
     expect(a.markdown).toMatch(/expected return:\s*\$\$\s*V\(s\) = 1\s*\$\$/);
     expect(a.markdown).not.toMatch(/>\s*\$\$/);
     expect(a.markdown).toContain("> A real quotation, which stays a quote.");
+    // Row-per-line blocks with a numeric gutter, inside utility-class wrappers Readability would otherwise drop.
+    expect(a.markdown).toContain("\`\`\`python\ndef test_none_username():\n    assert authenticate(username=None) is None\n\`\`\`");
+    expect(a.markdown).not.toMatch(/\n1def|Copy code block/);
   });
 
   it("turns formula images, MathML and MathJax spans into LaTeX", () => {

@@ -3,7 +3,7 @@ import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
-import { normalizeCallouts, normalizeCodeBlocks, unwrapBareQuotes } from "./web-blocks.js";
+import { normalizeCallouts, normalizeCodeBlocks, protectCodeBlocks, unwrapBareQuotes } from "./web-blocks.js";
 import { macrosInHtml, type MacroTable } from "./web-macros.js";
 import { MATH_TAG, mathToTex } from "./web-math.js";
 
@@ -62,6 +62,7 @@ export function htmlToArticle(html: string, baseUrl: string): Omit<WebPage, "url
   // as an image, a hidden MathML twin, or a script.
   mathToTex(document as unknown as Parameters<typeof mathToTex>[0]);
   // Likewise code blocks get their <code> child and language, and admonitions become quotes.
+  protectCodeBlocks(document as unknown as Parameters<typeof protectCodeBlocks>[0]);
   normalizeCodeBlocks(document as unknown as Parameters<typeof normalizeCodeBlocks>[0]);
   unwrapBareQuotes(document as unknown as Parameters<typeof unwrapBareQuotes>[0]);
   normalizeCallouts(document as unknown as Parameters<typeof normalizeCallouts>[0]);

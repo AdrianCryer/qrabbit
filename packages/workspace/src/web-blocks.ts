@@ -42,23 +42,101 @@ export function languageOf(el: El): string | null {
   return null;
 }
 
+/**
+ * Readability scores elements partly by class name, and its "negative" pattern matches any class
+ * containing "hidden", "scroll", "media" and the like. On sites built from utility classes
+ * (`overflow-hidden`, `style-scrollbars`) that throws away the wrapper around every code block.
+ * Only a bare `hidden` class actually hides content; the rest are noise, so drop them from the
+ * ancestors of code blocks before extraction.
+ */
+const READABILITY_NEGATIVE = /-ad-|hidden|^hid$|banner|combx|comment|com-|contact|footer|gdpr|masthead|media|meta|outbrain|promo|related|scroll|share|shoutbox|sidebar|skyscraper|sponsor|shopping|tags|widget|extra|supplemental|popup|pagination|pager/i;
+
+export function protectCodeBlocks(document: Doc): void {
+  for (const el of all(document, '[class*="overflow-"]')) {
+    const kept = classes(el).filter((c) => !/^overflow(-[xy])?-hidden$/.test(c));
+    if (kept.length !== classes(el).length) el.setAttribute("class", kept.join(" "));
+  }
+  for (const pre of all(document, "pre")) {
+    let node: El | null = pre;
+    for (let depth = 0; node && depth < 7; depth++, node = node.parentElement) {
+      const kept = classes(node).filter((c) => c === "hidden" || !READABILITY_NEGATIVE.test(c));
+      if (kept.length !== classes(node).length) node.setAttribute("class", kept.join(" "));
+    }
+  }
+}
+
+const LANGUAGE_LABELS: Record<string, string> = {
+  python: "python", py: "python", javascript: "javascript", js: "javascript", typescript: "typescript", ts: "typescript",
+  bash: "bash", shell: "bash", sh: "bash", zsh: "bash", json: "json", yaml: "yaml", yml: "yaml", toml: "toml", rust: "rust",
+  go: "go", golang: "go", java: "java", kotlin: "kotlin", swift: "swift", c: "c", "c++": "cpp", cpp: "cpp", "c#": "csharp",
+  csharp: "csharp", html: "html", css: "css", sql: "sql", diff: "diff", patch: "diff", markdown: "markdown", md: "markdown",
+  xml: "xml", ruby: "ruby", php: "php", r: "r", scala: "scala", haskell: "haskell", lua: "lua", makefile: "makefile",
+  dockerfile: "dockerfile", "plain text": "", plaintext: "", text: "", txt: "",
+};
+
+/**
+ * A language label such as "Python" in the code block's own header row, when a site has one: a
+ * short sibling of the block, within three wrappers, that holds no code block of its own.
+ */
+function languageLabelNear(pre: El): string | null {
+  let branch: El = pre;
+  let node: El | null = pre.parentElement;
+  for (let depth = 0; node && depth < 3; depth++, branch = node, node = node.parentElement) {
+    for (const sibling of Array.from(node.childNodes) as El[]) {
+      if (sibling === branch || sibling.nodeName === "#text" || !sibling.querySelectorAll) continue;
+      if (sibling.querySelector("pre") || (sibling.textContent ?? "").trim().length > 60) continue;
+      for (const el of [sibling, ...Array.from(sibling.querySelectorAll("span, div, p, small, label"))]) {
+        const text = (el.textContent ?? "").trim().toLowerCase();
+        if (text.length <= 12 && text in LANGUAGE_LABELS) return LANGUAGE_LABELS[text]!;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * The block's text. Sites that render each line as its own row (a div holding a line number and
+ * the line) need the rows joined with newlines and the numbers dropped; `textContent` alone
+ * would run the lines together with the numbers.
+ */
+function textOfPre(pre: El): string {
+  const rows = Array.from(pre.childNodes).filter((n) => n.nodeName !== "#text" || (n.textContent ?? "").trim()) as El[];
+  if (rows.length >= 1 && rows.every((r) => r.nodeName === "DIV")) {
+    const firsts = rows.map((r) => (Array.from(r.childNodes).find((n) => n.nodeName !== "#text") as El | undefined));
+    const numbered = firsts.every((f, i) => f && (f.textContent ?? "").trim() === String(i + 1));
+    return rows
+      .map((r, i) => {
+        const parts = Array.from(r.childNodes) as El[];
+        const keep = numbered ? parts.filter((p) => p !== firsts[i]) : parts;
+        return keep.map((p) => p.textContent ?? "").join("").replace(/\n+$/, "");
+      })
+      .join("\n");
+  }
+  return pre.textContent ?? "";
+}
+
 /** Give every `<pre>` a single `<code>` child carrying its text and language. */
 export function normalizeCodeBlocks(document: Doc): number {
   // Line-number gutters and copy buttons are not code.
-  for (const el of all(document, "pre .copybtn, pre button, .linenos, .lineno, .line-numbers-rows, td.linenos, span.linenos")) el.remove();
+  for (const el of all(document, "pre .copybtn, pre button, .linenos, .lineno, .line-numbers-rows, td.linenos, span.linenos, pre [class*=\"line-number\"], pre [class*=\"linenumber\"], pre [class*=\"gutter\"]")) el.remove();
   for (const table of all(document, "table.highlighttable, table.codehilitetable, table.rouge-table")) {
     const code = table.querySelector("td.code, td.rouge-code, td:last-child");
     if (code) table.replaceWith(...Array.from(code.childNodes));
   }
+  // Some sites nest the block the other way round, `<code><pre>`; the pre is the block.
+  for (const code of all(document, "code")) {
+    const inner = Array.from(code.childNodes).filter((n) => n.nodeName !== "#text" || (n.textContent ?? "").trim());
+    if (inner.length === 1 && inner[0]!.nodeName === "PRE") code.replaceWith(inner[0]!);
+  }
   let count = 0;
   for (const pre of all(document, "pre")) {
-    const lang = languageOf(pre) ?? (() => { const c = pre.querySelector("code"); return c ? languageOf(c) : null; })();
+    const lang = languageOf(pre) ?? (() => { const c = pre.querySelector("code"); return c ? languageOf(c) : null; })() ?? languageLabelNear(pre);
     for (const br of all(pre, "br")) br.replaceWith(document.createTextNode("\n"));
     const only = Array.from(pre.childNodes).filter((n) => !(n.nodeName === "#text" && !(n.textContent ?? "").trim()));
     let code = only.length === 1 && only[0]!.nodeName === "CODE" ? (only[0] as El) : null;
     if (!code) {
       code = document.createElement("code");
-      code.textContent = (pre.textContent ?? "").replace(/^\n+/, "").replace(/\s+$/, "");
+      code.textContent = textOfPre(pre).replace(/^\n+/, "").replace(/\s+$/, "");
       // A code element must be the first child for the fenced-block rule to apply.
       for (const n of Array.from(pre.childNodes)) (n as El).remove?.();
       pre.textContent = "";

@@ -273,7 +273,7 @@ try {
     // DRIVE_WEB_SCROLL="some heading text" also captures the article scrolled to that text.
     if (process.env.DRIVE_WEB_SCROLL) {
       await page.evaluate((t) => {
-        const el = [...document.querySelectorAll(".sheet.article h2, .sheet.article h3, .sheet.article p")].find((e) => e.textContent.includes(t));
+        const el = [...document.querySelectorAll(".sheet.article h1, .sheet.article h2, .sheet.article h3, .sheet.article h4, .sheet.article h5, .sheet.article p, .sheet.article li")].find((e) => e.textContent.includes(t));
         el?.scrollIntoView({ block: "start" });
       }, process.env.DRIVE_WEB_SCROLL);
       await sleep(400);
