@@ -6,6 +6,12 @@ QRabbit runs on the coding agent you already pay for. It talks to Claude Code th
 
 https://github.com/user-attachments/assets/55911246-5bcf-4ba2-ac15-7b373cc4e1fc
 
+![No more copying text, just highlight it: a passage pasted into a typical chat without its context on the left, and a passage selected in QRabbit with the Explore toolbar on the right](docs/screenshots/highlight.png)
+
+![Answers come as lists and follow-ups bury them: one long chat on the left, and QRabbit on the right with a branch for each point asked about](docs/screenshots/lists.png)
+
+![Manage collections: the home screen listing collections, and a collection's reading list with read marks](docs/screenshots/collections.png)
+
 ## How it works
 
 - **Highlight and explore.** Select any passage in a PDF or article and choose Explore (E). A thread opens beside the paper, anchored to that passage, and the agent answers with the surrounding text and page citations in hand. Ask here (A) adds another passage to the thread you're in.
@@ -13,10 +19,6 @@ https://github.com/user-attachments/assets/55911246-5bcf-4ba2-ac15-7b373cc4e1fc
 - **Marks of your own.** Comments (C) and bookmarks (B) sit in the margin next to thread markers. They're yours; the agent never receives them.
 - **Web pages read like papers.** Add a URL and it is fetched once, reduced to its article text and saved as Markdown, so it can be highlighted, explored and read offline. Formulas published as images, MathML or MathJax come back as real LaTeX, code blocks keep their language, and callouts stay callouts.
 - **Out of the way.** No sidebar: collections, sources, threads and marks live in header menus. The divider between paper and panel drags, Ctrl+Shift+F hides the paper, and everything has a shortcut (Ctrl+, lists them).
-
-![A PDF with a highlighted passage and its thread, with maths rendered in the answer](docs/screenshots/raw/thread.png)
-
-![Formulas recovered from a page that publishes them as images, including the site's own macros](docs/screenshots/raw/web-maths.png)
 
 ## A collection is a folder
 

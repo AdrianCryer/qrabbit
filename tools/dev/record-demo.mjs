@@ -13,16 +13,16 @@
 // the demo is the same every time and costs nothing. Everything else is the app itself; the branch
 // asks the real agent for its handoff in the background, as it always does.
 //
-// Usage: node tools/dev/record-demo.mjs [work-dir] [out-dir] [--record-only]
-//        node tools/dev/record-demo.mjs --reframe <run-dir> [out-dir] [--preview]
+// Usage: node tools/dev/record-demo.mjs [work-dir] [--record-only]
+//        node tools/dev/record-demo.mjs --reframe <run-dir> [--preview]
 //   Build first: pnpm desktop:build. Needs network access for the article.
-//   Writes <out-dir>/demo.webp (default docs/screenshots) and an MP4 in the run's work directory.
+//   Writes demo.mp4 in the run's work directory; the README plays it as a GitHub attachment.
 //   --record-only  drive and record the app (about a minute, in a visible window) and stop, so the
 //                  take can be watched and approved before the slow framing and encoding.
 //   --reframe      film and encode a saved take again, for camera changes, without driving the app.
 //   --preview      with --reframe: a quick half-size, 15 fps MP4 of the camera, in the run folder only.
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -166,7 +166,7 @@ if (process.versions.electron) {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   const recording = JSON.parse(readFileSync(join(runDir, "recording.json"), "utf8"));
-  frameAndEncode(runDir, recording, resolve(ARGS[1] ?? join(repo, "docs", "screenshots")), env, { preview: FLAGS.has("--preview") });
+  frameAndEncode(runDir, recording, env, { preview: FLAGS.has("--preview") });
 } else {
   await main();
 }
@@ -174,14 +174,12 @@ if (process.versions.electron) {
 async function main() {
   const { _electron: electron } = await import("playwright-core");
   const workDir = resolve(ARGS[0] ?? join(here, "out", "demo"));
-  const outDir = resolve(ARGS[1] ?? join(repo, "docs", "screenshots"));
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
   const runDir = join(workDir, runId);
   const collection = join(runDir, "reinforcement-learning");
   const framesDir = join(runDir, "frames");
   mkdirSync(collection, { recursive: true });
   mkdirSync(framesDir, { recursive: true });
-  mkdirSync(outDir, { recursive: true });
   const log = (...a) => console.log(`[demo] ${a.join(" ")}`);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -550,11 +548,11 @@ async function main() {
       const me = "node tools/dev/record-demo.mjs";
       log(`recorded ${runDir}`);
       log(`camera preview (fast, half size): ${me} --reframe "${runDir}" --preview`);
-      log(`final WebP for the README:        ${me} --reframe "${runDir}"`);
+      log(`final MP4 for the README:         ${me} --reframe "${runDir}"`);
       return;
     }
     log("framing and encoding (a few minutes)…");
-    frameAndEncode(runDir, recording, outDir, env);
+    frameAndEncode(runDir, recording, env);
   } finally {
     await app.close().catch(() => {});
   }
@@ -564,7 +562,7 @@ async function main() {
  * Films each tick through the camera (in Electron), then encodes the WebP for the README and an MP4.
  * With `preview`, a quick check of the camera instead: half size, 15 fps, an MP4 in the run folder only.
  */
-function frameAndEncode(runDir, recording, outDir, env, { preview = false } = {}) {
+function frameAndEncode(runDir, recording, env, { preview = false } = {}) {
   const log = (...a) => console.log(`[demo] ${a.join(" ")}`);
   const ffmpeg = createRequire(import.meta.url)("ffmpeg-static");
   const fps = preview ? 15 : FPS;
@@ -588,18 +586,14 @@ function frameAndEncode(runDir, recording, outDir, env, { preview = false } = {}
     log(`preview: ${out}`);
     return;
   }
-  const webp = join(runDir, "demo.webp");
   const mp4 = join(runDir, "demo.mp4");
-  // A moving camera changes every pixel of every frame, which animated WebP stores poorly. The README
-  // shows it at about 880 px wide, so 1000 px keeps the full 30 fps (15 fps looked stuttery) near 6 MB.
-  run(["-vf", "scale=1000:-2:flags=lanczos", "-c:v", "libwebp_anim", "-lossless", "0", "-quality", "66", "-compression_level", "6", "-loop", "0", webp], "WebP");
   // aq-mode 3 spends more bits on dark, flat areas, where the background gradient otherwise turns blocky.
   run(["-vf", "format=yuv420p", "-c:v", "libx264", "-crf", "16", "-preset", "slow", "-x264-params", "aq-mode=3", "-movflags", "+faststart", mp4], "MP4");
-  // The WebP goes in the repo: GitHub plays it inline in the README. A video file in the repo only
-  // renders as a download link there, so the MP4 stays in the work directory for sharing elsewhere.
-  mkdirSync(outDir, { recursive: true });
-  copyFileSync(webp, join(outDir, "demo.webp"));
+  // The README plays this MP4 as a GitHub attachment: drag it into README.md in github.com's editor
+  // and use the user-attachments link it inserts (free plans take up to 10 MB). A video committed to
+  // the repo only renders as a download link, and animated WebP, tried first, blurs badly because it
+  // cannot predict motion between frames and the camera moves every pixel.
   const kb = (p) => Math.round(readFileSync(p).length / 1024);
   const secs = recording.frames.at(-1).t - recording.frames[0].t + TAIL_SECONDS;
-  log(`wrote ${join(outDir, "demo.webp")} (${kb(webp)} KB, ${secs.toFixed(1)} s); MP4 for sharing: ${mp4} (${kb(mp4)} KB)`);
+  log(`wrote ${mp4} (${kb(mp4)} KB, ${secs.toFixed(1)} s); upload it to the README through github.com's editor`);
 }

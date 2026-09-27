@@ -14,6 +14,34 @@ export const THEME_BACKGROUND = [
   "linear-gradient(180deg, #15181c 0%, #121417 45%, #0c0e11 100%)",
 ].join(", ");
 
+/** Styles for `windowHtml`: the app window's frame (corners, hairline border, caption buttons). */
+export const WINDOW_CSS = `
+  .appwin { position: relative; border-radius: 10px; overflow: hidden; background: #121417;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.09), 0 40px 90px rgba(0, 0, 0, 0.55), 0 14px 30px rgba(0, 0, 0, 0.35); }
+  .appwin > img { display: block; width: 100%; height: 100%; }
+  .appwin .caption { position: absolute; top: 0; right: 0; display: flex; }
+  .appwin .caption span { display: grid; place-items: center; }
+  .appwin .caption svg { stroke: #a3a8b0; stroke-width: 1; fill: none; shape-rendering: crispEdges; }`;
+
+/**
+ * A screenshot framed as the app window, `width` CSS pixels wide. `scale` is the window's scale
+ * relative to the app's own 1280-pixel layout, so the caption buttons match the header's size.
+ */
+export function windowHtml(src, width, height, style = "") {
+  const k = width / 1280;
+  const cap = `height:${44 * k}px`;
+  const btn = `width:${46 * k}px;height:${44 * k}px`;
+  const svg = `width:${10 * k}px;height:${10 * k}px`;
+  return `<div class="appwin" style="width:${width}px;height:${height}px;${style}">
+    <img src="${src}" alt="">
+    <div class="caption" style="${cap}">
+      <span style="${btn}"><svg viewBox="0 0 10 10" style="${svg}"><path d="M0 5.5h10"/></svg></span>
+      <span style="${btn}"><svg viewBox="0 0 10 10" style="${svg}"><rect x="0.5" y="0.5" width="9" height="9"/></svg></span>
+      <span style="${btn}"><svg viewBox="0 0 10 10" style="${svg};shape-rendering:geometricPrecision"><path d="M0 0l10 10M10 0L0 10"/></svg></span>
+    </div>
+  </div>`;
+}
+
 /**
  * A full HTML page: the screenshot as the app window (Windows 11 corners, caption buttons, a hairline
  * border and a soft shadow) centred on the theme background.
@@ -158,9 +186,11 @@ export async function openStage(BrowserWindow, canvas) {
   await cdp.sendCommand("Emulation.setDeviceMetricsOverride", { ...canvas, deviceScaleFactor: 1, mobile: false });
   return {
     /** Render one page and return it as an encoded image buffer. */
+    /** `html` is page markup, or `{ file }` for a page on disk (large images do not fit in a data: URL). */
     async capture(html, { format = "jpeg", quality = 92 } = {}) {
-      await win.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html));
-      await win.webContents.executeJavaScript("document.getElementById('shot').decode().then(() => true)");
+      if (typeof html === "object" && html.file) await win.loadFile(html.file);
+      else await win.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html));
+      await win.webContents.executeJavaScript("Promise.all([...document.images].map((i) => i.decode())).then(() => document.fonts.ready).then(() => true)");
       await new Promise((r) => setTimeout(r, 120));
       const params = { format, captureBeyondViewport: true, clip: { x: 0, y: 0, ...canvas, scale: 1 } };
       if (format === "jpeg") params.quality = quality;
