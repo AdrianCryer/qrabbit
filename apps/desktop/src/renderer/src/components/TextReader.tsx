@@ -133,7 +133,9 @@ export function TextReader(props: Props) {
   }, [focusTarget?.key]);
 
   // ----- selection → anchor -----
-  const onMouseUp = () => {
+  const onMouseUp = (e: React.MouseEvent) => {
+    // Clicks on the toolbar, a margin marker or the comment editor are not new selections.
+    if ((e.target as Element).closest(".seltool, .marker, .ceditor")) return;
     window.setTimeout(() => {
       const s = window.getSelection();
       const article = articleRef.current;
@@ -224,13 +226,13 @@ export function TextReader(props: Props) {
           <div className="seltool" role="toolbar" style={{ left: sel.left, top: sel.top }} onMouseDown={(e) => e.preventDefault()}>
             {canAskHere ? (
               <>
-                <button className="primary" onClick={() => onAskHere(sel.anchor)}><Icon name="chat" />Ask here <kbd>A</kbd></button>
-                <button onClick={() => onExplore(sel.anchor)}><Icon name="branch" />New thread <kbd>E</kbd></button>
+                <button className="primary" onClick={() => { const s = sel; setSel(null); onAskHere(s.anchor); }}><Icon name="chat" />Ask here <kbd>A</kbd></button>
+                <button onClick={() => { const s = sel; setSel(null); onExplore(s.anchor); }}><Icon name="branch" />New thread <kbd>E</kbd></button>
               </>
             ) : (
               <>
-                <button className="primary" onClick={() => onExplore(sel.anchor)}><Icon name="branch" />Explore <kbd>E</kbd></button>
-                <button onClick={() => onAskHere(sel.anchor)}><Icon name="chat" />Ask here <kbd>A</kbd></button>
+                <button className="primary" onClick={() => { const s = sel; setSel(null); onExplore(s.anchor); }}><Icon name="branch" />Explore <kbd>E</kbd></button>
+                <button onClick={() => { const s = sel; setSel(null); onAskHere(s.anchor); }}><Icon name="chat" />Ask here <kbd>A</kbd></button>
               </>
             )}
             <button onClick={() => { const s = sel; setSel(null); setEditor({ mode: "new", anchor: s.anchor, left: s.left, top: s.top }); }}><Icon name="comment" />Comment <kbd>C</kbd></button>

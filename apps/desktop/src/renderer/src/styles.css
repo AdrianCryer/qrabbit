@@ -324,6 +324,15 @@ body.resizing .rscroll, body.resizing .msgs { pointer-events: none; }
 .cq .x { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border-radius: 7px; color: var(--text-2); border: 1px solid var(--line); background: var(--raised); }
 .cq .x:hover { background: var(--raised-2); color: var(--text); border-color: var(--line-strong); }
 .composer { min-width: 0; }
+.cwrap { display: grid; min-width: 0; }
+/* The way back from a branch: a quiet link above the composer, as easy to ignore as to use. */
+.toparent { display: flex; align-items: center; gap: 6px; min-width: 0; margin: 6px 14px -2px; padding: 3px 6px; justify-self: start; max-width: calc(100% - 28px); border-radius: 6px; color: var(--text-3); font-size: 12px; }
+.toparent:hover { color: var(--text); background: var(--raised); }
+.toparent svg.i { flex: none; stroke: currentColor; }
+.toparent > span:not(.t) { flex: none; white-space: nowrap; }
+.toparent .t { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.toparent:hover .t { color: var(--text); }
+.toparent kbd { flex: none; margin-left: 2px; }
 .composer textarea { overflow-y: auto; }
 .crow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .crow .send { margin-left: auto; width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; }

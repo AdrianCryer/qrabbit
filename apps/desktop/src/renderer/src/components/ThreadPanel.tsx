@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Anchor, ConfigOption, Message, ThreadMeta } from "@qrabbit/shared";
 import { useStore, type TurnState } from "../state/store";
 import { anchorToRangeIn, offsetsForRange, rectsForRange, selectorFor, textOfElement } from "../pdf/anchoring";
-import { isTyping, matches } from "../lib/shortcuts";
+import { formatKeys, isTyping, matches } from "../lib/shortcuts";
 import { highlightFor, type HL } from "../lib/highlights";
 import { Dropdown } from "./Dropdown";
 import { Icon } from "./Icons";
@@ -219,7 +219,8 @@ export function ThreadPanel() {
   const agent = useStore((s) => s.agent);
   const turn = useStore((s) => (s.thread ? s.turns[s.thread.id] : undefined));
   const options = useStore((s) => (s.thread ? s.configOptions[s.thread.id] : undefined));
-  const { closePanel, setFocus, clearComposerQuote, sendMessage, cancelTurn, setConfig, openThread, branch, deleteThread } = useStore.getState();
+  const { closePanel, setFocus, clearComposerQuote, sendMessage, cancelTurn, setConfig, openThread, openParent, branch, deleteThread } = useStore.getState();
+  const platform = useStore((s) => s.platform);
   const [draft, setDraft] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [msgSel, setMsgSel] = useState<{ anchor: Anchor; messageId: string; left: number; top: number } | null>(null);
@@ -291,7 +292,10 @@ export function ThreadPanel() {
   };
 
   // Selecting inside an answer offers Explore: a branch anchored to that span.
-  const onMsgsMouseUp = () => {
+  const onMsgsMouseUp = (e: React.MouseEvent) => {
+    // A click on the toolbar itself is not a new selection. Handling it would bring the toolbar
+    // back while the branch is being created, which read as a flicker.
+    if ((e.target as Element).closest(".seltool")) return;
     window.setTimeout(() => {
       const sel = window.getSelection();
       const container = msgsRef.current;
@@ -418,6 +422,16 @@ export function ThreadPanel() {
         )}
       </div>
 
+      <div className="cwrap">
+      {/* In a branch, the way back sits where the reader's attention already is, not up in the breadcrumb. */}
+      {parent && (
+        <button className="toparent" title="Go to the parent thread (Alt+↑)" onClick={() => void openParent()}>
+          <Icon name="up" size={12} />
+          <span>Back to</span>
+          <span className="t">{parent.title}</span>
+          {formatKeys("Alt+ArrowUp", platform).map((k) => <kbd key={k}>{k}</kbd>)}
+        </button>
+      )}
       <div className="composer">
         {composerQuote && (
           <div className={`cq h${hue}`}>
@@ -465,6 +479,7 @@ export function ThreadPanel() {
             {running ? <Icon name="stop" /> : <Icon name="up" />}
           </button>
         </div>
+      </div>
       </div>
     </section>
   );
