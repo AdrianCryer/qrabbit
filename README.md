@@ -4,7 +4,7 @@ Read difficult material with AI. Highlight a passage, explore it in a thread, br
 
 QRabbit runs on the coding agent you already pay for. It talks to Claude Code through the Agent Client Protocol, so turns draw on your Claude subscription rather than an API key, and the app never sees a credential.
 
-![Highlighting a passage in an article, exploring it in a thread, branching from a phrase in the answer, and returning to the parent](docs/screenshots/demo.webp)
+https://github.com/user-attachments/assets/55911246-5bcf-4ba2-ac15-7b373cc4e1fc
 
 ## How it works
 
