@@ -287,18 +287,18 @@ async function main() {
           };
           requestAnimationFrame(frame);
         }),
+        // Text arrives the way the agent's does, in uneven lumps a few hundred milliseconds apart;
+        // smoothing it into a steady reveal, and following it down the panel, is the app's job.
         stream: (answer) => new Promise((resolve) => {
           const s = window.__qrabbitStore;
           const id = s.getState().thread.id;
           const tokens = answer.match(/\S+\s*|\s+/g) ?? [];
           let i = 0;
           const step = () => {
-            i = Math.min(tokens.length, i + 3);
+            i = Math.min(tokens.length, i + 4 + Math.floor(Math.random() * 9));
             const text = tokens.slice(0, i).join("");
             s.setState((x) => ({ turns: { ...x.turns, [id]: { ...x.turns[id], text } } }));
-            const msgs = document.querySelector(".msgs");
-            if (msgs) msgs.scrollTop = msgs.scrollHeight;
-            if (i < tokens.length) setTimeout(step, 34); else resolve();
+            if (i < tokens.length) setTimeout(step, 110 + Math.random() * 140); else resolve();
           };
           step();
         }),
@@ -399,6 +399,20 @@ async function main() {
         s.setState((x) => ({ turns: { ...x.turns, [id]: { ...x.turns[id], activity: x.turns[id].activity.map((a) => ({ ...a, status: "completed" })) } } }));
       });
       await sleep(400);
+      // Regression check: while the answer streams, the panel should start overflowing at most once,
+      // not flip in and out (which showed as a flickering scrollbar).
+      await page.evaluate(() => {
+        const msgs = document.querySelector(".msgs");
+        let over = msgs.scrollHeight > msgs.clientHeight;
+        window.__demo.flips = 0;
+        window.__demo.watching = true;
+        const tick = () => {
+          const now = msgs.scrollHeight > msgs.clientHeight;
+          if (now !== over) { window.__demo.flips++; over = now; }
+          if (window.__demo.watching) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
       await page.evaluate((a) => window.__demo.stream(a), answer);
       await page.evaluate(async (body) => {
         const s = window.__qrabbitStore;
@@ -408,6 +422,12 @@ async function main() {
         s.setState((x) => { const turns = { ...x.turns }; delete turns[id]; return { thread: updated, turns }; });
         await st.refreshThreads();
       }, answer);
+      // The saved answer carries on revealing from where the stream got to; wait for its last words.
+      const tail = answer.trim().split(/\s+/).slice(-3).join(" ");
+      await until((t) => [...document.querySelectorAll(".msg.assistant .md")].at(-1)?.textContent?.replace(/\s+/g, " ").includes(t), "the answer to finish revealing", 15_000, tail);
+      await sleep(500);
+      const flips = await page.evaluate(() => { window.__demo.watching = false; return window.__demo.flips; });
+      log(`panel overflow flips while the answer streamed: ${flips}${flips > 1 ? " (scrollbar flicker)" : ""}`);
     };
     const clearToasts = () => page.evaluate(() => window.__qrabbitStore.setState({ toasts: [] }));
 
