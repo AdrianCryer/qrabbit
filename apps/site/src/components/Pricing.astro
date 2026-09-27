@@ -1,0 +1,111 @@
+---
+import { site } from "../site";
+import Rabbit from "./Rabbit.astro";
+
+const check = "M5 12.5l4.2 4.2L19 7";
+const free = [
+  "Highlight, explore and branch as deep as you like",
+  "PDFs, Markdown and saved web pages",
+  "Unlimited collections, as plain folders on your disk",
+  "Runs on the agent subscription you already have",
+];
+const cloud = [
+  "Collections, threads and marks synced between your computers",
+  "Everything saved off your machine, so a lost laptop isn't lost work",
+  "Still plain files locally: the cloud keeps a copy, never the only one",
+  "AI still runs on your own subscription; Cloud doesn't resell it",
+];
+---
+
+<section class="section" id="pricing">
+  <div class="wrap">
+    <div class="head reveal">
+      <p class="label accent">Pricing</p>
+      <h2 class="h2">Free to read. <em>Cloud if you want it.</em></h2>
+      <p class="lede">The app is a free download. QRabbit Cloud is for keeping your work safe and in step across machines.</p>
+    </div>
+
+    <div class="plans">
+      <article class="plan reveal">
+        <header>
+          <h3>QRabbit</h3>
+          <p class="price"><span class="amt">$0</span><span class="per">free download</span></p>
+          <p class="blurb">The whole reader. Your files, your agent, your machine.</p>
+        </header>
+        <ul>
+          {
+            free.map((f) => (
+              <li>
+                <svg viewBox="0 0 24 24"><path d={check} /></svg>
+                {f}
+              </li>
+            ))
+          }
+        </ul>
+        <a class="btn primary" href="#download">Download free</a>
+      </article>
+
+      <article class="plan cloud reveal">
+        <span class="soon chip accent">Coming later</span>
+        <div class="sitter" aria-hidden="true"><Rabbit pose="sit" /></div>
+        <header>
+          <h3>QRabbit Cloud</h3>
+          <p class="price"><span class="amt">${site.cloudPrice}</span><span class="per">per month</span></p>
+          <p class="blurb">Your work, saved and synced. Pick up on any computer where you left off.</p>
+        </header>
+        <ul>
+          {
+            cloud.map((f) => (
+              <li>
+                <svg viewBox="0 0 24 24"><path d={check} /></svg>
+                {f}
+              </li>
+            ))
+          }
+        </ul>
+        <span class="btn" aria-disabled="true">Not available yet</span>
+      </article>
+    </div>
+  </div>
+</section>
+
+<style>
+  .plans { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .plan {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    padding: clamp(24px, 3vw, 36px);
+    border-radius: 24px;
+    background: linear-gradient(180deg, var(--raised) 0%, #15171b 100%);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-card);
+  }
+  .plan.cloud {
+    background:
+      radial-gradient(ellipse 80% 60% at 100% 0%, rgba(201, 242, 77, 0.09), transparent 60%),
+      linear-gradient(180deg, #1b1f18 0%, #15171b 100%);
+    border-color: var(--accent-line);
+    transition-delay: 0.08s;
+  }
+  header { display: grid; gap: 10px; }
+  h3 { font-size: 19px; font-weight: 620; letter-spacing: -0.01em; }
+  .price { display: flex; align-items: baseline; gap: 10px; }
+  .amt { font-size: 56px; font-weight: 680; letter-spacing: -0.04em; line-height: 1; }
+  .per { color: var(--text-3); font-size: 15px; }
+  .blurb { color: var(--text-2); font-size: 15.5px; max-width: 34ch; }
+  ul { list-style: none; margin: 0; padding: 20px 0 0; border-top: 1px solid var(--line); display: grid; align-content: start; gap: 12px; flex: 1; }
+  li { display: grid; grid-template-columns: auto 1fr; gap: 12px; color: var(--text-2); font-size: 15px; line-height: 1.5; }
+  li svg { width: 18px; height: 18px; margin-top: 2px; stroke: var(--accent); fill: none; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .plan .btn { align-self: flex-start; }
+  .soon { position: absolute; top: clamp(24px, 3vw, 36px); right: clamp(24px, 3vw, 36px); font-family: var(--font-ui); font-weight: 500; }
+  /* The rabbit sits on the card's top edge. */
+  .sitter { position: absolute; right: 150px; bottom: 100%; width: 78px; margin-bottom: -4px; }
+  .sitter :global(svg) { width: 100%; height: auto; }
+
+  @media (max-width: 760px) {
+    .plans { grid-template-columns: minmax(0, 1fr); }
+    .plan.cloud { margin-top: 44px; }
+  }
+</style>

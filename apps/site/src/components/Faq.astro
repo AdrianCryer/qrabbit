@@ -1,0 +1,77 @@
+---
+import { site } from "../site";
+
+const faqs = [
+  {
+    q: "Do I need an API key?",
+    a: "No. QRabbit drives Claude Code through the Agent Client Protocol, and Claude Code signs in with your own Claude plan in its own flow. QRabbit never sees a credential.",
+  },
+  {
+    q: "Which subscriptions work?",
+    a: "Today, any Claude plan that includes Claude Code, or an Anthropic Console account. Codex, GitHub Copilot, Gemini through Antigravity, other ACP agents and local models are planned.",
+  },
+  {
+    q: "Where is my work stored?",
+    a: "In a plain folder per collection: the sources, one Markdown file per thread, your marks as JSON. Open it in Obsidian or track it with git whenever you like.",
+  },
+  {
+    q: "Does the agent see my comments and bookmarks?",
+    a: "No. They're for you, and they never go into a prompt. The agent sees the passage you highlight, the text around it and what you ask.",
+  },
+  {
+    q: "What does QRabbit Cloud add?",
+    a: `Sync and backup of your collections for $${site.cloudPrice} a month, when it launches. The app itself stays free, and your files stay on your disk either way.`,
+  },
+  {
+    q: "What can I read with it?",
+    a: "PDFs, Markdown and text files, and web pages, which are saved as clean Markdown so they read like papers and work offline.",
+  },
+];
+---
+
+<section class="section" id="faq">
+  <div class="wrap narrow">
+    <div class="head reveal">
+      <p class="label accent">Questions</p>
+      <h2 class="h2">Before you dig in</h2>
+    </div>
+    <div class="list reveal">
+      {
+        faqs.map((f) => (
+          <details>
+            <summary>
+              {f.q}
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </summary>
+            <p>{f.a}</p>
+          </details>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .narrow { max-width: 820px; }
+  .list { border-top: 1px solid var(--line); }
+  details { border-bottom: 1px solid var(--line); }
+  summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 22px 4px;
+    font-size: 17.5px;
+    font-weight: 560;
+    letter-spacing: -0.005em;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary svg { width: 18px; height: 18px; flex: none; stroke: var(--text-3); fill: none; stroke-width: 2; stroke-linecap: round; transition: transform 0.3s var(--ease), stroke 0.2s; }
+  summary:hover svg { stroke: var(--text); }
+  details[open] summary svg { transform: rotate(45deg); stroke: var(--accent); }
+  details p { color: var(--text-2); font-size: 16px; line-height: 1.65; padding: 0 44px 24px 4px; max-width: 68ch; }
+</style>

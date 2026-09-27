@@ -10,7 +10,9 @@
     "spike:acp": "pnpm --filter @qrabbit/spike-acp run start",
     "desktop:build": "pnpm --filter @qrabbit/desktop run build",
     "desktop:dev": "pnpm --filter @qrabbit/desktop run dev",
-    "desktop:drive": "node tools/dev/drive-desktop.mjs"
+    "desktop:drive": "node tools/dev/drive-desktop.mjs",
+    "site:dev": "pnpm --filter @qrabbit/site run dev",
+    "site:build": "pnpm --filter @qrabbit/site run build"
   },
   "engines": { "node": ">=22" }
 }

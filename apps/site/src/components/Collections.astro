@@ -1,0 +1,122 @@
+---
+import { shots } from "../shots";
+import AppWindow from "./AppWindow.astro";
+
+// The collection folder, as the README documents it.
+const tree: { name: string; note: string; depth?: number; accent?: boolean }[] = [
+  { name: "reinforcement-learning/", note: "", accent: true },
+  { name: "qrabbit.json", note: "the manifest and your reading order", depth: 1 },
+  { name: "AGENTS.md", note: "instructions any agent reads here", depth: 1 },
+  { name: "sources/", note: "PDFs, and web pages saved as Markdown", depth: 1 },
+  { name: "key-concepts-in-rl/", note: "", depth: 2 },
+  { name: "source.md", note: "the article, with its link", depth: 3 },
+  { name: "text.md", note: "extracted text with page markers", depth: 3 },
+  { name: "annotations.json", note: "your comments and bookmarks", depth: 3 },
+  { name: "threads/", note: "one Markdown file per thread", depth: 1 },
+  { name: "notes/", note: "where the agent may write", depth: 1 },
+];
+---
+
+<section class="section" id="collections">
+  <div class="wrap">
+    <div class="head reveal">
+      <p class="label accent">Collections</p>
+      <h2 class="h2">One reading list per subject. <em>One plain folder per list.</em></h2>
+      <p class="lede">
+        Put sources in the order you'll read them, tick off what you've finished, and pick up where you left off.
+        Reading positions are kept per source and per thread.
+      </p>
+    </div>
+
+    <div class="windows reveal">
+      <AppWindow
+        class="back"
+        src={shots.home}
+        alt="The QRabbit home screen listing three collections: Reinforcement learning, Transformers and Protein structure."
+        sizes="(min-width: 1280px) 660px, 58vw"
+      />
+      <AppWindow
+        class="front"
+        src={shots.readingList}
+        alt="A collection's reading list: four sources in reading order, the first marked read today."
+        sizes="(min-width: 1280px) 720px, 64vw"
+      />
+    </div>
+
+    <div class="files reveal">
+      <div class="copy">
+        <h3>Files are the truth.</h3>
+        <p>
+          A collection is an ordinary folder of Markdown, JSON and PDFs. Open it in Obsidian, track it with git, back it up
+          however you like. The app's own state lives in <code>.qrabbit/</code> and is safe to delete; removed sources
+          wait a week in its trash.
+        </p>
+        <div class="tags">
+          <span class="chip">Obsidian-friendly</span>
+          <span class="chip">git-trackable</span>
+          <span class="chip">works offline</span>
+        </div>
+      </div>
+      <pre class="tree" aria-label="The folder a collection is stored in"><code>{
+        tree.map((row) => (
+          <span class:list={["row", { accent: row.accent }]} style={`--d:${row.depth ?? 0}`}>
+            <span class="name">{row.name}</span>
+            {row.note && <span class="note">{row.note}</span>}
+          </span>
+        ))
+      }</code></pre>
+    </div>
+  </div>
+</section>
+
+<style>
+  /* As on the README image: the reading list runs off the bottom, so its empty lower half takes no room.
+     Only the bottom edge clips; the windows' shadows still spill out at the sides and top. */
+  .windows {
+    position: relative;
+    aspect-ratio: 1200 / 480;
+    clip-path: inset(-120px -120px 0 -120px);
+    mask-image: linear-gradient(180deg, #000 78%, transparent);
+  }
+  .windows :global(.back) { position: absolute; left: 0; top: 0; width: 55%; }
+  .windows :global(.front) { position: absolute; right: 0; top: 36%; width: 60%; }
+
+  .files {
+    margin-top: clamp(56px, 8vw, 96px);
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: clamp(28px, 5vw, 72px);
+    align-items: center;
+  }
+  .copy { display: grid; gap: 14px; }
+  .copy h3 { font-size: clamp(24px, 2.6vw, 30px); font-weight: 650; letter-spacing: -0.02em; }
+  .copy p { color: var(--text-2); font-size: 16.5px; line-height: 1.65; }
+  .copy code { color: var(--text); }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+
+  .tree {
+    margin: 0;
+    padding: 22px 24px;
+    border-radius: var(--r-lg);
+    background: var(--sunken);
+    border: 1px solid var(--line);
+    font: 13.5px/1 var(--font-mono);
+    overflow: hidden;
+  }
+  .tree code { display: grid; gap: 11px; font-size: inherit; }
+  .row { display: flex; align-items: baseline; gap: 16px; padding-left: calc(var(--d) * 22px); min-width: 0; }
+  .name { color: var(--text); white-space: nowrap; }
+  .row.accent .name { color: var(--accent); }
+  .note { color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-ui); font-size: 13px; }
+  .note::before { content: "# "; font-family: var(--font-mono); opacity: 0.6; }
+
+  @media (max-width: 900px) {
+    .files { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .windows { aspect-ratio: auto; display: grid; gap: 16px; clip-path: none; mask-image: none; }
+    .windows :global(.back), .windows :global(.front) { position: relative; width: 100%; }
+    .windows :global(.back) { display: none; }
+    .note { display: none; }
+  }
+</style>

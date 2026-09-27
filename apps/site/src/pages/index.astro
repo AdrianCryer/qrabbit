@@ -1,0 +1,85 @@
+---
+import Agents from "../components/Agents.astro";
+import Burrow from "../components/Burrow.astro";
+import Collections from "../components/Collections.astro";
+import Compare from "../components/Compare.astro";
+import Demo from "../components/Demo.astro";
+import Download from "../components/Download.astro";
+import Faq from "../components/Faq.astro";
+import Features from "../components/Features.astro";
+import Footer from "../components/Footer.astro";
+import Hero from "../components/Hero.astro";
+import Nav from "../components/Nav.astro";
+import Outro from "../components/Outro.astro";
+import Pricing from "../components/Pricing.astro";
+import Base from "../layouts/Base.astro";
+import { shots } from "../shots";
+---
+
+<Base>
+  <Nav />
+  <main>
+    <Hero />
+
+    <Compare
+      id="features"
+      shot={shots.highlight}
+      alt="QRabbit with a passage selected in the paper and the Explore toolbar above it, and an earlier thread's highlight further up the page."
+    >
+      <Fragment slot="title">No more copying text. <em>Just highlight it.</em></Fragment>
+      <Fragment slot="lede">
+        Select a passage and choose Explore. The thread opens beside the paper with the passage and the text around it
+        already in hand, and the highlight stays in the paper as your way back to it.
+      </Fragment>
+      <div class="u">So how do the four value functions relate?</div>
+      <div class="a">
+        The optimal ones are the best the on-policy ones can be, <i>V</i>*(<i>s</i>) = max<sub>π</sub>
+        <i>V</i><sup>π</sup>(<i>s</i>), and the same holds for <i>Q</i>. Each can be written in terms of the other…
+      </div>
+      <div class="keys"><kbd>Ctrl</kbd><kbd>C</kbd> in the paper → <kbd>Alt</kbd><kbd>Tab</kbd> → <kbd>Ctrl</kbd><kbd>V</kbd></div>
+      <div class="u paste">
+        <q>In deep RL, we deal with parameterized policies: policies whose outputs are computable functions that depend on a set of parameters</q>
+        What does this mean?
+      </div>
+      <div class="a">Which text is this from? Without the paragraphs around it, I can only guess what the parameters are.</div>
+      <div class="u lost">It's from the Spinning Up page I pasted earlier. Section 3, I think?</div>
+    </Compare>
+
+    <Compare
+      shot={shots.branches}
+      up="The list is three answers up"
+      alt="A QRabbit thread answering 'What are the main ways to learn a good policy?' with a numbered list; two of its points are highlighted with branch markers, and the outline above lists the two branches."
+    >
+      <Fragment slot="title">Answers come as lists. <em>Follow-ups bury them.</em></Fragment>
+      <Fragment slot="lede">
+        Ask about the third point, then the fourth, and the list scrolls out of sight while the conversation wanders. In
+        QRabbit each point you ask about opens its own branch, and the answer stays where it was.
+      </Fragment>
+      <div class="a">
+        <ol start="3">
+          <li><b>Actor-critic methods</b> combine the two: a critic estimates value to cut the variance…</li>
+          <li><b>Model-based methods</b> learn a model of the environment and plan with it…</li>
+        </ol>
+      </div>
+      <div class="u">Can you go deeper on actor-critic?</div>
+      <div class="a">
+        The policy gradient weights each action by the return that followed it, which is noisy. The critic swaps that
+        return for an estimate of the advantage, with far less spread…
+      </div>
+      <div class="u">And the model-based ones?</div>
+      <div class="a">They learn the dynamics and plan with them. That saves real experience, but a wrong model compounds its errors, so…</div>
+      <div class="u lost">Sorry, what was the second family again?</div>
+    </Compare>
+
+    <Burrow />
+    <Demo />
+    <Features />
+    <Collections />
+    <Agents />
+    <Pricing />
+    <Download />
+    <Faq />
+    <Outro />
+  </main>
+  <Footer />
+</Base>

@@ -1,0 +1,350 @@
+---
+/**
+ * The rabbit hole: a burrow in cross-section whose tunnels are a thread and its branches. The
+ * rabbit hops down one branch at a time and the tunnels behind it light up, then it heads back to
+ * the thread it started from, where the branch rides along with the next question. The steps
+ * beside it follow along. Without scripts, or with reduced motion, it shows the whole path at once.
+ */
+import BurrowNode, { type BurrowNodeData } from "./BurrowNode.astro";
+import Rabbit from "./Rabbit.astro";
+
+const tree: BurrowNodeData = {
+  title: "What are the main ways to learn a good policy?",
+  kind: "thread",
+  path: true,
+  included: true,
+  children: [
+    {
+      title: "Actor-critic methods",
+      kind: "branch",
+      path: true,
+      handoff: true,
+      children: [
+        {
+          title: "the advantage",
+          kind: "branch",
+          path: true,
+          children: [{ title: "same expectation, far less spread", kind: "branch", path: true }],
+        },
+        { title: "PPO", kind: "branch" },
+      ],
+    },
+    { title: "Model-based methods", kind: "branch" },
+  ],
+};
+
+// Tufts of grass along the surface: size and lean.
+const grass = [[14, -6], [20, 4], [12, -3], [18, 6], [15, -8], [11, 3]];
+
+const steps = [
+  { title: "Highlight and Explore", body: "Select a passage and press E. A thread opens beside the paper, anchored to it, with the text around it already in hand." },
+  { title: "Explore inside the answer", body: "Select a phrase in the answer and Explore again. The branch opens with a handoff from its parent, so it doesn't start from scratch." },
+  { title: "Keep going", body: "Branch inside the branch, and again. Every tunnel stays on the map: the breadcrumb, the outline and the markers in each answer." },
+  { title: "Head back up", body: "Click the parent or press Alt+↑. There's nothing to close or resolve: the parent picks up what the branch learned with your next question." },
+];
+---
+
+<section class="section" id="rabbit-hole">
+  <div class="wrap">
+    <div class="head reveal">
+      <p class="label accent">The rabbit hole</p>
+      <h2 class="h2">A rabbit hole isn't the problem. <em>Losing the way back is.</em></h2>
+      <p class="lede">
+        Curiosity should be cheap. Follow it as deep as it goes, keep exactly what you learned, and come back to the
+        sentence you were reading.
+      </p>
+    </div>
+
+    <div class="grid">
+      <div class="burrow reveal" data-burrow>
+        <div class="surface" aria-hidden="true">
+          <div class="entrance"></div>
+          <div class="grass">
+            {grass.map(([size, lean]) => (
+              <svg viewBox="0 0 14 14" style={`width:${size}px;transform:rotate(${lean}deg)`}>
+                <path d="M2.5 14 Q3.5 8 1 3.5 M7 14 Q7 6.5 8.5 1 M11.5 14 Q10.5 8.5 13 4.5" />
+              </svg>
+            ))}
+          </div>
+          <p class="ground-note">The paper stays up here, where you left it.</p>
+          <div class="paper">
+            <b>Key Concepts in RL</b>
+            <span class="ln"></span>
+            <span class="ln hl"></span>
+            <span class="ln short"></span>
+          </div>
+        </div>
+
+        <ol class="tree" aria-label="A thread and its branches">
+          <BurrowNode node={tree} />
+        </ol>
+
+        <div class="breadcrumb" aria-hidden="true">
+          <span>Threads</span><i>›</i><span>What are the main ways…</span><i>›</i><span>Actor-critic methods</span><i>›</i><span>the advantage</span><i>›</i><b>same expectation…</b>
+        </div>
+        <div class="runner" aria-hidden="true"><Rabbit pose="sit" /></div>
+      </div>
+
+      <ol class="steps reveal" data-steps>
+        {
+          steps.map((s, i) => (
+            <li data-step={i + 1}>
+              <span class="n">{i + 1}</span>
+              <div>
+                <h3>{s.title}</h3>
+                <p>{s.body}</p>
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </div>
+</section>
+
+<script>
+  const burrow = document.querySelector<HTMLElement>("[data-burrow]")!;
+  const steps = document.querySelector<HTMLElement>("[data-steps]")!;
+  const runner = burrow.querySelector<HTMLElement>(".runner")!;
+  const nodes = [...burrow.querySelectorAll<HTMLElement>("li[data-path]")];
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  /** Where the rabbit sits: at the surface by the entrance, or on a chamber's floor past its right end. */
+  const spot = (li: HTMLElement | null) => {
+    const box = burrow.getBoundingClientRect();
+    const size = runner.getBoundingClientRect();
+    if (!li) {
+      const e = burrow.querySelector<HTMLElement>(".entrance")!.getBoundingClientRect();
+      return { x: e.right - box.left + 4, y: e.top - box.top - size.height + 12 };
+    }
+    const pill = li.querySelector<HTMLElement>(":scope > .pill")!.getBoundingClientRect();
+    return { x: Math.min(pill.right - box.left + 6, box.width - size.width - 6), y: pill.bottom - box.top - size.height + 3 };
+  };
+  let at: HTMLElement | null = null;
+  const place = () => {
+    const p = spot(at);
+    runner.style.transform = `translate(${p.x}px, ${p.y}px)`;
+  };
+  const hop = async (to: HTMLElement | null, ms = 620) => {
+    const from = spot(at);
+    const dest = spot(to);
+    at = to;
+    const lift = Math.min(from.y, dest.y) - 30;
+    await runner.animate(
+      [
+        { transform: `translate(${from.x}px, ${from.y}px) scale(1.05, 0.92)` },
+        { transform: `translate(${(from.x + dest.x) / 2}px, ${lift}px) scale(0.96, 1.05)`, offset: 0.45 },
+        { transform: `translate(${dest.x}px, ${dest.y}px)` },
+      ],
+      { duration: ms, easing: "ease-in-out" },
+    ).finished;
+    place();
+  };
+  const step = (n: number) => steps.querySelectorAll<HTMLElement>("li").forEach((li) => li.classList.toggle("on", Number(li.dataset.step) === n));
+  const light = (count: number) => nodes.forEach((li, i) => li.classList.toggle("lit", i < count));
+
+  let visible = false;
+  let running = false;
+  async function play() {
+    if (running) return;
+    running = true;
+    while (visible && !reduced.matches) {
+      burrow.classList.remove("back", "handoff");
+      light(0);
+      at = null;
+      place();
+      step(1);
+      await sleep(800);
+      for (let i = 0; i < nodes.length && visible; i++) {
+        if (i === 1) burrow.classList.add("handoff");
+        step(i === 0 ? 1 : i === 1 ? 2 : 3);
+        await hop(nodes[i]!);
+        light(i + 1);
+        await sleep(i === nodes.length - 1 ? 1600 : 1000);
+      }
+      if (!visible) break;
+      step(4);
+      burrow.classList.add("back");
+      await hop(nodes[0]!, 900);
+      await sleep(3800);
+    }
+    running = false;
+    if (!visible || reduced.matches) still();
+  }
+  /** The whole path at once, the rabbit at the bottom of it. */
+  function still() {
+    burrow.classList.add("handoff");
+    burrow.classList.remove("back");
+    light(nodes.length);
+    at = nodes[nodes.length - 1]!;
+    place();
+    step(0);
+  }
+
+  still();
+  new ResizeObserver(place).observe(burrow);
+  new IntersectionObserver(
+    ([e]) => {
+      visible = !!e?.isIntersecting;
+      if (visible && !reduced.matches) play();
+    },
+    { threshold: 0.4 },
+  ).observe(burrow);
+  reduced.addEventListener("change", () => (reduced.matches ? still() : visible && play()));
+</script>
+
+<style>
+  .grid { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: clamp(28px, 4vw, 56px); align-items: center; }
+
+  /* ---------- the burrow ---------- */
+  .burrow {
+    --pad: clamp(16px, 3vw, 32px);
+    position: relative;
+    border-radius: var(--r-lg);
+    background:
+      radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.03) 1px, transparent 1.6px) 0 0 / 22px 22px,
+      radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.022) 1px, transparent 1.6px) 0 0 / 34px 34px,
+      linear-gradient(180deg, #111316 0%, #0b0c0f 100%);
+    box-shadow: 0 0 0 1px var(--line), 0 30px 70px rgba(0, 0, 0, 0.4);
+    padding: 0 var(--pad) 72px;
+    overflow: hidden;
+  }
+  .surface {
+    position: relative;
+    height: 128px;
+    margin: 0 calc(-1 * var(--pad));
+    background: linear-gradient(180deg, #181b20 0%, #15181c 100%);
+    border-bottom: 2px solid #2a2f36;
+  }
+  /* The way in: the tunnels start straight below it. */
+  .entrance {
+    position: absolute;
+    left: var(--pad);
+    bottom: -9px;
+    width: 58px;
+    height: 16px;
+    border-radius: 50%;
+    background: #050607;
+    box-shadow: 0 0 0 2px #2a2f36;
+    z-index: 1;
+  }
+  .grass { position: absolute; left: calc(var(--pad) + 120px); right: calc(var(--pad) + 330px); bottom: 0; display: flex; align-items: flex-end; justify-content: space-around; }
+  .grass svg { height: auto; transform-origin: bottom; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linecap: round; opacity: 0.45; }
+  .ground-note { position: absolute; right: calc(var(--pad) + 148px); bottom: 14px; max-width: 19ch; text-align: right; font-size: 12.5px; line-height: 1.4; color: var(--text-3); }
+  .paper {
+    position: absolute;
+    right: var(--pad);
+    bottom: 0;
+    width: 132px;
+    height: 92px;
+    background: var(--paper);
+    border-radius: 5px 5px 0 0;
+    padding: 12px 12px 0;
+    display: grid;
+    align-content: start;
+    gap: 7px;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25);
+  }
+  .paper b { font: 600 11px/1.2 var(--font-paper); color: var(--paper-text); }
+  .paper .ln { height: 5px; border-radius: 3px; background: #dcdcd6; }
+  .paper .ln.hl { background: var(--accent); opacity: 0.85; }
+  .paper .ln.short { width: 60%; }
+
+  /* ---------- tunnels: each branch hangs from its parent's dot on a rounded elbow ----------
+     Geometry: tunnels are 10px wide; a chamber's dot sits 46px into its row (30px indent, 12px
+     padding, half the dot), so a nested list starts 11px in to put its tunnel's centre under it. */
+  .tree, .tree :global(ol) { list-style: none; margin: 0; padding: 0; }
+  .tree { margin-left: calc(29px - 5px); }
+  .tree :global(ol) { margin-left: 11px; }
+  .tree :global(li) { --tunnel: #20242a; --indent: 30px; position: relative; padding: 16px 0 0 var(--indent); }
+  .tree :global(li::before) {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: var(--indent);
+    height: 41px;
+    border: 10px solid var(--tunnel);
+    border-top: 0;
+    border-right: 0;
+    border-bottom-left-radius: 18px;
+    transition: border-color 0.5s;
+    z-index: 1;
+  }
+  /* The tunnel carries on past this branch to its later siblings. */
+  .tree :global(li:not(:last-child)::after) { content: ""; position: absolute; left: 0; top: 0; bottom: 0; border-left: 10px solid #20242a; }
+  .tree :global(li.lit) { --tunnel: #5b6b34; }
+  .tree :global(li.lit::before) { z-index: 2; }
+  .tree :global(.pill) {
+    position: relative;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 100%;
+    padding: 8px 14px 8px 12px;
+    border-radius: 12px;
+    background: var(--raised);
+    border: 1px solid var(--line);
+    font-size: 14px;
+    color: var(--text-2);
+    transition: border-color 0.5s, color 0.5s, background 0.5s;
+  }
+  .tree :global(.pill .t) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .tree :global(.pill .dot) { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); flex: none; transition: background 0.5s; }
+  .tree :global(.pill .k) { font: 11px var(--font-mono); color: var(--text-3); flex: none; }
+  .tree :global(.pill .note) { display: none; flex: none; font-size: 11px; padding: 1px 8px; }
+  .tree :global(li.lit > .pill) { color: var(--text); border-color: var(--accent-line); background: #1b1f18; }
+  .tree :global(li.lit > .pill .dot) { background: var(--accent); }
+  .burrow:global(.handoff) :global(li.lit > .pill .note.handoff),
+  .burrow:global(.back) :global(.pill .note.included) { display: inline-flex; }
+  .burrow:global(.handoff) :global(li.lit > .pill:has(.handoff) .k),
+  .burrow:global(.back) :global(.pill:has(.included) .k) { display: none; }
+
+  .breadcrumb {
+    position: absolute;
+    left: var(--pad);
+    right: var(--pad);
+    bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    mask-image: linear-gradient(90deg, #000 85%, transparent);
+  }
+  .breadcrumb b { color: var(--text); font-weight: 500; }
+  .breadcrumb i { font-style: normal; opacity: 0.6; }
+
+  .runner { position: absolute; left: 0; top: 0; width: 46px; z-index: 5; pointer-events: none; will-change: transform; }
+  .runner :global(svg) { width: 100%; height: auto; }
+
+  /* ---------- steps ---------- */
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .steps li { display: grid; grid-template-columns: auto 1fr; gap: 16px; padding: 16px 18px; border-radius: var(--r); border: 1px solid transparent; transition: background 0.4s, border-color 0.4s; }
+  .steps .n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 600 13px var(--font-mono); color: var(--text-2); background: var(--raised); border: 1px solid var(--line); transition: background 0.4s, color 0.4s, border-color 0.4s; }
+  .steps h3 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .steps p { color: var(--text-2); font-size: 15px; line-height: 1.55; }
+  .steps li.on { background: var(--raised); border-color: var(--line); }
+  .steps li.on .n { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
+
+  @media (max-width: 1000px) {
+    .grid { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 720px) {
+    .grass, .ground-note { display: none; }
+  }
+  @media (max-width: 560px) {
+    .paper { width: 104px; height: 78px; }
+    .tree :global(ol) { margin-left: 7px; }
+    .tree :global(li) { --indent: 26px; }
+    .tree :global(.pill) { padding-left: 8px; gap: 8px; font-size: 13.5px; }
+    .tree :global(.pill .k), .tree :global(.pill .note) { display: none !important; }
+    .runner { width: 38px; }
+    /* Leave the rabbit room past the end of the deepest chamber. */
+    .tree :global(li > .pill) { max-width: calc(100% - 42px); }
+  }
+</style>

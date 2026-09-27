@@ -1,0 +1,109 @@
+---
+/**
+ * The README images' comparison: a mock of one long chat on the left, the real app on the right,
+ * under a headline. Slots: `title` (the h2's content; <em> takes the accent), `lede`, and the
+ * default slot for the mock chat's messages, newest last, using the classes styled below:
+ *   .u         the reader's message        .u.lost  the one that shows the problem
+ *   .a         the chat's answer           .paste   a pasted passage inside a .u (with <q>)
+ *   .keys      a row of <kbd> between messages
+ */
+import type { ImageMetadata } from "astro";
+import AppWindow from "./AppWindow.astro";
+
+interface Props {
+  id?: string;
+  shot: ImageMetadata;
+  alt: string;
+  /** A note pinned to the top of the mock chat, e.g. where the scrolled-away answer went. */
+  up?: string;
+}
+const { id, shot, alt, up } = Astro.props;
+---
+
+<section class="section" id={id}>
+  <div class="wrap">
+    <div class="head reveal">
+      <h2 class="h2"><slot name="title" /></h2>
+      <p class="lede"><slot name="lede" /></p>
+    </div>
+    <div class="cols reveal">
+      <div class="col">
+        <p class="label">A typical chat</p>
+        <div class="mock" aria-label="A mock of a typical AI chat" role="img">
+          <div class="bar"><i></i><i></i><i></i><span>One long chat</span></div>
+          <div class="view">
+            <div class="flow"><slot /></div>
+            <div class="fade" />
+          </div>
+          {up && <div class="up">↑ {up}</div>}
+          <div class="scroll"><b></b></div>
+        </div>
+      </div>
+      <div class="col">
+        <p class="label accent">QRabbit</p>
+        <AppWindow src={shot} alt={alt} sizes="(min-width: 1280px) 720px, (min-width: 900px) 58vw, calc(100vw - 32px)" />
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 8fr); gap: clamp(24px, 3.5vw, 48px); align-items: stretch; }
+  .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .col .label { margin-left: 4px; }
+  .mock {
+    position: relative;
+    flex: 1;
+    min-height: 360px;
+    border-radius: var(--r);
+    overflow: hidden;
+    background: #17191d;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 30px 70px rgba(0, 0, 0, 0.45);
+  }
+  .bar { height: 40px; border-bottom: 1px solid rgba(255, 255, 255, 0.07); display: flex; align-items: center; gap: 7px; padding: 0 16px; }
+  .bar i { width: 10px; height: 10px; border-radius: 50%; background: #2c3036; }
+  .bar span { margin-left: 10px; font-size: 13px; color: var(--text-3); }
+  /* The conversation is scrolled to its end: anchored to the bottom, cut off under the title bar. */
+  .view { position: absolute; top: 40px; left: 0; right: 12px; bottom: 0; overflow: hidden; }
+  .flow {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 0 clamp(16px, 2vw, 24px) 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    font-size: clamp(13.5px, 1.1vw, 15px);
+    line-height: 1.55;
+  }
+  .flow :global(.a) { color: #c8ccd2; }
+  .flow :global(.a ol) { margin: 6px 0 0; padding-left: 22px; display: grid; gap: 6px; }
+  .flow :global(.u) { align-self: flex-end; max-width: 84%; background: #262a31; color: var(--text); padding: 9px 13px; border-radius: 14px 14px 4px 14px; }
+  .flow :global(.u.lost) { background: #2d2a1f; box-shadow: 0 0 0 1px var(--accent-line); }
+  .flow :global(.paste) { display: grid; gap: 8px; }
+  .flow :global(.paste q) { display: block; quotes: none; font-style: italic; color: #b9bec5; border-left: 2px solid #3a3f47; padding-left: 10px; }
+  .flow :global(.keys) { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; font-size: 12.5px; color: #8a9099; }
+  .flow :global(.keys kbd) { font-size: 11.5px; color: #c8ccd2; background: #22252b; }
+  .fade { position: absolute; left: 0; right: 0; top: 0; height: 120px; background: linear-gradient(#17191d 10%, rgba(23, 25, 29, 0)); pointer-events: none; }
+  .up {
+    position: absolute;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 13px;
+    color: var(--text-2);
+    background: #22252b;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 5px 12px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .scroll { position: absolute; right: 5px; top: 48px; bottom: 8px; width: 4px; border-radius: 4px; background: rgba(255, 255, 255, 0.04); }
+  .scroll b { position: absolute; left: 0; right: 0; bottom: 0; height: 22%; border-radius: 4px; background: rgba(255, 255, 255, 0.22); }
+
+  @media (max-width: 900px) {
+    .cols { grid-template-columns: minmax(0, 1fr); }
+    .mock { flex: none; height: 440px; }
+  }
+</style>

@@ -11,3 +11,8 @@ tools/spike-acp/out/
 
 # electron-vite build output
 apps/desktop/out/
+
+# Astro generated types and the promo site video (too large for git; see apps/site/README.md)
+.astro/
+apps/site/public/demo.mp4
+apps/site/public/demo-poster.jpg

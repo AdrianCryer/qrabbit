@@ -1,0 +1,162 @@
+---
+/** Everything else in the app, one card each, each with a small working picture of it rather than an icon. */
+---
+
+<section class="section" id="more">
+  <div class="wrap">
+    <div class="head reveal">
+      <p class="label accent">Also in the box</p>
+      <h2 class="h2">Made for reading, <em>not for chatting.</em></h2>
+    </div>
+
+    <div class="cards">
+      <article class="card reveal">
+        <div class="art paper-art" aria-hidden="true">
+          <p>
+            The critic replaces that return with an estimate of the <mark>advantage</mark>, which has the same expectation
+            and far less spread.
+          </p>
+          <div class="margin">
+            <span class="mk"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>
+            <span class="mk"><svg viewBox="0 0 24 24"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg></span>
+          </div>
+        </div>
+        <h3>Marks of your own</h3>
+        <p>Comments <kbd>C</kbd> and bookmarks <kbd>B</kbd> sit in the margin next to thread markers. They're yours: the agent never receives them.</p>
+      </article>
+
+      <article class="card reveal">
+        <div class="art url-art" aria-hidden="true">
+          <span class="url"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"></path></svg>spinningup.openai.com</span>
+          <span class="arrow">→</span>
+          <span class="sheet"><b>Key Concepts in RL</b><i></i><i></i><i class="s"></i><em>source.md</em></span>
+        </div>
+        <h3>Web pages read like papers</h3>
+        <p>Add a URL and it's fetched once, reduced to its article text and saved as Markdown, so you can highlight it, explore it and read it offline.</p>
+      </article>
+
+      <article class="card reveal">
+        <div class="art math-art" aria-hidden="true">
+          <span class="eq"><i>Q</i><sup>*</sup>(<i>s</i>,<i>a</i>) = <span class="op">max<small>π</small></span> 𝔼 [ <i>R</i>(τ) | <i>s</i><sub>0</sub>=<i>s</i>, <i>a</i><sub>0</sub>=<i>a</i> ]</span>
+          <code><span class="kw">from</span> torch <span class="kw">import</span> nn</code>
+        </div>
+        <h3>Maths and code, intact</h3>
+        <p>Formulas published as images, MathML or MathJax come back as real LaTeX. Code blocks keep their language, and callouts stay callouts.</p>
+      </article>
+
+      <article class="card reveal">
+        <div class="art cite-art" aria-hidden="true">
+          <p>The two-nearest-neighbour estimator compares each point's closest distances <span class="cite">[p.1]</span>, so it only needs local information <span class="cite">[p.2]</span>.</p>
+        </div>
+        <h3>Answers with the page in hand</h3>
+        <p>The agent answers with the passage, the text around it and page numbers, and reads the rest of the source itself when it needs to.</p>
+      </article>
+
+      <article class="card reveal">
+        <div class="art keys-art" aria-hidden="true">
+          <span><kbd>E</kbd> Explore</span>
+          <span><kbd>A</kbd> Ask here</span>
+          <span><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>F</kbd> Focus</span>
+          <span><kbd>Alt</kbd><kbd>↑</kbd> Parent</span>
+          <span><kbd>Ctrl</kbd><kbd>,</kbd> Every shortcut</span>
+        </div>
+        <h3>Out of the way</h3>
+        <p>No sidebar. Collections, sources, threads and marks live in header menus, the divider drags, Focus hides the paper, and everything has a shortcut.</p>
+      </article>
+
+      <article class="card reveal">
+        <div class="art perm-art" aria-hidden="true">
+          <span class="ask"><svg viewBox="0 0 24 24"><path d="M4 17l6-6-6-6M12 19h8"></path></svg>Run <code>python plot_policy.py</code>?</span>
+          <span class="btns"><span class="b primary">Allow</span><span class="b">Always allow</span><span class="b">Reject</span></span>
+        </div>
+        <h3>You approve what it touches</h3>
+        <p>Reads inside the collection and writes under <code>notes/</code> are allowed. Anything else asks you first, right in the thread.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<style>
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px 18px 24px;
+    border-radius: var(--r-lg);
+    background: linear-gradient(180deg, var(--raised) 0%, #16181c 100%);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-card);
+  }
+  .card h3 { font-size: 18px; font-weight: 620; letter-spacing: -0.012em; margin-top: 8px; padding-inline: 4px; }
+  .card > p { color: var(--text-2); font-size: 15px; line-height: 1.6; padding-inline: 4px; }
+  .card:nth-child(1) { transition-delay: 0s; }
+  .card:nth-child(2), .card:nth-child(4) { transition-delay: 0.06s; }
+  .card:nth-child(3), .card:nth-child(5) { transition-delay: 0.12s; }
+  .card:nth-child(6) { transition-delay: 0.18s; }
+
+  .art {
+    height: 168px;
+    border-radius: 12px;
+    background: var(--sunken);
+    border: 1px solid var(--line);
+    padding: 18px;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+  }
+  svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  /* marks: a strip of paper with its margin */
+  .paper-art { background: var(--paper); padding: 22px 56px 18px 22px; align-items: center; border-color: transparent; }
+  .paper-art p { font: 15px/1.6 var(--font-paper); color: var(--paper-text); }
+  .paper-art mark { background: rgba(201, 242, 77, 0.55); color: inherit; padding: 0 2px; border-radius: 2px; }
+  .paper-art .margin { position: absolute; right: 14px; top: 0; bottom: 0; display: grid; align-content: center; gap: 10px; }
+  .mk { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: #1e2227; color: #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); }
+  .mk svg { width: 13px; height: 13px; }
+
+  /* web pages: a link becomes a sheet */
+  .url-art { align-items: center; gap: 12px; justify-content: center; }
+  .url { display: inline-flex; align-items: center; gap: 7px; padding: 7px 11px; border-radius: 999px; background: var(--raised-2); border: 1px solid var(--line-strong); font: 12px var(--font-mono); color: var(--text-2); white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+  .arrow { color: var(--accent); font-size: 18px; }
+  .sheet { width: 96px; height: 120px; flex: none; border-radius: 4px; background: var(--paper); padding: 11px 10px; display: grid; align-content: start; gap: 6px; position: relative; box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4); }
+  .sheet b { font: 600 10px/1.25 var(--font-paper); color: var(--paper-text); }
+  .sheet i { height: 4px; border-radius: 2px; background: #dcdcd6; }
+  .sheet i.s { width: 60%; }
+  .sheet em { position: absolute; left: 10px; bottom: 9px; font: normal 9.5px var(--font-mono); color: var(--paper-2); }
+
+  /* maths and code */
+  .math-art { flex-direction: column; justify-content: center; gap: 18px; }
+  .eq { font: 19px/1.3 var(--font-paper); color: var(--text); white-space: nowrap; }
+  .eq i { font-style: italic; }
+  .eq .op { display: inline-flex; flex-direction: column; align-items: center; line-height: 1; vertical-align: -4px; }
+  .eq .op small { font-size: 11px; font-style: italic; }
+  .math-art code { font-size: 13px; color: var(--text-2); padding: 9px 12px; border-radius: 8px; background: var(--raised); border: 1px solid var(--line); }
+  .kw { color: var(--accent); }
+
+  /* citations */
+  .cite-art { align-items: center; }
+  .cite-art p { font-size: 15px; line-height: 1.7; color: var(--text); }
+  .cite { font: 11.5px var(--font-mono); color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 6px; }
+
+  /* shortcuts */
+  .keys-art { flex-wrap: wrap; align-content: center; gap: 10px 14px; font-size: 13.5px; color: var(--text-2); }
+  .keys-art span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .keys-art kbd { font-size: 11.5px; margin-right: 2px; }
+
+  /* permissions */
+  .perm-art { flex-direction: column; justify-content: center; gap: 14px; }
+  .ask { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); flex-wrap: wrap; }
+  .ask svg { color: var(--text-3); }
+  .ask code { font-size: 12.5px; padding: 2px 7px; border-radius: 6px; background: var(--raised-2); color: var(--text); }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .b { font-size: 13px; font-weight: 500; padding: 6px 11px; border-radius: 9px; border: 1px solid var(--line); background: var(--raised); color: var(--text); }
+  .b.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
+
+  @media (max-width: 1040px) {
+    .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 680px) {
+    .cards { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>

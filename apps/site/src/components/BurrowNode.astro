@@ -1,0 +1,37 @@
+---
+/** One chamber of the burrow (Burrow.astro, which also styles it) and the branches below it. */
+export type BurrowNodeData = {
+  title: string;
+  kind: "thread" | "branch";
+  /** On the rabbit's way down. */
+  path?: boolean;
+  /** Shows the parent's handoff once the rabbit gets here. */
+  handoff?: boolean;
+  /** Shows the branch riding along with the next question once the rabbit is back. */
+  included?: boolean;
+  children?: BurrowNodeData[];
+};
+interface Props {
+  node: BurrowNodeData;
+}
+const { node } = Astro.props;
+---
+
+<li data-path={node.path ? "" : undefined}>
+  <span class="pill">
+    <span class="dot"></span>
+    <span class="t">{node.title}</span>
+    <span class="k">{node.kind}</span>
+    {node.handoff && <span class="chip accent note handoff">handoff from parent</span>}
+    {node.included && <span class="chip accent note included">included 1 branch</span>}
+  </span>
+  {
+    node.children && (
+      <ol>
+        {node.children.map((child) => (
+          <Astro.self node={child} />
+        ))}
+      </ol>
+    )
+  }
+</li>

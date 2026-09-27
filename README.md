@@ -62,12 +62,14 @@ pnpm test                              # vitest where a package has tests
 pnpm desktop:build                     # build the app into apps/desktop/out
 pnpm desktop:drive <work-dir>          # scripted run with screenshots (see .claude/skills/run-desktop)
 pnpm spike:acp                         # the original ACP spike against Claude Code
+pnpm site:dev                          # the promo site (apps/site), at localhost:4321
 ```
 
 ## Repository
 
 ```
 apps/desktop/        Electron app (electron-vite, React, PDF.js, KaTeX)
+apps/site/           promo site: features, agents, pricing, downloads (Astro, static)
 packages/shared/     types, ids, the renderer/main API contract
 packages/workspace/  the collection folder format: manifest, sources and web extraction, threads, reader state
 packages/acp-client/ generic Agent Client Protocol client: spawn, sign in, model picker, streaming, permissions

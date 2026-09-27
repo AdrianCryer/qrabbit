@@ -1,0 +1,102 @@
+---
+import { shots } from "../shots";
+import AppWindow from "./AppWindow.astro";
+import Rabbit from "./Rabbit.astro";
+---
+
+<section class="hero" id="top">
+  <div class="glow" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="copy">
+      <p class="eyebrow chip accent">Early access · free on Windows, macOS and Linux</p>
+      <h1 class="display">Go down the rabbit hole. <em>Keep your way back.</em></h1>
+      <p class="lede">
+        QRabbit is a reader for difficult material. Highlight a passage, explore it with AI, branch off inside any
+        answer and go as deep as you need. The paper stays where you left it, and everything you explored stays
+        attached to the passage it came from.
+      </p>
+      <div class="ctas">
+        <a class="btn primary" href="#download" data-download-cta>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14"></path></svg>
+          <span>Download free</span>
+        </a>
+        <a class="btn" href="#rabbit-hole">See how it works</a>
+      </div>
+      <p class="fine">Runs on your Claude subscription through Claude Code. No API key.</p>
+    </div>
+
+    <div class="stage">
+      <div class="tilt">
+        <Rabbit pose="peek" class="peeker" />
+        <AppWindow
+          src={shots.highlight}
+          alt="QRabbit with a web article open: a passage about parameterized policies is selected and the Explore, Ask here, Comment and Bookmark toolbar sits above it."
+          sizes="(min-width: 1280px) 1200px, calc(100vw - 32px)"
+          eager
+        />
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { downloads, type Platform } from "../site";
+
+  // Offer the visitor's own platform in the hero. Anything unrecognised (phones included) keeps the
+  // link to the downloads section.
+  const ua = navigator.userAgent;
+  const platform: Platform | null = /Windows/.test(ua)
+    ? "windows"
+    : /Macintosh|Mac OS X/.test(ua) && !/iPhone|iPad/.test(ua)
+      ? "mac"
+      : /Linux/.test(ua) && !/Android/.test(ua)
+        ? "linux"
+        : null;
+  const cta = document.querySelector<HTMLAnchorElement>("[data-download-cta]");
+  if (platform && cta) {
+    cta.href = downloads[platform].href;
+    cta.querySelector("span")!.textContent = `Download for ${downloads[platform].name}`;
+  }
+</script>
+
+<style>
+  .hero { position: relative; padding-top: clamp(48px, 8vw, 96px); overflow: clip; }
+  .glow {
+    position: absolute;
+    inset: -64px 0 auto;
+    height: 900px;
+    pointer-events: none;
+    background: radial-gradient(ellipse 60% 55% at 50% 0%, rgba(201, 242, 77, 0.16), rgba(201, 242, 77, 0.04) 45%, transparent 72%);
+  }
+  .copy { position: relative; display: grid; justify-items: center; text-align: center; gap: 22px; }
+  .eyebrow { font-family: var(--font-ui); font-size: 13px; font-weight: 500; padding: 5px 12px; }
+  .display { max-width: 15ch; }
+  .lede { max-width: 60ch; }
+  .ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 6px; }
+  .fine { font-size: 14px; color: var(--text-3); }
+
+  .stage { position: relative; margin-top: clamp(80px, 10vw, 120px); perspective: 2400px; }
+  .tilt { position: relative; transform-origin: 50% 0%; }
+  .tilt :global(.peeker) {
+    position: absolute;
+    z-index: 2;
+    left: 68%;
+    bottom: 100%;
+    width: clamp(78px, 11%, 140px);
+    /* The drawing's edge is 12 of its 132 units above its bottom, and its height is 132/160 of its width. */
+    margin-bottom: calc(clamp(78px, 11%, 140px) * -12 / 160);
+    filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.35));
+  }
+
+  /* The window leans back and settles flat as it scrolls into view, where the browser can tie
+     animation to scrolling; everywhere else it is simply flat. */
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      .tilt { animation: settle linear both; animation-timeline: view(); animation-range: entry 0% cover 45%; }
+    }
+  }
+  @keyframes settle {
+    from { transform: rotateX(16deg) scale(0.94) translateY(24px); }
+    to { transform: none; }
+  }
+</style>

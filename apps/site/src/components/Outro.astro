@@ -1,0 +1,38 @@
+---
+import Rabbit from "./Rabbit.astro";
+---
+
+<section class="outro">
+  <div class="wrap">
+    <div class="scene reveal">
+      <Rabbit pose="hole" class="burrow-rabbit" title="The white rabbit hops into its burrow and peeks back out" />
+    </div>
+    <h2 class="h2 reveal">Follow the white rabbit. <em>It knows the way back.</em></h2>
+    <div class="ctas reveal">
+      <a class="btn primary" href="#download">Download QRabbit</a>
+      <a class="btn" href="#rabbit-hole">How the rabbit hole works</a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .outro {
+    position: relative;
+    padding: clamp(40px, 8vw, 96px) 0 clamp(96px, 12vw, 150px);
+    text-align: center;
+    overflow: clip;
+  }
+  .outro::before {
+    content: "";
+    position: absolute;
+    inset: auto 0 0;
+    height: 80%;
+    pointer-events: none;
+    background: radial-gradient(ellipse 55% 60% at 50% 100%, rgba(201, 242, 77, 0.1), transparent 70%);
+  }
+  .wrap { position: relative; display: grid; justify-items: center; gap: 28px; }
+  .scene { width: min(440px, 88%); margin-bottom: 8px; }
+  .scene :global(svg) { width: 100%; height: auto; }
+  .h2 { max-width: 16ch; }
+  .ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+</style>

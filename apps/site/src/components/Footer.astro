@@ -1,0 +1,41 @@
+---
+import Rabbit from "./Rabbit.astro";
+
+const year = new Date().getFullYear();
+---
+
+<footer>
+  <div class="wrap row">
+    <a href="#top" class="brand">
+      <Rabbit pose="mark" class="logo" />
+      <span>QRabbit</span>
+    </a>
+    <p class="tag">Read difficult material with AI.</p>
+    <nav aria-label="Footer">
+      <a href="#features">Features</a>
+      <a href="#agents">Your agent</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#download">Download</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+  </div>
+  <div class="wrap fine">
+    <span>© {year} QRabbit</span>
+    <span>Claude, Codex, GitHub Copilot and Gemini are trademarks of their owners.</span>
+  </div>
+</footer>
+
+<style>
+  footer { border-top: 1px solid var(--line); padding: 36px 0 40px; }
+  .row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; }
+  .brand :global(.logo) { width: 22px; height: auto; margin-top: -6px; }
+  .tag { color: var(--text-3); font-size: 14px; }
+  nav { margin-left: auto; display: flex; gap: 20px; flex-wrap: wrap; }
+  nav a { color: var(--text-2); font-size: 14px; transition: color 0.2s; }
+  nav a:hover { color: var(--text); }
+  .fine { margin-top: 28px; display: flex; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; color: var(--text-3); font-size: 12.5px; }
+  @media (max-width: 720px) {
+    nav { margin-left: 0; width: 100%; }
+  }
+</style>

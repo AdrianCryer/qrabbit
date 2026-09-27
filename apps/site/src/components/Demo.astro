@@ -1,0 +1,34 @@
+---
+/**
+ * The feature demo (tools/dev/record-demo.mjs writes demo.mp4). Shown only when the video is in
+ * public/, since it is too large to keep in git; drop it there before building to include it.
+ */
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
+const hasDemo = existsSync(join(process.cwd(), "public", "demo.mp4"));
+const hasPoster = existsSync(join(process.cwd(), "public", "demo-poster.jpg"));
+---
+
+{
+  hasDemo && (
+    <section class="section demo" id="demo">
+      <div class="wrap">
+        <div class="head reveal">
+          <p class="label accent">See it move</p>
+          <h2 class="h2">
+            Highlight, explore, branch. <em>Come back.</em>
+          </h2>
+        </div>
+        <div class="frame reveal">
+          <video src="/demo.mp4" poster={hasPoster ? "/demo-poster.jpg" : undefined} autoplay muted loop playsinline preload="metadata" controls />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+<style>
+  .frame { border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-win); background: var(--sunken); }
+  video { width: 100%; height: auto; }
+</style>

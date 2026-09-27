@@ -1,0 +1,155 @@
+/* ---------- tokens: the desktop app's own theme (apps/desktop/src/renderer/src/styles.css) ----------
+   Near-black surfaces, a bright paper, and one accent. Nothing else carries colour. */
+:root {
+  color-scheme: dark;
+  --bg: #121417;
+  --raised: #1a1d22;
+  --raised-2: #20242a;
+  --sunken: #0c0e11;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.15);
+  --text: #e9ebee;
+  --text-2: #a3a8b0;
+  --text-3: #6e747d;
+  --paper: #fbfaf6;
+  --paper-text: #1e2227;
+  --paper-2: #5b6068;
+  --accent: #c9f24d;
+  --accent-fg: #101407;
+  --accent-soft: rgba(201, 242, 77, 0.14);
+  --accent-line: rgba(201, 242, 77, 0.35);
+  --fur: #eef0f2;
+  --fur-2: #cdd1d7;
+
+  --font-ui: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-paper: "STIX Two Text", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, Consolas, monospace;
+
+  --r: 14px;
+  --r-lg: 20px;
+  --r-sm: 9px;
+  --shadow-win: 0 0 0 1px rgba(255, 255, 255, 0.09), 0 40px 90px rgba(0, 0, 0, 0.55), 0 14px 30px rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 10px 28px rgba(0, 0, 0, 0.3);
+  --gutter: clamp(16px, 4vw, 40px);
+  --wrap: 1200px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; scroll-padding-top: 76px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+/* A faint static grain over the whole page, as on the README images: dark gradients band without it. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.045 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+::selection { background: rgba(201, 242, 77, 0.3); color: #fff; }
+img, svg, video { display: block; max-width: 100%; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+h1, h2, h3, p { margin: 0; }
+kbd {
+  font: 600 0.72em/1 var(--font-ui);
+  color: var(--text);
+  background: var(--raised-2);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 3px 6px;
+  white-space: nowrap;
+}
+code { font-family: var(--font-mono); font-size: 0.9em; }
+
+/* ---------- layout ---------- */
+.wrap { width: min(100% - 2 * var(--gutter), var(--wrap)); margin-inline: auto; }
+.section { padding-block: clamp(88px, 12vw, 150px); position: relative; }
+/* Sections stack on their bottom padding. `~`, not `+`: a component's inline script sits between sections. */
+.section ~ .section { padding-top: 0; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- type: the README images' headline style ---------- */
+.label { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+.label.accent { color: var(--accent); }
+.display {
+  font-size: clamp(40px, 6.6vw, 80px);
+  line-height: 1.04;
+  font-weight: 680;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+.h2 {
+  font-size: clamp(32px, 4.6vw, 54px);
+  line-height: 1.08;
+  font-weight: 650;
+  letter-spacing: -0.028em;
+  text-wrap: balance;
+}
+.display em, .h2 em { font-style: normal; color: var(--accent); }
+.lede { font-size: clamp(17px, 1.7vw, 21px); line-height: 1.55; color: var(--text-2); max-width: 62ch; text-wrap: pretty; }
+.head { display: grid; gap: 18px; margin-bottom: clamp(40px, 6vw, 64px); }
+.head .label { margin-bottom: -4px; }
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  height: 46px;
+  padding: 0 20px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 15.5px;
+  white-space: nowrap;
+  border: 1px solid var(--line-strong);
+  background: var(--raised);
+  color: var(--text);
+  transition: background 0.2s, border-color 0.2s, transform 0.2s var(--ease), box-shadow 0.2s;
+}
+.btn:hover { background: var(--raised-2); border-color: rgba(255, 255, 255, 0.22); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; box-shadow: 0 8px 28px rgba(201, 242, 77, 0.18); }
+.btn.primary:hover { background: #d4f766; box-shadow: 0 10px 34px rgba(201, 242, 77, 0.28); }
+.btn.small { height: 36px; padding: 0 14px; font-size: 14px; border-radius: 10px; }
+.btn svg { width: 17px; height: 17px; flex: none; }
+.btn[aria-disabled="true"] { cursor: default; color: var(--text-3); background: transparent; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.chip.accent { color: var(--accent); background: var(--accent-soft); border-color: rgba(201, 242, 77, 0.25); }
+
+/* ---------- reveal on scroll (only once scripts run, so nothing is hidden without them) ---------- */
+.js .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.8s var(--ease), transform 0.8s var(--ease); }
+.js .reveal.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .js .reveal { opacity: 1; transform: none; transition: none; }
+}

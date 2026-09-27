@@ -1,0 +1,52 @@
+---
+import Rabbit from "./Rabbit.astro";
+---
+
+<header class="nav" data-nav>
+  <div class="wrap bar">
+    <a href="#top" class="brand" aria-label="QRabbit, back to top">
+      <Rabbit pose="mark" class="logo" />
+      <span>QRabbit</span>
+    </a>
+    <nav aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#rabbit-hole">Rabbit hole</a>
+      <a href="#agents">Your agent</a>
+      <a href="#pricing">Pricing</a>
+    </nav>
+    <a class="btn primary small" href="#download">Download</a>
+  </div>
+</header>
+
+<script>
+  const nav = document.querySelector<HTMLElement>("[data-nav]")!;
+  const update = () => nav.classList.toggle("scrolled", window.scrollY > 8);
+  update();
+  window.addEventListener("scroll", update, { passive: true });
+</script>
+
+<style>
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    border-bottom: 1px solid transparent;
+    transition: background 0.3s, border-color 0.3s, backdrop-filter 0.3s;
+  }
+  .nav.scrolled {
+    background: rgba(18, 20, 23, 0.78);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    border-color: var(--line);
+  }
+  .bar { height: 64px; display: flex; align-items: center; gap: 28px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 17px; letter-spacing: -0.01em; }
+  .brand :global(.logo) { width: 26px; height: auto; margin-top: -8px; }
+  nav { display: flex; gap: 4px; margin-left: auto; }
+  nav a { padding: 8px 12px; border-radius: 9px; color: var(--text-2); font-size: 14.5px; font-weight: 500; transition: color 0.2s, background 0.2s; }
+  nav a:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+  @media (max-width: 760px) {
+    nav { display: none; }
+    .bar > .btn { margin-left: auto; }
+  }
+</style>
