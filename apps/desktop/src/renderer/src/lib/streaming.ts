@@ -96,6 +96,49 @@ export function splitBlocks(text: string): string[] {
   return blocks;
 }
 
+/** The little of a HAST (HTML syntax tree) node that the word wrapper needs. */
+export type HastNode = { type: string; value?: string; tagName?: string; properties?: Record<string, unknown>; children?: HastNode[] };
+
+const SKIP_TAGS = new Set(["code", "pre", "kbd", "script", "style"]);
+const isMathOrKatex = (node: HastNode) => {
+  const cls = node.properties?.["className"];
+  return Array.isArray(cls) && cls.some((c) => /^(math|katex)/.test(String(c)));
+};
+
+/**
+ * Wrap each word of the growing block in a span, numbering them in reading order; words from index
+ * `fadeFrom` on get the `fresh` class, which fades them in. Words keep their class for as long as
+ * they exist, so each fades once, when it first appears. Code and maths are left whole. Returns the
+ * number of words seen.
+ */
+export function wrapWords(tree: HastNode, fadeFrom: number): number {
+  let index = 0;
+  const walk = (node: HastNode) => {
+    if (!node.children) return;
+    const out: HastNode[] = [];
+    for (const child of node.children) {
+      if (child.type === "text" && child.value) {
+        for (const part of child.value.split(/(\s+)/)) {
+          if (!part) continue;
+          if (/^\s+$/.test(part)) {
+            out.push({ type: "text", value: part });
+            continue;
+          }
+          const className = index >= fadeFrom ? ["w", "fresh"] : ["w"];
+          out.push({ type: "element", tagName: "span", properties: { className }, children: [{ type: "text", value: part }] });
+          index++;
+        }
+        continue;
+      }
+      if (child.type === "element" && !SKIP_TAGS.has(child.tagName ?? "") && !isMathOrKatex(child)) walk(child);
+      out.push(child);
+    }
+    node.children = out;
+  };
+  walk(tree);
+  return index;
+}
+
 /**
  * Characters to reveal this frame: never slower than a comfortable reading pace, and faster when a
  * backlog builds up so the view stays within about a second of what has arrived.
@@ -111,14 +154,16 @@ export function revealBudget(backlog: number, dtSeconds: number): number {
  * from there instead of popping the rest in at once. Only honoured for a few seconds: an answer
  * that finished while the reader was elsewhere should not replay when they come back to it.
  */
-const handoffs = new Map<string, { shown: number; at: number }>();
+/** What the finished answer takes over from its stream: where the reveal was, and what the agent did. */
+export type Handoff<A> = { shown: number; activity: A[] };
+const handoffs = new Map<string, { shown: number; activity: unknown[]; at: number }>();
 export const revealHandoff = {
-  set(threadId: string, shown: number): void {
-    handoffs.set(threadId, { shown, at: Date.now() });
+  set(threadId: string, shown: number, activity: unknown[] = []): void {
+    handoffs.set(threadId, { shown, activity, at: Date.now() });
   },
-  get(threadId: string): number | undefined {
+  get<A = unknown>(threadId: string): Handoff<A> | undefined {
     const h = handoffs.get(threadId);
-    return h && Date.now() - h.at < 3000 ? h.shown : undefined;
+    return h && Date.now() - h.at < 3000 ? { shown: h.shown, activity: h.activity as A[] } : undefined;
   },
   delete(threadId: string): void {
     handoffs.delete(threadId);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { completeForDisplay, nextRevealEnd, revealBudget, splitBlocks } from "./streaming";
+import { completeForDisplay, nextRevealEnd, revealBudget, splitBlocks, wrapWords } from "./streaming";
 
 /** Reveal `text` unit by unit and collect what each step shows. */
 function steps(text: string): string[] {
@@ -61,6 +61,40 @@ describe("splitBlocks", () => {
 
   it("keeps an indented continuation with its list item", () => {
     expect(splitBlocks("- item\n\n    more of the item\n\nNext")).toEqual(["- item\n\n    more of the item", "Next"]);
+  });
+});
+
+describe("wrapWords", () => {
+  const tree = () => ({
+    type: "root",
+    children: [
+      {
+        type: "element",
+        tagName: "p",
+        children: [
+          { type: "text", value: "It is " },
+          { type: "element", tagName: "strong", children: [{ type: "text", value: "the sum" }] },
+          { type: "text", value: " of " },
+          { type: "element", tagName: "code", properties: { className: ["language-math", "math-inline"] }, children: [{ type: "text", value: "r_0 + r_1" }] },
+          { type: "text", value: " rewards" },
+        ],
+      },
+    ],
+  });
+  const words = (node: { tagName?: string; properties?: Record<string, unknown>; children?: unknown[] }, out: string[] = []): string[] => {
+    for (const c of (node.children ?? []) as Array<{ tagName?: string; properties?: Record<string, unknown>; children?: unknown[]; value?: string }>) {
+      if (c.tagName === "span") out.push(`${(c.properties?.["className"] as string[]).join(".")}:${(c.children as Array<{ value: string }>)[0]!.value}`);
+      else words(c, out);
+    }
+    return out;
+  };
+
+  it("wraps words in reading order, marks those from fadeFrom as fresh, and leaves maths whole", () => {
+    const t = tree();
+    expect(wrapWords(t, 3)).toBe(6);
+    expect(words(t)).toEqual(["w:It", "w:is", "w:the", "w.fresh:sum", "w.fresh:of", "w.fresh:rewards"]);
+    const math = (t.children[0]!.children as Array<{ tagName?: string; children?: Array<{ value?: string }> }>).find((c) => c.tagName === "code")!;
+    expect(math.children![0]!.value).toBe("r_0 + r_1");
   });
 });
 

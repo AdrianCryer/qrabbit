@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Anchor, ConfigOption, Message, ThreadMeta } from "@qrabbit/shared";
-import { useStore, type TurnState } from "../state/store";
+import { useStore, type Activity, type TurnState } from "../state/store";
 import { anchorToRangeIn, offsetsForRange, rectsForRange, selectorFor, textOfElement } from "../pdf/anchoring";
 import { formatKeys, isTyping, matches } from "../lib/shortcuts";
 import { highlightFor, type HL } from "../lib/highlights";
 import { Dropdown } from "./Dropdown";
 import { Icon } from "./Icons";
 import { Markdown, StreamingMarkdown } from "./Markdown";
-import { revealHandoff } from "../lib/streaming";
+import { revealHandoff, type Handoff } from "../lib/streaming";
 
 // ---------- thread tree helpers ----------
 function ancestorsOf(all: ThreadMeta[], t: ThreadMeta): ThreadMeta[] {
@@ -101,8 +101,11 @@ function AssistantBody({ m, branches, onOpen, continueFrom, onContinued, onGrow 
   );
 }
 
-function MessageView({ m, hue, agentName, branches, threads, onOpen, continueFrom, onContinued, onGrow }: { m: Message; hue: number; agentName: string; branches: ThreadMeta[]; threads: ThreadMeta[]; onOpen(id: string): void; continueFrom?: number; onContinued?(): void; onGrow?(): void }) {
+function MessageView({ m, hue, agentName, branches, threads, onOpen, handoff, onContinued, onGrow }: { m: Message; hue: number; agentName: string; branches: ThreadMeta[]; threads: ThreadMeta[]; onOpen(id: string): void; handoff?: Handoff<Activity>; onContinued?(): void; onGrow?(): void }) {
   const included = (m.context ?? []).map((id) => threads.find((t) => t.id === id)?.title ?? id);
+  // The answer that just finished streaming keeps what the stream showed (its activity and its
+  // place in the reveal), so the panel's content does not shrink and regrow as it takes over.
+  const [taken] = useState(handoff);
   return (
     <div className={`msg ${m.role}`} data-msg-id={m.id}>
       <div className="who">
@@ -111,7 +114,8 @@ function MessageView({ m, hue, agentName, branches, threads, onOpen, continueFro
       </div>
       <div className="body">
         {m.quote && <QuoteCard anchor={m.quote} hue={hue} />}
-        {m.role === "user" ? m.body.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>) : <AssistantBody m={m} branches={branches} onOpen={onOpen} continueFrom={continueFrom} onContinued={onContinued} onGrow={onGrow} />}
+        {taken && <ActivityList activity={taken.activity} />}
+        {m.role === "user" ? m.body.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>) : <AssistantBody m={m} branches={branches} onOpen={onOpen} continueFrom={taken?.shown} onContinued={onContinued} onGrow={onGrow} />}
         {included.length > 0 && (
           <span className="ctxchip" title={included.join("\n")}>
             <Icon name="branch" size={11} />
@@ -125,6 +129,24 @@ function MessageView({ m, hue, agentName, branches, threads, onOpen, continueFro
 
 const statusIcon = (status?: string) => (status === "completed" ? "check" : status === "failed" ? "x" : "spin");
 
+/** What the agent did during a turn (files read, commands run). */
+function ActivityList({ activity }: { activity: Activity[] }) {
+  if (activity.length === 0) return null;
+  return (
+    <div className="act" aria-label="Agent activity">
+      {activity.map((a) => (
+        <div key={a.id} className="row">
+          <span className={a.status === "completed" ? "ok" : a.status === "failed" ? "bad" : "spin"}>
+            <Icon name={statusIcon(a.status)} />
+          </span>
+          <span className="t" title={a.paths?.join("\n")}>{a.title}</span>
+          {a.kind && <span className="d">{a.kind}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function TurnView({ turn, agentName, threadId, onGrow }: { turn: TurnState; agentName: string; threadId: string; onGrow(): void }) {
   const replyPermission = useStore((s) => s.replyPermission);
   const perm = turn.permission;
@@ -136,19 +158,7 @@ function TurnView({ turn, agentName, threadId, onGrow }: { turn: TurnState; agen
         {turn.running && <span className="spin" aria-hidden="true"><Icon name="spin" /></span>}
       </div>
       <div className="body">
-        {turn.activity.length > 0 && (
-          <div className="act" aria-label="Agent activity">
-            {turn.activity.map((a) => (
-              <div key={a.id} className="row">
-                <span className={a.status === "completed" ? "ok" : a.status === "failed" ? "bad" : "spin"}>
-                  <Icon name={statusIcon(a.status)} />
-                </span>
-                <span className="t" title={a.paths?.join("\n")}>{a.title}</span>
-                {a.kind && <span className="d">{a.kind}</span>}
-              </div>
-            ))}
-          </div>
-        )}
+        <ActivityList activity={turn.activity} />
         {perm && perm.threadId === threadId && (
           <div className="perm" role="group" aria-label="Permission request">
             <div className="q">
@@ -173,10 +183,13 @@ function TurnView({ turn, agentName, threadId, onGrow }: { turn: TurnState; agen
           <StreamingMarkdown
             text={turn.text}
             live={turn.running}
-            onReveal={(shown) => { revealHandoff.set(threadId, shown); onGrow(); }}
+            onReveal={(shown) => { revealHandoff.set(threadId, shown, turn.activity); onGrow(); }}
           />
-        ) : turn.running && turn.activity.length === 0 ? <p className="muted">Thinking…</p> : null}
-        {turn.running && <span className="typing" aria-hidden="true"><i /><i /><i /></span>}
+        ) : turn.running ? (
+          // Only until the first words arrive: after that the header's spinner says it is working,
+          // and nothing below the text has to disappear when the answer finishes.
+          <span className="typing" aria-label="Thinking"><i /><i /><i /></span>
+        ) : null}
         {turn.error && <p className="err">{turn.error}</p>}
       </div>
     </div>
@@ -440,7 +453,7 @@ export function ThreadPanel() {
         )}
         {thread.messages.map((m, i) => {
           // The answer that just finished streaming picks up the reveal where the stream left it.
-          const continuing = !turn && i === thread.messages.length - 1 && m.role === "assistant" ? revealHandoff.get(thread.id) : undefined;
+          const continuing = !turn && i === thread.messages.length - 1 && m.role === "assistant" ? revealHandoff.get<Activity>(thread.id) : undefined;
           return (
             <MessageView
               key={m.id}
@@ -450,7 +463,7 @@ export function ThreadPanel() {
               branches={branchesOf(m.id)}
               threads={allThreads}
               onOpen={(id) => void openThread(id)}
-              continueFrom={continuing}
+              handoff={continuing}
               onContinued={() => revealHandoff.delete(thread.id)}
               onGrow={follow}
             />

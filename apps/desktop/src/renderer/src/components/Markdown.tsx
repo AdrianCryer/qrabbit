@@ -1,12 +1,12 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Options as MarkdownOptions } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import { useMacros } from "../lib/macros";
-import { completeForDisplay, nextRevealEnd, revealBudget, splitBlocks } from "../lib/streaming";
+import { completeForDisplay, nextRevealEnd, revealBudget, splitBlocks, wrapWords, type HastNode } from "../lib/streaming";
 import "katex/dist/katex.min.css";
 
 /**
@@ -52,10 +52,24 @@ function useRehypePlugins() {
   );
 }
 
-/** One run of Markdown rendered without a wrapper. Memoised, so an unchanged block is left alone. */
-const MdBlock = memo(function MdBlock({ text, rehypePlugins }: { text: string; rehypePlugins: NonNullable<MarkdownOptions["rehypePlugins"]> }) {
+/** A rehype step that wraps words so newly revealed ones can fade in (see `wrapWords`). */
+function rehypeWrapWords(options: { from: number }) {
+  return (tree: HastNode) => {
+    wrapWords(tree, options.from);
+  };
+}
+
+/**
+ * One run of Markdown rendered without a wrapper. Memoised, so an unchanged block is left alone.
+ * With `fadeFrom`, its words are wrapped and those from that index on fade in as they appear.
+ */
+const MdBlock = memo(function MdBlock({ text, rehypePlugins, fadeFrom }: { text: string; rehypePlugins: NonNullable<MarkdownOptions["rehypePlugins"]>; fadeFrom?: number }) {
+  const plugins = useMemo<NonNullable<MarkdownOptions["rehypePlugins"]>>(
+    () => (fadeFrom === undefined ? rehypePlugins : [[rehypeWrapWords, { from: fadeFrom }], ...rehypePlugins]),
+    [rehypePlugins, fadeFrom],
+  );
   return (
-    <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={components}>
+    <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={plugins} components={components}>
       {normalizeMath(text)}
     </ReactMarkdown>
   );
@@ -129,11 +143,30 @@ export function StreamingMarkdown({ text, live, startAt = 0, onReveal, onDone }:
 
   const blocks = splitBlocks(completeForDisplay(text.slice(0, shown)));
   if (settled.current === null) settled.current = blocks.length;
+  const growing = live || shown < text.length;
+  const last = blocks.length - 1;
+
+  // Words fade in as they are revealed, but only in the growing block, and never the words that
+  // were already on screen when this view mounted (a finished answer taking over from the stream).
+  const container = useRef<HTMLDivElement>(null);
+  const atMount = useRef<{ index: number; words: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = container.current?.lastElementChild;
+    atMount.current = { index: last, words: el ? el.querySelectorAll(".w").length : 0 };
+    // Measured once, right after the first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const fadeFromFor = (i: number): number | undefined => {
+    if (!growing || i !== last) return undefined;
+    if (!atMount.current) return Infinity;
+    return i === atMount.current.index ? atMount.current.words : 0;
+  };
+
   return (
-    <div className="md streaming">
+    <div className="md streaming" ref={container}>
       {blocks.map((b, i) => (
         <div key={i} className={i >= (settled.current ?? 0) ? "mdblock enter" : "mdblock"}>
-          <MdBlock text={b} rehypePlugins={rehypePlugins} />
+          <MdBlock text={b} rehypePlugins={rehypePlugins} fadeFrom={fadeFromFor(i)} />
         </div>
       ))}
     </div>
