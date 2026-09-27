@@ -75,8 +75,13 @@ function AssistantBody({ m, branches, onOpen, continueFrom, onContinued, onGrow 
       }
       const rects = rectsForRange(range, el);
       const first = rects[0];
-      if (first) next.push({ id: b.id, hue: b.hue, x: first.x + first.width, y: first.y });
+      // The marker sits in the answer's right-hand gutter, level with the line the branch starts
+      // on; placed right after the phrase it covered the next words.
+      if (first) next.push({ id: b.id, hue: b.hue, x: 0, y: first.y + (first.height - 16) / 2 });
     }
+    // Branches that start on the same line step left in the gutter rather than overlap.
+    next.sort((a, b) => a.y - b.y);
+    for (let i = 1; i < next.length; i++) if (Math.abs(next[i]!.y - next[i - 1]!.y) < 8) next[i]!.x = next[i - 1]!.x + 20;
     setMarks(next);
     return () => {
       for (const [hl, range] of added) hl.delete(range);
@@ -84,7 +89,7 @@ function AssistantBody({ m, branches, onOpen, continueFrom, onContinued, onGrow 
   }, [m.body, branches]);
 
   return (
-    <div className="mdwrap">
+    <div className={branches.length > 0 ? "mdwrap has-marks" : "mdwrap"}>
       <div ref={ref}>
         {streamFrom !== undefined ? (
           <StreamingMarkdown text={m.body} live={false} startAt={streamFrom} onReveal={onGrow} onDone={onContinued} />
@@ -93,7 +98,7 @@ function AssistantBody({ m, branches, onOpen, continueFrom, onContinued, onGrow 
         )}
       </div>
       {marks.map((mk) => (
-        <button key={mk.id} className={`bmark h${mk.hue}`} style={{ left: mk.x + 4, top: mk.y - 1 }} title="Open this branch" onClick={() => onOpen(mk.id)}>
+        <button key={mk.id} className={`bmark h${mk.hue}`} style={{ right: 2 + mk.x, top: mk.y }} title="Open this branch" onClick={() => onOpen(mk.id)}>
           <Icon name="branch" size={10} />
         </button>
       ))}

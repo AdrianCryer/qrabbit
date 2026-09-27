@@ -1,4 +1,5 @@
 import { useStore } from "../state/store";
+import { displayPath } from "../lib/paths";
 // The same file the window and taskbar icon are rendered from, so the mark matches everywhere.
 import logo from "../../../../resources/icon.svg";
 import { relTime } from "../lib/time";
@@ -8,6 +9,7 @@ import { Icon } from "./Icons";
 export function Header() {
   const screen = useStore((s) => s.screen);
   const recent = useStore((s) => s.recent);
+  const home = useStore((s) => s.home);
   const collection = useStore((s) => s.collection);
   const sourceId = useStore((s) => s.sourceId);
   const threadId = useStore((s) => s.thread?.id ?? null);
@@ -84,7 +86,7 @@ export function Header() {
                     <Icon name="folder" />
                     <span className="txt">
                       <span className="t">{c.name}</span>
-                      <span className="m">{c.counts ? `${c.counts.sources} sources · ${c.counts.read} read · ${c.counts.threads} threads` : c.path}</span>
+                      <span className="m">{c.counts ? `${c.counts.sources} sources · ${c.counts.read} read · ${c.counts.threads} threads` : displayPath(c.path, home)}</span>
                     </span>
                     <span className="meta">{relTime(c.lastOpened)}</span>
                   </button>

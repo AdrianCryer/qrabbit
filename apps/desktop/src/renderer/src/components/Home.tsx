@@ -1,11 +1,13 @@
 import type { CollectionInfo } from "@qrabbit/shared";
 import { useStore } from "../state/store";
+import { displayPath } from "../lib/paths";
 import { Icon } from "./Icons";
 
 const countsLine = (c: CollectionInfo) => (c.counts ? `${c.counts.sources} sources · ${c.counts.read} read · ${c.counts.threads} threads` : null);
 
 export function Home() {
   const recent = useStore((s) => s.recent);
+  const home = useStore((s) => s.home);
   const { openCollection, openCollectionDialog } = useStore.getState();
   const latest = recent[0];
 
@@ -22,7 +24,7 @@ export function Home() {
             <div className="thumb" aria-hidden="true" />
             <div className="txt">
               <div className="t">{latest.name}</div>
-              <div className="m">{countsLine(latest) ?? latest.path}</div>
+              <div className="m">{countsLine(latest) ?? displayPath(latest.path, home)}</div>
             </div>
             <button className="btn primary" onClick={() => void openCollection(latest.path)}>
               Continue reading
@@ -40,7 +42,7 @@ export function Home() {
               <span className="txt">
                 <span className="t">{c.name}</span>
                 {countsLine(c) && <span className="m">{countsLine(c)}</span>}
-                <span className="m">{c.path}</span>
+                <span className="m">{displayPath(c.path, home)}</span>
               </span>
               <span className="meta">{c.lastOpened ? new Date(c.lastOpened).toLocaleDateString() : ""}</span>
             </button>

@@ -287,6 +287,8 @@ body.resizing .rscroll, body.resizing .msgs { pointer-events: none; }
 .cq > div { min-width: 0; }
 .msgs .seltool.msg-tool { transform: translate(-4px, calc(-100% - 8px)); }
 .mdwrap { position: relative; }
+/* An answer with branches keeps a narrow gutter on the right for their markers, off the text. */
+.mdwrap.has-marks { padding-right: 26px; }
 .bmark { position: absolute; width: 16px; height: 16px; border-radius: 50%; background: var(--hl); color: #1a1a1a; display: grid; place-items: center; box-shadow: var(--shadow-sm); z-index: 2; }
 .bmark svg.i { stroke: #1a1a1a; stroke-width: 2.4; }
 .bmark:hover { filter: brightness(1.08); }

@@ -50,6 +50,8 @@ function describeImport(r: ImportResult): string {
 
 type State = {
   platform: string;
+  /** The user's home folder; paths under it are shown as ~. */
+  home: string;
   screen: "home" | "reader";
   recent: CollectionInfo[];
   collection: CollectionSnapshot | null;
@@ -162,6 +164,7 @@ let subscribed = false;
 
 export const useStore = create<State & Actions>((set, get) => ({
   platform: "win32",
+  home: "",
   screen: "home",
   recent: [],
   collection: null,
@@ -187,8 +190,8 @@ export const useStore = create<State & Actions>((set, get) => ({
   menu: null,
 
   async init() {
-    const [platform, recent] = await Promise.all([api.app.platform(), api.collections.recent()]);
-    set({ platform, recent });
+    const [platform, home, recent] = await Promise.all([api.app.platform(), api.app.home(), api.collections.recent()]);
+    set({ platform, home, recent });
     if (subscribed) return;
     subscribed = true;
     // Optional: go straight back into the last collection.

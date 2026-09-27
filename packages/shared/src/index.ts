@@ -319,5 +319,7 @@ export type QrabbitApi = {
   app: {
     version(): Promise<string>;
     platform(): Promise<string>;
+    /** The user's home folder, so paths under it can be shown as ~. */
+    home(): Promise<string>;
   };
 };

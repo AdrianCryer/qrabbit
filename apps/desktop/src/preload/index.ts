@@ -79,6 +79,7 @@ const api: QrabbitApi = {
   app: {
     version: () => invoke("app:version"),
     platform: () => invoke("app:platform"),
+    home: () => invoke("app:home"),
   },
 };
 
