@@ -7,6 +7,9 @@
  * the one spot of colour in the app itself.
  */
 export const THEME_BACKGROUND = [
+  // A faint static grain over the gradient: a smooth dark gradient bands in 8-bit images and
+  // turns blocky in video, and a little noise breaks that up without being visible as texture.
+  `url("data:image/svg+xml;utf8,${encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.045 0'/></filter><rect width='100%' height='100%' filter='url(#n)'/></svg>")}")`,
   "radial-gradient(ellipse 65% 55% at 50% -8%, rgba(201, 242, 77, 0.16), rgba(201, 242, 77, 0.04) 45%, transparent 72%)",
   "linear-gradient(180deg, #15181c 0%, #121417 45%, #0c0e11 100%)",
 ].join(", ");
@@ -70,12 +73,21 @@ export function cameraStagePage({ canvas, shot }) {
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.09), 0 40px 90px rgba(0, 0, 0, 0.6), 0 14px 30px rgba(0, 0, 0, 0.4);
   }
   .win img { display: block; width: 100%; height: 100%; }
+  /* A frozen earlier frame laid over the live one, faded out to dissolve a sudden layout change. */
+  .win #prev { position: absolute; inset: 0; opacity: 0; }
+  /* The cursor and its click pulse, drawn per frame from the recorded trail rather than captured. */
+  .cursor { position: absolute; left: 0; top: 0; display: none; z-index: 5; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55)); }
+  .cursor svg { display: block; }
+  .pulse { position: absolute; width: 34px; height: 34px; border-radius: 50%; background: #c9f24d; display: none; z-index: 4; }
   .caption { position: absolute; top: 0; right: 0; height: 44px; display: flex; }
   .caption span { width: 46px; height: 44px; display: grid; place-items: center; }
   .caption svg { width: 10px; height: 10px; stroke: #a3a8b0; stroke-width: 1; fill: none; shape-rendering: crispEdges; }
 </style></head><body>
   <div class="stage"><div class="win" id="win">
     <img id="shot" alt="">
+    <img id="prev" alt="">
+    <div id="pulse" class="pulse"></div>
+    <div id="cursor" class="cursor"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M4 2l15.5 11.2-6.8 1.1L9.3 21z" fill="#fff" stroke="#111" stroke-width="1.3" stroke-linejoin="round"/></svg></div>
     <div class="caption">
       <span><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></span>
       <span><svg viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9"/></svg></span>
@@ -83,9 +95,27 @@ export function cameraStagePage({ canvas, shot }) {
     </div>
   </div></div>
   <script>
-    window.show = async (src, transform) => {
-      const img = document.getElementById("shot");
-      if (img.dataset.src !== src) { img.dataset.src = src; img.src = src; await img.decode(); }
+    const load = async (img, src) => { if (img.dataset.src !== src) { img.dataset.src = src; img.src = src; await img.decode(); } };
+    /**
+     * Show one tick: the live frame, the camera transform, optionally an earlier frame at \`alpha\`
+     * over it, and the cursor and a click pulse (\`k\` from 0 to 1 through the pulse) in window pixels.
+     */
+    window.show = async (src, transform, prev, alpha, cursor, pulse) => {
+      await load(document.getElementById("shot"), src);
+      const over = document.getElementById("prev");
+      if (prev && alpha > 0) { await load(over, prev); over.style.opacity = String(alpha); } else over.style.opacity = "0";
+      const c = document.getElementById("cursor");
+      c.style.display = cursor ? "block" : "none";
+      if (cursor) c.style.transform = "translate(" + (cursor.x - 4) + "px, " + (cursor.y - 2) + "px)";
+      const p = document.getElementById("pulse");
+      p.style.display = pulse ? "block" : "none";
+      if (pulse) {
+        const k = 1 - (1 - pulse.k) * (1 - pulse.k);
+        p.style.left = pulse.x + "px";
+        p.style.top = pulse.y + "px";
+        p.style.transform = "translate(-50%, -50%) scale(" + (0.4 + 1.2 * k) + ")";
+        p.style.opacity = String(0.55 * (1 - k));
+      }
       document.getElementById("win").style.transform = transform;
       await new Promise((r) => requestAnimationFrame(() => r()));
       return true;
@@ -103,9 +133,10 @@ export async function openCameraStage(BrowserWindow, canvas, htmlFile) {
   cdp.attach("1.3");
   await cdp.sendCommand("Emulation.setDeviceMetricsOverride", { ...canvas, deviceScaleFactor: 1, mobile: false });
   return {
-    async frame(src, transform, quality = 92) {
-      await win.webContents.executeJavaScript(`window.show(${JSON.stringify(src)}, ${JSON.stringify(transform)})`);
-      const { data } = await cdp.sendCommand("Page.captureScreenshot", { format: "jpeg", quality, captureBeyondViewport: true, clip: { x: 0, y: 0, ...canvas, scale: 1 } });
+    async frame(src, transform, { prev = null, alpha = 0, cursor = null, pulse = null, quality = 95, scale = 1 } = {}) {
+      const args = [src, transform, prev, alpha, cursor, pulse].map((a) => JSON.stringify(a)).join(", ");
+      await win.webContents.executeJavaScript(`window.show(${args})`);
+      const { data } = await cdp.sendCommand("Page.captureScreenshot", { format: "jpeg", quality, captureBeyondViewport: true, clip: { x: 0, y: 0, ...canvas, scale } });
       return Buffer.from(data, "base64");
     },
   };

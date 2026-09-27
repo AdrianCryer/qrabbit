@@ -9,7 +9,8 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
-    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit"
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "test": "vitest run --dir src/renderer/src"
   },
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "0.81.2",
@@ -40,6 +41,7 @@
     "remark-math": "^6.0.0",
     "typescript": "^5.8.0",
     "vite": "^7.0.0",
+    "vitest": "^3.2.0",
     "zustand": "^5.0.0"
   }
 }

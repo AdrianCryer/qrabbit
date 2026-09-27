@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Anchor, ConfigOption, Message, ThreadMeta } from "@qrabbit/shared";
 import { useStore, type TurnState } from "../state/store";
 import { anchorToRangeIn, offsetsForRange, rectsForRange, selectorFor, textOfElement } from "../pdf/anchoring";
@@ -6,7 +6,8 @@ import { formatKeys, isTyping, matches } from "../lib/shortcuts";
 import { highlightFor, type HL } from "../lib/highlights";
 import { Dropdown } from "./Dropdown";
 import { Icon } from "./Icons";
-import { Markdown } from "./Markdown";
+import { Markdown, StreamingMarkdown } from "./Markdown";
+import { revealHandoff } from "../lib/streaming";
 
 // ---------- thread tree helpers ----------
 function ancestorsOf(all: ThreadMeta[], t: ThreadMeta): ThreadMeta[] {
@@ -52,9 +53,11 @@ function QuoteCard({ anchor, hue, from }: { anchor: Anchor; hue: number; from?: 
 }
 
 /** An assistant message with any branches that start inside it lit up and marked. */
-function AssistantBody({ m, branches, onOpen }: { m: Message; branches: ThreadMeta[]; onOpen(id: string): void }) {
+function AssistantBody({ m, branches, onOpen, continueFrom, onContinued, onGrow }: { m: Message; branches: ThreadMeta[]; onOpen(id: string): void; continueFrom?: number; onContinued?(): void; onGrow?(): void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [marks, setMarks] = useState<Array<{ id: string; hue: number; x: number; y: number }>>([]);
+  // A message that has just finished streaming carries on revealing from where the stream got to.
+  const [streamFrom] = useState(continueFrom);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -83,7 +86,11 @@ function AssistantBody({ m, branches, onOpen }: { m: Message; branches: ThreadMe
   return (
     <div className="mdwrap">
       <div ref={ref}>
-        <Markdown text={m.body} />
+        {streamFrom !== undefined ? (
+          <StreamingMarkdown text={m.body} live={false} startAt={streamFrom} onReveal={onGrow} onDone={onContinued} />
+        ) : (
+          <Markdown text={m.body} />
+        )}
       </div>
       {marks.map((mk) => (
         <button key={mk.id} className={`bmark h${mk.hue}`} style={{ left: mk.x + 4, top: mk.y - 1 }} title="Open this branch" onClick={() => onOpen(mk.id)}>
@@ -94,7 +101,7 @@ function AssistantBody({ m, branches, onOpen }: { m: Message; branches: ThreadMe
   );
 }
 
-function MessageView({ m, hue, agentName, branches, threads, onOpen }: { m: Message; hue: number; agentName: string; branches: ThreadMeta[]; threads: ThreadMeta[]; onOpen(id: string): void }) {
+function MessageView({ m, hue, agentName, branches, threads, onOpen, continueFrom, onContinued, onGrow }: { m: Message; hue: number; agentName: string; branches: ThreadMeta[]; threads: ThreadMeta[]; onOpen(id: string): void; continueFrom?: number; onContinued?(): void; onGrow?(): void }) {
   const included = (m.context ?? []).map((id) => threads.find((t) => t.id === id)?.title ?? id);
   return (
     <div className={`msg ${m.role}`} data-msg-id={m.id}>
@@ -104,7 +111,7 @@ function MessageView({ m, hue, agentName, branches, threads, onOpen }: { m: Mess
       </div>
       <div className="body">
         {m.quote && <QuoteCard anchor={m.quote} hue={hue} />}
-        {m.role === "user" ? m.body.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>) : <AssistantBody m={m} branches={branches} onOpen={onOpen} />}
+        {m.role === "user" ? m.body.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>) : <AssistantBody m={m} branches={branches} onOpen={onOpen} continueFrom={continueFrom} onContinued={onContinued} onGrow={onGrow} />}
         {included.length > 0 && (
           <span className="ctxchip" title={included.join("\n")}>
             <Icon name="branch" size={11} />
@@ -118,7 +125,7 @@ function MessageView({ m, hue, agentName, branches, threads, onOpen }: { m: Mess
 
 const statusIcon = (status?: string) => (status === "completed" ? "check" : status === "failed" ? "x" : "spin");
 
-function TurnView({ turn, agentName, threadId }: { turn: TurnState; agentName: string; threadId: string }) {
+function TurnView({ turn, agentName, threadId, onGrow }: { turn: TurnState; agentName: string; threadId: string; onGrow(): void }) {
   const replyPermission = useStore((s) => s.replyPermission);
   const perm = turn.permission;
   return (
@@ -162,8 +169,14 @@ function TurnView({ turn, agentName, threadId }: { turn: TurnState; agentName: s
             </div>
           </div>
         )}
-        {turn.text ? <Markdown text={turn.text} /> : turn.running && turn.activity.length === 0 ? <p className="muted">Thinking…</p> : null}
-        {turn.running && <span className="cursor" aria-hidden="true" />}
+        {turn.text ? (
+          <StreamingMarkdown
+            text={turn.text}
+            live={turn.running}
+            onReveal={(shown) => { revealHandoff.set(threadId, shown); onGrow(); }}
+          />
+        ) : turn.running && turn.activity.length === 0 ? <p className="muted">Thinking…</p> : null}
+        {turn.running && <span className="typing" aria-hidden="true"><i /><i /><i /></span>}
         {turn.error && <p className="err">{turn.error}</p>}
       </div>
     </div>
@@ -250,10 +263,19 @@ export function ThreadPanel() {
     ta.style.height = "auto";
     ta.style.height = `${Math.min(220, Math.max(44, ta.scrollHeight))}px`;
   }, [draft, thread?.id]);
+  // Follow the conversation only while the reader is at the bottom: scrolling up to reread
+  // something is never interrupted by the answer growing below.
+  const pinned = useRef(true);
+  const follow = useCallback(() => {
+    const el = msgsRef.current;
+    if (el && pinned.current) el.scrollTop = el.scrollHeight;
+  }, []);
   useEffect(() => {
     const el = msgsRef.current;
+    pinned.current = true;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [thread?.id, thread?.messages.length, turn?.text.length, turn?.activity.length, turn?.permission?.id]);
+  }, [thread?.id]);
+  useEffect(follow, [follow, thread?.messages.length, turn?.activity.length, turn?.permission?.id]);
   useEffect(() => {
     const onChange = () => { const s = window.getSelection(); if (!s || s.isCollapsed) setMsgSel(null); };
     document.addEventListener("selectionchange", onChange);
@@ -287,6 +309,8 @@ export function ThreadPanel() {
   const send = () => {
     if (running) { cancelTurn(); return; }
     if (!draft.trim() && !composerQuote) return;
+    // Asking something means watching for the answer: follow the bottom again.
+    pinned.current = true;
     void sendMessage(draft);
     setDraft("");
   };
@@ -382,7 +406,16 @@ export function ThreadPanel() {
         ))}
       </div>
 
-      <div className="msgs" ref={msgsRef} onMouseUp={onMsgsMouseUp} onScroll={() => setMsgSel(null)}>
+      <div
+        className="msgs"
+        ref={msgsRef}
+        onMouseUp={onMsgsMouseUp}
+        onScroll={(e) => {
+          setMsgSel(null);
+          const el = e.currentTarget;
+          pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+        }}
+      >
         {thread.parent && (
           <details className="handoff">
             <summary>
@@ -405,10 +438,25 @@ export function ThreadPanel() {
             </div>
           </div>
         )}
-        {thread.messages.map((m) => (
-          <MessageView key={m.id} m={m} hue={hue} agentName={agentName} branches={branchesOf(m.id)} threads={allThreads} onOpen={(id) => void openThread(id)} />
-        ))}
-        {turn && (turn.running || turn.text || turn.error || turn.activity.length > 0) && <TurnView turn={turn} agentName={agentName} threadId={thread.id} />}
+        {thread.messages.map((m, i) => {
+          // The answer that just finished streaming picks up the reveal where the stream left it.
+          const continuing = !turn && i === thread.messages.length - 1 && m.role === "assistant" ? revealHandoff.get(thread.id) : undefined;
+          return (
+            <MessageView
+              key={m.id}
+              m={m}
+              hue={hue}
+              agentName={agentName}
+              branches={branchesOf(m.id)}
+              threads={allThreads}
+              onOpen={(id) => void openThread(id)}
+              continueFrom={continuing}
+              onContinued={() => revealHandoff.delete(thread.id)}
+              onGrow={follow}
+            />
+          );
+        })}
+        {turn && (turn.running || turn.text || turn.error || turn.activity.length > 0) && <TurnView turn={turn} agentName={agentName} threadId={thread.id} onGrow={follow} />}
         {!agent?.connected && (
           <div className="pnote">{agent?.error ? `The agent could not start: ${agent.error}` : "Connecting to the agent…"}</div>
         )}

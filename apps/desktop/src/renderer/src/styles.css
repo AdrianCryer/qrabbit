@@ -370,6 +370,18 @@ body.resizing .rscroll, body.resizing .msgs { pointer-events: none; }
 /* No fixed measure: the panel width is the reader's choice, and focus mode centres a long line. */
 .md { display: grid; gap: 10px; font-size: 13.5px; line-height: 1.6; min-width: 0; user-select: text; overflow-wrap: anywhere; }
 .md > * { margin: 0; }
+/* A streamed answer renders block by block; each block keeps the container's spacing. */
+.md > .mdblock { display: grid; gap: inherit; min-width: 0; }
+.md > .mdblock > * { margin: 0; }
+.md > .mdblock.enter { animation: md-enter 0.32s ease-out both; }
+@keyframes md-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+/* While the agent is working: three soft dots instead of a blinking block. */
+.typing { display: inline-flex; gap: 4px; padding: 4px 0 2px; }
+.typing i { width: 5px; height: 5px; border-radius: 50%; background: var(--text-3); animation: typing 1.2s ease-in-out infinite; }
+.typing i:nth-child(2) { animation-delay: 0.15s; }
+.typing i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes typing { 0%, 80%, 100% { opacity: 0.25; transform: none; } 40% { opacity: 0.9; transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .md > .mdblock.enter, .typing i { animation: none; } }
 .md p { white-space: normal; }
 .md h1, .md h2, .md h3, .md h4 { font-size: 14px; font-weight: 600; margin-top: 4px; }
 .md ul, .md ol { padding-left: 20px; display: grid; gap: 4px; }

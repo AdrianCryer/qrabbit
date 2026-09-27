@@ -13,12 +13,14 @@
 // the demo is the same every time and costs nothing. Everything else is the app itself; the branch
 // asks the real agent for its handoff in the background, as it always does.
 //
-// Usage: node tools/dev/record-demo.mjs [work-dir] [out-dir]
-//        node tools/dev/record-demo.mjs --reframe <run-dir> [out-dir]
+// Usage: node tools/dev/record-demo.mjs [work-dir] [out-dir] [--record-only]
+//        node tools/dev/record-demo.mjs --reframe <run-dir> [out-dir] [--preview]
 //   Build first: pnpm desktop:build. Needs network access for the article.
 //   Writes <out-dir>/demo.webp (default docs/screenshots) and an MP4 in the run's work directory.
-//   --reframe films and encodes an earlier run's recording again, for camera changes, without
-//   driving the app.
+//   --record-only  drive and record the app (about a minute, in a visible window) and stop, so the
+//                  take can be watched and approved before the slow framing and encoding.
+//   --reframe      film and encode a saved take again, for camera changes, without driving the app.
+//   --preview      with --reframe: a quick half-size, 15 fps MP4 of the camera, in the run folder only.
 import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -30,10 +32,13 @@ const repo = resolve(here, "..", "..");
 const appDir = join(repo, "apps", "desktop");
 const electronBin = join(appDir, "node_modules", "electron", "dist", process.platform === "win32" ? "electron.exe" : "electron");
 
+const FLAGS = new Set(process.argv.slice(2).filter((a) => a.startsWith("--")));
+const ARGS = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+
 const VIEW = { width: 1280, height: 800 };
 const CANVAS = { width: 1440, height: 940 };
 // Capture at the display's own density: forcing 2x cut the screencast to ~3 fps and slowed the app.
-const FPS = 20;
+const FPS = 30;
 const TAIL_SECONDS = 2.5;
 /** The camera starts moving a little before the action it frames, and takes this long to arrive. */
 const CAMERA_LEAD = 0.35;
@@ -49,10 +54,11 @@ function cameraFor(shot) {
   const { width: CW, height: CH } = CANVAS;
   const wide = Math.min((CW * 0.84) / W, (CH * 0.84) / H);
   const r = shot.rect ?? { x: 0, y: 0, w: W, h: H };
-  const z = shot.rect ? clamp(Math.min((CW * 0.86) / r.w, (CH * 0.82) / r.h), wide * 1.15, 1.5) : wide;
+  const z = shot.rect ? clamp(Math.min((CW * 0.86) / r.w, (CH * 0.82) / r.h), wide * 1.15, shot.maxZoom ?? 1.5) : wide;
   // A zoomed window may show its edges, up to this far inside the frame, so the tilt stays visible
   // and a region at the window's edge (the thread panel) can still be brought into view.
-  const margin = 110;
+  // Shots of the thread panel, at the window's right edge, allow more so the panel can sit centred.
+  const margin = shot.margin ?? 110;
   const along = (full, size, c) => {
     const lo = (size / 2 - margin) / z;
     const hi = full - lo;
@@ -68,7 +74,7 @@ function lerpCamera(a, b, p) {
 
 /** One camera key per shot; the first is where the film opens, the rest ease in slightly ahead of their action. */
 const keysFor = (shots, frames) =>
-  shots.map((s, i) => ({ start: i === 0 ? frames[0].t - 1 : s.t - CAMERA_LEAD, duration: i === 0 ? 0 : CAMERA_MOVE, cam: cameraFor(s) }));
+  shots.map((s, i) => ({ start: i === 0 ? frames[0].t - 1 : s.t - (s.lead ?? CAMERA_LEAD), duration: i === 0 ? 0 : (s.move ?? CAMERA_MOVE), cam: cameraFor(s) }));
 
 /** The camera at time `t`: each key eases in from wherever the camera was when it began. */
 function cameraAt(keys, t) {
@@ -116,33 +122,59 @@ if (process.versions.electron) {
     const html = join(dirname(indexPath), "stage.html");
     writeFileSync(html, cameraStagePage({ canvas: CANVAS, shot: VIEW }));
     const stage = await openCameraStage(BrowserWindow, CANVAS, html);
-    const { frames, shots, outDir } = index;
+    const { frames, shots, blends = [], cursor = [], clicks = [], outDir, fps = FPS, scale = 1 } = index;
+    // The cursor at time t, between the two trail samples around it; the trail is sampled every
+    // animation frame, so straight lines between samples are exact enough.
+    let ci = 0;
+    const cursorAt = (t) => {
+      if (!cursor.length) return null;
+      while (ci + 1 < cursor.length && cursor[ci + 1].t <= t) ci++;
+      const a = cursor[ci];
+      const b = cursor[ci + 1];
+      if (!b || t <= a.t) return { x: a.x, y: a.y };
+      const k = (t - a.t) / (b.t - a.t);
+      return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
+    };
+    const PULSE = 0.45;
+    const pulseAt = (t) => {
+      const c = clicks.find((x) => t >= x.t && t < x.t + PULSE);
+      return c ? { x: c.x, y: c.y, k: (t - c.t) / PULSE } : null;
+    };
     const keys = keysFor(shots, frames);
     mkdirSync(outDir, { recursive: true });
     const end = frames.at(-1).t + TAIL_SECONDS;
+    const frameAt = (t) => {
+      let k = 0;
+      while (k + 1 < frames.length && frames[k + 1].t <= t) k++;
+      return pathToFileURL(frames[k].file).href;
+    };
     let j = 0;
     let n = 0;
-    for (let t = frames[0].t; t <= end; t += 1 / FPS) {
+    for (let t = frames[0].t; t <= end; t += 1 / fps) {
       while (j + 1 < frames.length && frames[j + 1].t <= t) j++;
-      const jpg = await stage.frame(pathToFileURL(frames[j].file).href, transformFor(cameraAt(keys, t)));
+      // A dissolve: the frame from the blend's start fades out over the live frames.
+      const b = blends.find((x) => t >= x.t && t < x.t + x.duration);
+      const over = b ? { prev: frameAt(b.t), alpha: 1 - easeInOut((t - b.t) / b.duration) } : {};
+      const jpg = await stage.frame(pathToFileURL(frames[j].file).href, transformFor(cameraAt(keys, t)), { ...over, scale, cursor: cursorAt(t), pulse: pulseAt(t) });
       writeFileSync(join(outDir, `c${String(n++).padStart(5, "0")}.jpg`), jpg);
-      if (n % 100 === 0) console.log(`[demo] framed ${n} of ${Math.ceil((end - frames[0].t) * FPS)}`);
+      if (n % 100 === 0) console.log(`[demo] framed ${n} of ${Math.ceil((end - frames[0].t) * fps)}`);
     }
     app.exit(0);
   }).catch((err) => { console.error("record-demo:", err); app.exit(1); });
-} else if (process.argv[2] === "--reframe") {
-  const runDir = resolve(process.argv[3]);
+} else if (FLAGS.has("--reframe")) {
+  const runDir = resolve(ARGS[0]);
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
-  frameAndEncode(runDir, JSON.parse(readFileSync(join(runDir, "recording.json"), "utf8")), resolve(process.argv[4] ?? join(repo, "docs", "screenshots")), env);
+  const recording = JSON.parse(readFileSync(join(runDir, "recording.json"), "utf8"));
+  frameAndEncode(runDir, recording, resolve(ARGS[1] ?? join(repo, "docs", "screenshots")), env, { preview: FLAGS.has("--preview") });
 } else {
   await main();
 }
 
 async function main() {
   const { _electron: electron } = await import("playwright-core");
-  const workDir = resolve(process.argv[2] ?? join(here, "out", "demo"));
-  const outDir = resolve(process.argv[3] ?? join(repo, "docs", "screenshots"));
+  const workDir = resolve(ARGS[0] ?? join(here, "out", "demo"));
+  const outDir = resolve(ARGS[1] ?? join(repo, "docs", "screenshots"));
   const runId = new Date().toISOString().replace(/[:.]/g, "-");
   const runDir = join(workDir, runId);
   const collection = join(runDir, "reinforcement-learning");
@@ -179,20 +211,20 @@ async function main() {
       const q = [...document.querySelectorAll(".sheet.article blockquote p")].find((p) => p.textContent.includes("The value of your starting point"));
       const root = document.querySelector(".rscroll");
       root.scrollTop += q.getBoundingClientRect().top - root.getBoundingClientRect().top - root.clientHeight * 0.4;
-      // A visible cursor: page captures never include the real one.
-      const c = document.createElement("div");
-      c.id = "demo-cursor";
-      c.innerHTML = '<svg width="22" height="22" viewBox="0 0 24 24"><path d="M4 2l15.5 11.2-6.8 1.1L9.3 21z" fill="#fff" stroke="#111" stroke-width="1.3" stroke-linejoin="round"/></svg>';
-      Object.assign(c.style, { position: "fixed", left: "0", top: "0", zIndex: "2147483647", pointerEvents: "none", filter: "drop-shadow(0 1px 2px rgba(0,0,0,.55))", transform: "translate(900px, 620px)" });
-      document.body.appendChild(c);
-      const style = document.createElement("style");
-      style.textContent = "@keyframes demo-pulse { from { transform: translate(-50%,-50%) scale(.4); opacity: .55 } to { transform: translate(-50%,-50%) scale(1.6); opacity: 0 } } .demo-pulse { position: fixed; width: 34px; height: 34px; border-radius: 50%; background: #c9f24d; pointer-events: none; z-index: 2147483646; animation: demo-pulse .45s ease-out forwards }";
-      document.head.appendChild(style);
+      // The cursor is not drawn in the page: captures arrive unevenly, and a cursor inside them
+      // jumps whenever one is late. Its path is logged here, every animation frame, and drawn
+      // at the exact position for each output frame when the film is made.
+      const pos = { x: 904, y: 622 };
+      const trail = [{ t: Date.now() / 1000, x: pos.x, y: pos.y }];
+      const clicks = [];
+      const place = () => trail.push({ t: Date.now() / 1000, x: pos.x, y: pos.y });
       // Motion, typing and streaming run in the page on timers, so the recording keeps real-time
       // pace instead of paying a script round trip per step.
       const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
-      const pos = { x: 904, y: 622 };
       window.__demo = {
+        trail,
+        clicks,
+        click: () => clicks.push({ t: Date.now() / 1000, x: pos.x, y: pos.y }),
         glide: (x, y, ms) => new Promise((resolve) => {
           const from = { ...pos };
           const t0 = performance.now();
@@ -200,7 +232,7 @@ async function main() {
             const k = ease(Math.min(1, (now - t0) / ms));
             pos.x = from.x + (x - from.x) * k;
             pos.y = from.y + (y - from.y) * k;
-            c.style.transform = `translate(${pos.x - 4}px, ${pos.y - 2}px)`;
+            place();
             if (k < 1) requestAnimationFrame(frame); else resolve();
           };
           requestAnimationFrame(frame);
@@ -216,6 +248,44 @@ async function main() {
             if (i < text.length) setTimeout(step, 22 + Math.random() * 26); else resolve();
           };
           step();
+        }),
+        /**
+         * Select `text` inside the first matching `root` the way a drag does, a character at a time,
+         * with the cursor riding the end of the selection. Resolves with the point where it ends.
+         */
+        select: (root, text, ms) => new Promise((resolve, reject) => {
+          let node = null;
+          let at = -1;
+          for (const r of document.querySelectorAll(root)) {
+            const w = document.createTreeWalker(r, NodeFilter.SHOW_TEXT);
+            for (let n = w.nextNode(); n && !node; n = w.nextNode()) if ((at = n.data.indexOf(text)) !== -1) node = n;
+            if (node) break;
+          }
+          if (!node) { reject(new Error(`text not found in ${root}: ${text}`)); return; }
+          const sel = window.getSelection();
+          const range = document.createRange();
+          range.setStart(node, at);
+          range.setEnd(node, at);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          const probe = document.createRange();
+          const t0 = performance.now();
+          const frame = (now) => {
+            const k = Math.max(1, Math.round(ease(Math.min(1, (now - t0) / ms)) * text.length));
+            range.setEnd(node, at + k);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            probe.setStart(node, at + k - 1);
+            probe.setEnd(node, at + k);
+            const r = probe.getBoundingClientRect();
+            pos.x = r.right + 1;
+            pos.y = r.top + r.height / 2;
+            place();
+            if (k < text.length) { requestAnimationFrame(frame); return; }
+            node.parentElement.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, clientX: pos.x, clientY: pos.y }));
+            resolve({ x: pos.x, y: pos.y });
+          };
+          requestAnimationFrame(frame);
         }),
         stream: (answer) => new Promise((resolve) => {
           const s = window.__qrabbitStore;
@@ -238,28 +308,14 @@ async function main() {
 
     // ----- cursor helpers -----
     let cur = { x: 904, y: 622 };
-    const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
-    /** Glide the visible cursor; `realSteps` real mouse moves along the way (for drags), else one at the end. */
-    const moveTo = async (x, y, ms = 650, realSteps = 0) => {
-      const from = { ...cur };
-      const glide = page.evaluate(([px, py, d]) => window.__demo.glide(px, py, d), [x, y, ms]);
-      for (let i = 1; i <= realSteps; i++) {
-        await sleep(ms / realSteps);
-        const k = ease(i / realSteps);
-        await page.mouse.move(from.x + (x - from.x) * k, from.y + (y - from.y) * k);
-      }
-      await glide;
+    /** Glide the visible cursor in the page, then put the real mouse where it ended (for hover and clicks). */
+    const moveTo = async (x, y, ms = 650) => {
+      await page.evaluate(([px, py, d]) => window.__demo.glide(px, py, d), [x, y, ms]);
       await page.mouse.move(x, y);
       cur = { x, y };
     };
-    const pulse = () => page.evaluate(([x, y]) => {
-      const d = document.createElement("div");
-      d.className = "demo-pulse";
-      Object.assign(d.style, { left: `${x}px`, top: `${y}px` });
-      document.body.appendChild(d);
-      setTimeout(() => d.remove(), 500);
-    }, [cur.x, cur.y]);
-    const click = async () => { await pulse(); await page.mouse.down(); await sleep(70); await page.mouse.up(); };
+    /** A real click where the cursor is; the page notes it so the film can draw the click pulse. */
+    const click = async () => { await page.evaluate(() => window.__demo.click()); await page.mouse.down(); await sleep(70); await page.mouse.up(); };
     const centre = (selector, text) => page.evaluate(([sel, t]) => {
       const el = [...document.querySelectorAll(sel)].find((e) => !t || e.textContent.includes(t));
       if (!el) return null;
@@ -283,14 +339,15 @@ async function main() {
       }
       return null;
     }, [root, text]);
+    /** Glide to the start of `text`, then select it in the page at reading pace (about 22 ms a character). */
     const dragSelect = async (root, text) => {
       const s = await span(root, text);
       if (!s) throw new Error(`text not found in ${root}: ${text}`);
-      await moveTo(s.start.x, s.start.y, 850);
-      await sleep(180);
-      await page.mouse.down();
-      await moveTo(s.end.x, s.end.y, 1000, 14);
-      await page.mouse.up();
+      await moveTo(s.start.x, s.start.y, 700);
+      await sleep(120);
+      const ms = clamp(text.length * 22, 450, 1600);
+      cur = await page.evaluate(([r, t, d]) => window.__demo.select(r, t, d), [root, text, ms]);
+      await page.mouse.move(cur.x, cur.y);
     };
     const type = (text) => page.evaluate((t) => window.__demo.type(t), text);
 
@@ -312,8 +369,11 @@ async function main() {
     const focus = async (specs, look = {}) => {
       const rect = specs ? await regionOf(specs, look.pad ?? 24) : null;
       if (rect && look.roomAbove) { rect.y -= look.roomAbove; rect.h += look.roomAbove; }
-      shots.push({ wall: Date.now() / 1000, rect, rx: look.rx ?? 0, ry: look.ry ?? 0 });
+      shots.push({ wall: look.at ?? Date.now() / 1000, rect, rx: look.rx ?? 0, ry: look.ry ?? 0, lead: look.lead, move: look.move, margin: look.margin, maxZoom: look.maxZoom });
     };
+    /** Dissolve from the frame at `at` into what follows, to soften a sudden layout change. */
+    const blends = [];
+    const dissolve = (at, duration = 0.45) => blends.push({ wall: at, duration });
 
     /** Sends the composer's text as a message and streams `answer` back the way the agent's replies arrive. */
     const scriptedTurn = async (answer) => {
@@ -331,7 +391,7 @@ async function main() {
         s.setState((x) => ({ thread: updated, turns: { ...x.turns, [id]: { running: true, text: "", activity: [{ id: "read", title: `Read sources/${src.id}/text.md`, kind: "read", status: "in_progress" }], permission: null, error: null } } }));
       });
       // Follow the answer as it arrives.
-      await focus([".panel .msgs"], { pad: 6, rx: 3, ry: -5 });
+      await focus([".panel .msgs"], { pad: 6, rx: 3, ry: -5, margin: 360 });
       await sleep(900);
       await page.evaluate(() => {
         const s = window.__qrabbitStore;
@@ -355,12 +415,14 @@ async function main() {
     const frames = [];
     let pending = Promise.resolve();
     cdp.on("Page.screencastFrame", ({ data, metadata, sessionId }) => {
+      // Acknowledge first: the next capture waits for the ack, so it should not also wait on the disk.
+      pending = cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
       const file = join(framesDir, `f${String(frames.length).padStart(5, "0")}.jpg`);
       frames.push({ file, t: metadata.timestamp, recv: Date.now() / 1000 });
       writeFileSync(file, Buffer.from(data, "base64"));
-      pending = cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
     });
-    await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92, everyNthFrame: 1 });
+    // A cheaper JPEG per capture means more captures a second and smoother motion.
+    await cdp.send("Page.startScreencast", { format: "jpeg", quality: 85, everyNthFrame: 1 });
     await focus(null, { rx: 8, ry: -11 });
     await sleep(1900);
 
@@ -372,10 +434,23 @@ async function main() {
     const explore = await centre(".seltool button", "Explore");
     await moveTo(explore.x, explore.y, 600);
     await sleep(250);
+    // Opening the panel narrows the article and re-wraps the passage under the camera. It opens
+    // about a second after the click (the thread is created and loaded first), so time the
+    // dissolve and the move to the panel from when it appears, noted inside the page.
+    const panelOpened = page.evaluate(() => new Promise((resolve) => {
+      const mo = new MutationObserver(() => {
+        if (!document.querySelector(".panel")) return;
+        mo.disconnect();
+        resolve(Date.now() / 1000);
+      });
+      mo.observe(document.body, { childList: true, subtree: true });
+    }));
     await click();
+    const openedAt = await panelOpened;
+    dissolve(openedAt - 0.06, 0.45);
     await page.waitForSelector(".panel .composer textarea", { timeout: 10_000 });
     await sleep(250);
-    await focus([".panel .msgs .quote", ".composer"], { pad: 20, rx: 4, ry: -8 });
+    await focus([".composer"], { pad: 16, roomAbove: 260, rx: 4, ry: -8, margin: 360, maxZoom: 1.6, at: openedAt, lead: 0.06, move: 1.0 });
     await sleep(700);
     await clearToasts();
     await type(Q1);
@@ -383,34 +458,44 @@ async function main() {
     await sleep(1400);
 
     log("branch from the answer");
-    await focus([[".msg.assistant .body", BRANCH_PHRASE, "last"]], { pad: 30, roomAbove: 40, rx: 4, ry: 6 });
+    await focus([[".msg.assistant .body", BRANCH_PHRASE, "last"]], { pad: 30, roomAbove: 40, rx: 4, ry: 6, margin: 360 });
     await sleep(500);
     await dragSelect(".msg.assistant .body", BRANCH_PHRASE);
     await sleep(600);
     const branchBtn = await centre(".seltool.msg-tool button", "Explore");
     await moveTo(branchBtn.x, branchBtn.y, 550);
     await sleep(250);
+    // Regression check: once clicked, the toolbar must not come back while the branch is created.
+    const toolbarReturned = page.evaluate(() => new Promise((resolve) => {
+      let seenGone = false;
+      const t0 = performance.now();
+      const tick = () => {
+        const shown = !!document.querySelector(".seltool.msg-tool");
+        if (!shown) seenGone = true;
+        else if (seenGone) return resolve(true);
+        if (performance.now() - t0 > 1500) return resolve(false);
+        requestAnimationFrame(tick);
+      };
+      tick();
+    }));
     await click();
+    log(`answer toolbar after the Explore click: ${(await toolbarReturned) ? "came back (flicker)" : "stayed hidden"}`);
     await until(() => !!window.__qrabbitStore.getState().thread?.parent, "the branch to open", 15_000);
     await sleep(200);
-    // The branch in the outline, its handoff and where it started.
-    await focus([".crumbs", ".outline", ".panel .msgs .quote"], { pad: 16, rx: 5, ry: -4 });
-    await sleep(1500);
+    // The whole chat window for the branch: outline, handoff, where it started and the composer.
+    await focus([".panel"], { pad: 8, rx: 4, ry: -6, margin: 360 });
+    await sleep(1300);
     await clearToasts();
-    await focus([".panel .msgs .quote", ".composer"], { pad: 20, rx: 3, ry: -7 });
-    await sleep(500);
     await type(Q2);
     await scriptedTurn(A2);
     await sleep(1400);
 
     log("back to the parent");
-    await focus([".crumbs", ".outline"], { pad: 40, rx: 5, ry: -3 });
-    const parentCrumb = await page.evaluate(() => {
-      const b = [...document.querySelectorAll(".crumbs button")].filter((x) => x.textContent.trim() && !/^Threads/.test(x.textContent.trim()));
-      const r = b[0]?.getBoundingClientRect();
-      return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
-    });
-    await moveTo(parentCrumb.x, parentCrumb.y, 700);
+    // The way back sits just above the composer, so the camera stays on the chat window.
+    await focus([".panel"], { pad: 8, rx: 4, ry: -6, margin: 360 });
+    const back = await centre(".toparent");
+    if (!back) throw new Error("the Back to parent link is missing");
+    await moveTo(back.x, back.y, 700);
     await sleep(250);
     await click();
     await until(() => !window.__qrabbitStore.getState().thread?.parent, "the parent to open", 10_000);
@@ -423,43 +508,73 @@ async function main() {
 
     await cdp.send("Page.stopScreencast");
     await pending;
-    log(`captured ${frames.length} frames`);
+    const { trail, clicks } = await page.evaluate(() => ({ trail: window.__demo.trail, clicks: window.__demo.clicks }));
+    log(`captured ${frames.length} frames, ${trail.length} cursor samples`);
     // The app is done with; framing and encoding take a few minutes and need no window.
     await app.close().catch(() => {});
-    log("framing and encoding (a few minutes)…");
 
-    // Shots were noted on the wall clock; frames carry both clocks, so put the shots on the screencast's.
+    // Shots, cursor and clicks were noted on the wall clock; frames carry both clocks, so put
+    // everything on the screencast's.
     const offsets = frames.map((f) => f.t - f.recv).sort((a, b) => a - b);
     const offset = offsets[Math.floor(offsets.length / 2)];
-    const recording = { frames: frames.map(({ file, t }) => ({ file, t })), shots: shots.map(({ wall, ...s }) => ({ ...s, t: wall + offset })) };
+    const recording = {
+      frames: frames.map(({ file, t }) => ({ file, t })),
+      shots: shots.map(({ wall, ...s }) => ({ ...s, t: wall + offset })),
+      blends: blends.map(({ wall, duration }) => ({ t: wall + offset, duration })),
+      cursor: trail.map((p) => ({ ...p, t: p.t + offset })),
+      clicks: clicks.map((c) => ({ ...c, t: c.t + offset })),
+    };
     writeFileSync(join(runDir, "recording.json"), JSON.stringify(recording));
     log(`${shots.length} camera shots`);
+    if (FLAGS.has("--record-only")) {
+      const me = "node tools/dev/record-demo.mjs";
+      log(`recorded ${runDir}`);
+      log(`camera preview (fast, half size): ${me} --reframe "${runDir}" --preview`);
+      log(`final WebP for the README:        ${me} --reframe "${runDir}"`);
+      return;
+    }
+    log("framing and encoding (a few minutes)…");
     frameAndEncode(runDir, recording, outDir, env);
   } finally {
     await app.close().catch(() => {});
   }
 }
 
-/** Films each tick through the camera (in Electron), then encodes the WebP for the README and an MP4. */
-function frameAndEncode(runDir, recording, outDir, env) {
+/**
+ * Films each tick through the camera (in Electron), then encodes the WebP for the README and an MP4.
+ * With `preview`, a quick check of the camera instead: half size, 15 fps, an MP4 in the run folder only.
+ */
+function frameAndEncode(runDir, recording, outDir, env, { preview = false } = {}) {
   const log = (...a) => console.log(`[demo] ${a.join(" ")}`);
   const ffmpeg = createRequire(import.meta.url)("ffmpeg-static");
-  const composed = join(runDir, "composed");
-  const indexPath = join(runDir, "frames.json");
-  writeFileSync(indexPath, JSON.stringify({ ...recording, outDir: composed }));
+  const fps = preview ? 15 : FPS;
+  const composed = join(runDir, preview ? "composed-preview" : "composed");
+  const indexPath = join(runDir, preview ? "frames-preview.json" : "frames.json");
+  writeFileSync(indexPath, JSON.stringify({ ...recording, outDir: composed, fps, scale: preview ? 0.5 : 1 }));
   const r = spawnSync(electronBin, [fileURLToPath(import.meta.url), indexPath], { stdio: "inherit", env });
   if (r.status !== 0) throw new Error("framing failed");
+  // The encodes print nothing while they run, and the WebP takes a few minutes; say so.
+  log(`framed every frame; encoding ${preview ? "the preview" : "the WebP, then the MP4 (a few quiet minutes)"}…`);
 
   const run = (args, what) => {
-    const res = spawnSync(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-framerate", String(FPS), "-i", join(composed, "c%05d.jpg"), ...args], { stdio: "inherit" });
+    const t0 = Date.now();
+    const res = spawnSync(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", "-framerate", String(fps), "-i", join(composed, "c%05d.jpg"), ...args], { stdio: "inherit" });
     if (res.status !== 0) throw new Error(`ffmpeg failed: ${what}`);
+    log(`encoded the ${what} in ${Math.round((Date.now() - t0) / 1000)} s`);
   };
+  if (preview) {
+    const out = join(runDir, "preview.mp4");
+    run(["-vf", "format=yuv420p", "-c:v", "libx264", "-crf", "20", "-preset", "fast", out], "preview");
+    log(`preview: ${out}`);
+    return;
+  }
   const webp = join(runDir, "demo.webp");
   const mp4 = join(runDir, "demo.mp4");
-  // A moving camera changes every pixel of every frame, which animated WebP stores poorly; the README
-  // shows it at about 880 px wide, so 1080 px at 15 fps keeps it near 5 MB without visible loss.
-  run(["-vf", "fps=15,scale=1080:-2:flags=lanczos", "-c:v", "libwebp_anim", "-lossless", "0", "-quality", "64", "-compression_level", "6", "-loop", "0", webp], "webp");
-  run(["-vf", "format=yuv420p", "-c:v", "libx264", "-crf", "18", "-preset", "slow", "-movflags", "+faststart", mp4], "mp4");
+  // A moving camera changes every pixel of every frame, which animated WebP stores poorly. The README
+  // shows it at about 880 px wide, so 1000 px keeps the full 30 fps (15 fps looked stuttery) near 6 MB.
+  run(["-vf", "scale=1000:-2:flags=lanczos", "-c:v", "libwebp_anim", "-lossless", "0", "-quality", "66", "-compression_level", "6", "-loop", "0", webp], "WebP");
+  // aq-mode 3 spends more bits on dark, flat areas, where the background gradient otherwise turns blocky.
+  run(["-vf", "format=yuv420p", "-c:v", "libx264", "-crf", "16", "-preset", "slow", "-x264-params", "aq-mode=3", "-movflags", "+faststart", mp4], "MP4");
   // The WebP goes in the repo: GitHub plays it inline in the README. A video file in the repo only
   // renders as a download link there, so the MP4 stays in the work directory for sharing elsewhere.
   mkdirSync(outDir, { recursive: true });
