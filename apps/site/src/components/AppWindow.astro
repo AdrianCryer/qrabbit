@@ -2,54 +2,197 @@
 /**
  * An app capture framed as the real window, as on the README images (tools/dev/stage-page.mjs):
  * Windows 11 corners, a hairline border, a soft shadow, and the caption buttons that a page
- * capture leaves out. The buttons are sized against the app's 1280-pixel layout, so they match
- * the header at any width.
+ * capture leaves out. The caption buttons are sized against the capture's layout (see Shot), so
+ * they match its header at any width.
+ *
+ * With `crop`, the window shows only part of the capture, enlarged to fill it, under a header bar
+ * drawn at page size (the capture's own header is cut off or too small then), showing `path` the way
+ * the app's header shows the collection and source. `narrow` swaps in another capture, crop or both
+ * on phones, where the window is only as wide as the screen.
  */
-import type { ImageMetadata } from "astro";
-import { Image } from "astro:assets";
+import { getImage } from "astro:assets";
+import type { Shot } from "../shots";
+
+/** A region of the capture, in its layout's pixels. */
+export type Crop = { x: number; y: number; w: number; h: number };
+export type Narrow = { shot?: Shot; crop?: Crop; sizes: string };
 
 interface Props {
-  src: ImageMetadata;
+  shot: Shot;
   alt: string;
-  /** The `sizes` attribute: how wide the window is drawn at each breakpoint. */
+  /** The `sizes` attribute: how wide the image is drawn at each breakpoint, zoom included. */
   sizes: string;
   class?: string;
   eager?: boolean;
+  crop?: Crop;
+  narrow?: Narrow;
+  /** The header's collection and source, when cropped. */
+  path?: [string, string];
 }
-const { src, alt, sizes, class: className, eager = false } = Astro.props;
+const { shot, alt, sizes, class: className, eager = false, crop, narrow, path = ["Reinforcement learning", "Key Concepts in RL"] } = Astro.props;
+
+/** Where to put a capture in the window: the CSS variables the styles below read. */
+function frame({ img, width }: Shot, c: Crop | undefined, suffix = "") {
+  const layout = { w: width, h: (img.height * width) / img.width };
+  const r = c ?? { x: 0, y: 0, ...layout };
+  return [
+    `--aspect${suffix}: ${r.w} / ${r.h}`,
+    `--zoom${suffix}: ${layout.w / r.w}`,
+    `--x${suffix}: ${(-100 * r.x) / layout.w}%`,
+    `--y${suffix}: ${(-100 * r.y) / layout.h}%`,
+    `--lw${suffix}: ${layout.w}`,
+  ].join("; ");
+}
+const style = `${frame(shot, crop)}; ${frame(narrow?.shot ?? shot, narrow?.crop ?? crop, "-n")}`;
+
+// Built by hand rather than with <Image> so phones can get a capture of their own (<picture>).
+const widths = (w: number) => [...new Set([640, 960, 1280, 1920, 2560].filter((x) => x < w).concat(w))];
+const optimise = ({ img }: Shot) => getImage({ src: img, widths: widths(img.width), format: "webp", quality: 86 });
+const wide = await optimise(shot);
+const small = narrow?.shot && (await optimise(narrow.shot));
 ---
 
-<div class:list={["appwin", className]}>
-  <Image
-    src={src}
-    alt={alt}
-    widths={[640, 960, 1280, 1920, 2560]}
-    sizes={sizes}
-    format="webp"
-    quality={86}
-    loading={eager ? "eager" : "lazy"}
-    fetchpriority={eager ? "high" : "auto"}
-  />
-  <div class="caption" aria-hidden="true">
-    <span><svg viewBox="0 0 10 10"><path d="M0 5.5h10"></path></svg></span>
-    <span><svg viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9"></rect></svg></span>
-    <span><svg viewBox="0 0 10 10" class="x"><path d="M0 0l10 10M10 0L0 10"></path></svg></span>
+<div class:list={["appwin", { cropped: crop }, className]}>
+  {
+    crop && (
+      <div class="bar" aria-hidden="true">
+        <span class="q">Q</span>
+        <span class="crumb">
+          {path[0]}
+          <svg class="chev" viewBox="0 0 24 24">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </span>
+        <span class="sep">/</span>
+        <span class="crumb src">
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+          </svg>
+          {path[1]}
+          <svg class="chev" viewBox="0 0 24 24">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </span>
+        <span class="agent">
+          <i />
+          Claude Max
+        </span>
+        <span class="caps">
+          <span>
+            <svg viewBox="0 0 10 10">
+              <path d="M0 5.5h10" />
+            </svg>
+          </span>
+          <span>
+            <svg viewBox="0 0 10 10">
+              <rect x="0.5" y="0.5" width="9" height="9" />
+            </svg>
+          </span>
+          <span>
+            <svg viewBox="0 0 10 10" class="x">
+              <path d="M0 0l10 10M10 0L0 10" />
+            </svg>
+          </span>
+        </span>
+      </div>
+    )
+  }
+  <div class="view" style={style}>
+    <picture>
+      {small && <source media="(max-width: 599px)" type="image/webp" srcset={small.srcSet.attribute} sizes={narrow?.sizes} />}
+      <img
+        src={wide.src}
+        srcset={wide.srcSet.attribute}
+        sizes={narrow ? `(max-width: 599px) ${narrow.sizes}, ${sizes}` : sizes}
+        alt={alt}
+        width={shot.img.width}
+        height={shot.img.height}
+        loading={eager ? "eager" : "lazy"}
+        fetchpriority={eager ? "high" : "auto"}
+        decoding="async"
+      />
+    </picture>
+    {
+      !crop && (
+        <div class="caption" aria-hidden="true">
+          <span>
+            <svg viewBox="0 0 10 10">
+              <path d="M0 5.5h10" />
+            </svg>
+          </span>
+          <span>
+            <svg viewBox="0 0 10 10">
+              <rect x="0.5" y="0.5" width="9" height="9" />
+            </svg>
+          </span>
+          <span>
+            <svg viewBox="0 0 10 10" class="x">
+              <path d="M0 0l10 10M10 0L0 10" />
+            </svg>
+          </span>
+        </div>
+      )
+    }
   </div>
 </div>
 
 <style>
   .appwin {
     position: relative;
-    container-type: inline-size;
-    aspect-ratio: 1280 / 800;
     border-radius: 10px;
     overflow: hidden;
     background: var(--bg);
     box-shadow: var(--shadow-win);
   }
-  .appwin img { display: block; width: 100%; height: 100%; object-fit: cover; }
-  .caption { position: absolute; top: 0; right: 0; height: calc(100cqi * 44 / 1280); display: flex; }
-  .caption span { width: calc(100cqi * 46 / 1280); height: 100%; display: grid; place-items: center; }
-  .caption svg { width: calc(100cqi * 10 / 1280); height: calc(100cqi * 10 / 1280); stroke: #a3a8b0; stroke-width: 1; fill: none; shape-rendering: crispEdges; overflow: visible; }
+  .view { position: relative; container-type: inline-size; aspect-ratio: var(--aspect); overflow: hidden; }
+  .view picture { display: contents; }
+  .view img {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: block;
+    width: calc(100% * var(--zoom));
+    height: auto;
+    max-width: none;
+    transform: translate(var(--x), var(--y));
+  }
+  @media (max-width: 599px) {
+    .view { aspect-ratio: var(--aspect-n); }
+    .view img { width: calc(100% * var(--zoom-n)); transform: translate(var(--x-n), var(--y-n)); }
+  }
+
+  .caption { position: absolute; top: 0; right: 0; height: calc(100cqi * 44 / var(--lw)); display: flex; }
+  .caption span { width: calc(100cqi * 46 / var(--lw)); height: 100%; display: grid; place-items: center; }
+  .caption svg { width: calc(100cqi * 10 / var(--lw)); height: calc(100cqi * 10 / var(--lw)); stroke: #a3a8b0; stroke-width: 1; fill: none; shape-rendering: crispEdges; overflow: visible; }
   .caption svg.x { shape-rendering: geometricPrecision; }
+
+  /* The app's header at page size: the same height as the mock chat's title bar beside it. */
+  .bar {
+    container-type: inline-size;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 0 0 12px;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .q { width: 20px; height: 20px; border-radius: 5px; background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; font-size: 13px; font-weight: 750; flex: none; margin-right: 4px; }
+  .crumb { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .sep { color: var(--text-3); }
+  .bar svg { width: 14px; height: 14px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .bar .chev { width: 12px; height: 12px; color: var(--text-3); }
+  .agent { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 12px; font-weight: 400; }
+  .agent i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .caps { display: flex; flex: none; }
+  .caps span { width: 40px; height: 40px; display: grid; place-items: center; }
+  .bar .caps svg { width: 10px; height: 10px; stroke: #a3a8b0; stroke-width: 1; shape-rendering: crispEdges; overflow: visible; }
+  .bar .caps svg.x { shape-rendering: geometricPrecision; }
+  @container (max-width: 520px) {
+    .agent, .sep, .crumb:not(.src) { display: none; }
+  }
 </style>

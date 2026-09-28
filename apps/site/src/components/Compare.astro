@@ -7,17 +7,26 @@
  *   .a         the chat's answer           .paste   a pasted passage inside a .u (with <q>)
  *   .keys      a row of <kbd> between messages
  */
-import type { ImageMetadata } from "astro";
-import AppWindow from "./AppWindow.astro";
+import type { Shot } from "../shots";
+import AppWindow, { type Crop } from "./AppWindow.astro";
 
 interface Props {
   id?: string;
-  shot: ImageMetadata;
+  shot: Shot;
   alt: string;
+  /** The part of the capture that tells the story, shown large enough to read at page size. */
+  crop: Crop;
+  /** For phones, where the window is only as wide as the screen: a tighter crop, or a capture of its own. */
+  narrow: { shot?: Shot; crop: Crop };
   /** A note pinned to the top of the mock chat, e.g. where the scrolled-away answer went. */
   up?: string;
 }
-const { id, shot, alt, up } = Astro.props;
+const { id, shot, alt, crop, narrow, up } = Astro.props;
+// A cropped image is drawn wider than its window by the zoom, so ask for a file that much larger.
+const zoom = shot.width / crop.w;
+const zoomNarrow = (narrow.shot ?? shot).width / narrow.crop.w;
+const sizes = `(min-width: 1280px) ${Math.round(720 * zoom)}px, (min-width: 900px) ${Math.round(58 * zoom)}vw, ${Math.round(100 * zoom)}vw`;
+const narrowSizes = `${Math.round(100 * zoomNarrow)}vw`;
 ---
 
 <section class="section" id={id}>
@@ -41,7 +50,7 @@ const { id, shot, alt, up } = Astro.props;
       </div>
       <div class="col">
         <p class="label accent">QRabbit</p>
-        <AppWindow src={shot} alt={alt} sizes="(min-width: 1280px) 720px, (min-width: 900px) 58vw, calc(100vw - 32px)" />
+        <AppWindow shot={shot} alt={alt} sizes={sizes} crop={crop} narrow={{ shot: narrow.shot, crop: narrow.crop, sizes: narrowSizes }} />
       </div>
     </div>
   </div>

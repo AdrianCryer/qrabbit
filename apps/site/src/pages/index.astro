@@ -24,6 +24,8 @@ import { shots } from "../shots";
     <Compare
       id="features"
       shot={shots.highlight}
+      crop={{ x: 255, y: 150, w: 840, h: 525 }}
+      narrow={{ crop: { x: 266, y: 342, w: 500, h: 312 } }}
       alt="QRabbit with a passage selected in the paper and the Explore toolbar above it, and an earlier thread's highlight further up the page."
     >
       <Fragment slot="title">No more copying text. <em>Just highlight it.</em></Fragment>
@@ -46,29 +48,36 @@ import { shots } from "../shots";
     </Compare>
 
     <Compare
-      shot={shots.branches}
-      up="The list is three answers up"
-      alt="A QRabbit thread answering 'What are the main ways to learn a good policy?' with a numbered list; two of its points are highlighted with branch markers, and the outline above lists the two branches."
+      shot={shots.thread}
+      crop={{ x: 0, y: 44, w: 720, h: 524 }}
+      narrow={{ shot: shots.threadNarrow, crop: { x: 0, y: 44, w: 400, h: 756 } }}
+      up="The first list is three answers up"
+      alt="A QRabbit thread answering 'What are the main ways to learn a good policy?' with a numbered list. Two of its points are highlighted as branches, and the outline above the thread lists them under it."
     >
-      <Fragment slot="title">Answers come as lists. <em>Follow-ups bury them.</em></Fragment>
+      <Fragment slot="title">AI loves a list. <em>Keep them tidy.</em></Fragment>
       <Fragment slot="lede">
-        Ask about the third point, then the fourth, and the list scrolls out of sight while the conversation wanders. In
-        QRabbit each point you ask about opens its own branch, and the answer stays where it was.
+        When an answer has several parts, AI reaches for a list, and following up on each point turns one chat into a
+        tangle of lists inside lists. In QRabbit you highlight a point and it opens its own branch. The outline keeps every
+        branch in order, and the answer stays where it was.
       </Fragment>
       <div class="a">
         <ol start="3">
-          <li><b>Actor-critic methods</b> combine the two: a critic estimates value to cut the variance…</li>
-          <li><b>Model-based methods</b> learn a model of the environment and plan with it…</li>
+          <li><b>Actor-critic methods</b> combine the two…</li>
+          <li><b>Model-based methods</b> plan with a learned model…</li>
         </ol>
       </div>
-      <div class="u">Can you go deeper on actor-critic?</div>
+      <div class="u">Go deeper on 3.</div>
       <div class="a">
-        The policy gradient weights each action by the return that followed it, which is noisy. The critic swaps that
-        return for an estimate of the advantage, with far less spread…
+        It comes down to three ideas:
+        <ol>
+          <li><b>The actor</b> picks actions from the policy…</li>
+          <li><b>The critic</b> scores them against a baseline…</li>
+          <li><b>The advantage</b> says how much better than usual…</li>
+        </ol>
       </div>
-      <div class="u">And the model-based ones?</div>
-      <div class="a">They learn the dynamics and plan with them. That saves real experience, but a wrong model compounds its errors, so…</div>
-      <div class="u lost">Sorry, what was the second family again?</div>
+      <div class="u">Why does 2 cut the variance?</div>
+      <div class="a">Do you mean the critic here, or value-based methods, point 2 in the first list?</div>
+      <div class="u lost">The critic. And what was 4 in the first list again?</div>
     </Compare>
 
     <Burrow />

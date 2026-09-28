@@ -13,7 +13,7 @@ Set `SITE_URL` when building for a real domain (`SITE_URL=https://example.com pn
 ## What to edit
 
 - **Release details** live in `src/site.ts`: the download link for each platform (all point at GitHub Releases for now, which is private until the repo is public), the formats shown, and the Cloud price.
-- **App screenshots** are imported straight from `docs/screenshots/raw/`, the captures behind the README images, so rerunning `tools/dev/make-showcase.mjs` updates the site too. Astro turns them into responsive WebP at build time.
+- **App screenshots** are imported straight from `docs/screenshots/raw/`, the captures behind the README images, so rerunning `tools/dev/make-showcase.mjs` updates the site too. The thread in the lists comparison is captured separately by `node tools/dev/make-site-shots.mjs` (after `pnpm desktop:build`) at 720 and 400 pixels wide, so its text reads at page size on desktop and on phones. Each capture's layout width is recorded in `src/shots.ts`, and crops are given in that layout. Astro turns them all into responsive WebP at build time.
 - **The demo video** is left out of git. Put `demo.mp4` from `tools/dev/record-demo.mjs` (and optionally a `demo-poster.jpg`) in `public/` and a "See it move" section appears after the rabbit hole.
 - **`public/og.png`** is the 1200×630 social preview, rendered from the site's own components.
 
