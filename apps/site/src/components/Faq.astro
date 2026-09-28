@@ -38,20 +38,76 @@ const faqs = [
     <div class="list reveal">
       {
         faqs.map((f) => (
-          <details>
+          <details name="faq" data-faq>
             <summary>
               {f.q}
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 5v14M5 12h14" />
               </svg>
             </summary>
-            <p>{f.a}</p>
+            <div class="answer">
+              <p>{f.a}</p>
+            </div>
           </details>
         ))
       }
     </div>
   </div>
 </section>
+
+<script>
+  // One answer open at a time, sliding open and shut. Without scripts, `name` makes the browser do
+  // the one-at-a-time part itself; with them it goes, because the browser would shut the previous
+  // answer instantly the moment the next one opens, before it could slide shut.
+  const items = [...document.querySelectorAll<HTMLDetailsElement>("[data-faq]")];
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  const running = new Map<HTMLDetailsElement, Animation>();
+
+  /** Slides an answer open or shut, starting from wherever it is now, even mid-slide. */
+  function slide(d: HTMLDetailsElement, open: boolean) {
+    const body = d.querySelector<HTMLElement>(".answer")!;
+    const from = d.open ? body.getBoundingClientRect().height : 0;
+    const fromOpacity = d.open ? getComputedStyle(body).opacity : "0";
+    running.get(d)?.cancel();
+    running.delete(d);
+    d.classList.toggle("is-open", open);
+    d.open = true;
+    if (reduced.matches) {
+      d.open = open;
+      return;
+    }
+    const to = open ? body.scrollHeight : 0;
+    const anim = body.animate(
+      [
+        { height: `${from}px`, opacity: fromOpacity },
+        { height: `${to}px`, opacity: open ? 1 : 0 },
+      ],
+      { duration: open ? 420 : 320, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+    );
+    running.set(d, anim);
+    anim.onfinish = () => {
+      running.delete(d);
+      if (!open) d.open = false;
+    };
+  }
+
+  for (const d of items) {
+    d.removeAttribute("name");
+    d.classList.toggle("is-open", d.open);
+    d.querySelector("summary")!.addEventListener("click", (e) => {
+      e.preventDefault();
+      const open = !d.classList.contains("is-open");
+      if (open) for (const other of items) if (other !== d && other.classList.contains("is-open")) slide(other, false);
+      slide(d, open);
+    });
+    // The browser can open an answer by itself, e.g. to show a find-in-page match.
+    d.addEventListener("toggle", () => {
+      if (running.has(d) || d.open === d.classList.contains("is-open")) return;
+      d.classList.toggle("is-open", d.open);
+      if (d.open) for (const other of items) if (other !== d && other.classList.contains("is-open")) slide(other, false);
+    });
+  }
+</script>
 
 <style>
   .narrow { max-width: 820px; }
@@ -72,6 +128,8 @@ const faqs = [
   summary::-webkit-details-marker { display: none; }
   summary svg { width: 18px; height: 18px; flex: none; stroke: var(--text-3); fill: none; stroke-width: 2; stroke-linecap: round; transition: transform 0.3s var(--ease), stroke 0.2s; }
   summary:hover svg { stroke: var(--text); }
-  details[open] summary svg { transform: rotate(45deg); stroke: var(--accent); }
-  details p { color: var(--text-2); font-size: 16px; line-height: 1.65; padding: 0 44px 24px 4px; max-width: 68ch; }
+  /* The plus turns as the answer starts to move, not when it finishes shutting. */
+  details.is-open summary svg, :global(html:not(.js)) details[open] summary svg { transform: rotate(45deg); stroke: var(--accent); }
+  .answer { overflow: hidden; }
+  .answer p { color: var(--text-2); font-size: 16px; line-height: 1.65; padding: 0 44px 24px 4px; max-width: 68ch; }
 </style>
