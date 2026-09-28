@@ -110,16 +110,7 @@ try {
   for (const { name, view } of SHOTS) {
     await page.setViewportSize(view);
     await page.mouse.move(2, view.height - 2);
-    // Branch markers are placed when the answer renders and stay put when it re-wraps, so open a
-    // branch and come back to lay the answer out again at this width.
-    await page.evaluate((root) => {
-      const s = window.__qrabbitStore.getState();
-      s.openThread(s.collection.threads.find((t) => t.parent?.thread === root).id);
-    }, rootId);
-    await sleep(700);
-    await page.evaluate((root) => window.__qrabbitStore.getState().openThread(root), rootId);
-    await until(() => document.querySelectorAll(".bmark").length >= 2, "the branch markers again");
-    await page.evaluate(() => document.activeElement?.blur());
+    // Give the answer a moment to re-wrap at this width; the branch markers follow it.
     await sleep(900);
     // Start at the answer, so no message is cut in half under the outline.
     await page.evaluate(() => {

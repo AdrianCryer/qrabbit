@@ -56,6 +56,7 @@ function QuoteCard({ anchor, hue, from }: { anchor: Anchor; hue: number; from?: 
 function AssistantBody({ m, branches, onOpen, continueFrom, onContinued, onGrow }: { m: Message; branches: ThreadMeta[]; onOpen(id: string): void; continueFrom?: number; onContinued?(): void; onGrow?(): void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [marks, setMarks] = useState<Array<{ id: string; hue: number; x: number; y: number }>>([]);
+  const [layoutKey, setLayoutKey] = useState(0);
   // A message that has just finished streaming carries on revealing from where the stream got to.
   const [streamFrom] = useState(continueFrom);
 
@@ -86,7 +87,19 @@ function AssistantBody({ m, branches, onOpen, continueFrom, onContinued, onGrow 
     return () => {
       for (const [hl, range] of added) hl.delete(range);
     };
-  }, [m.body, branches]);
+  }, [m.body, branches, layoutKey]);
+
+  // The answer re-wraps whenever the panel changes width (the divider, Focus, the window), which
+  // moves the lines the branches start on; place the markers again when it does. Only answers with
+  // branches are watched, so one still streaming in does not re-render on every frame it grows.
+  const hasBranches = branches.length > 0;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !hasBranches) return;
+    const ro = new ResizeObserver(() => setLayoutKey((k) => k + 1));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [hasBranches]);
 
   return (
     <div className={branches.length > 0 ? "mdwrap has-marks" : "mdwrap"}>
