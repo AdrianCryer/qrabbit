@@ -8,9 +8,9 @@ https://github.com/user-attachments/assets/55911246-5bcf-4ba2-ac15-7b373cc4e1fc
 
 ![No more copying text, just highlight it: a passage pasted into a typical chat without its context on the left, and a passage selected in QRabbit with the Explore toolbar on the right](docs/screenshots/highlight.png)
 
-![Answers come as lists and follow-ups bury them: one long chat on the left, and QRabbit on the right with a branch for each point asked about](docs/screenshots/lists.png)
+![AI loves a list, keep them tidy: one long chat on the left where follow-ups on numbered points pile up into lists inside lists, and QRabbit on the right with a branch for each point asked about and the outline of those branches](docs/screenshots/lists.png)
 
-![Manage collections: the home screen listing collections, and a collection's reading list with read marks](docs/screenshots/collections.png)
+![One reading list per subject, one plain folder per list: the home screen listing collections, and a collection's reading list with read marks](docs/screenshots/collections.png)
 
 ## How it works
 
