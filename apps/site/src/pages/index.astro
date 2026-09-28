@@ -13,7 +13,7 @@ import Nav from "../components/Nav.astro";
 import Outro from "../components/Outro.astro";
 import Pricing from "../components/Pricing.astro";
 import Base from "../layouts/Base.astro";
-import { shots } from "../shots";
+import { belowHeader, shots } from "../shots";
 ---
 
 <Base>
@@ -49,8 +49,8 @@ import { shots } from "../shots";
 
     <Compare
       shot={shots.thread}
-      crop={{ x: 0, y: 44, w: 720, h: 524 }}
-      narrow={{ shot: shots.threadNarrow, crop: { x: 0, y: 44, w: 400, h: 756 } }}
+      crop={belowHeader(shots.thread)}
+      narrow={{ shot: shots.threadNarrow, crop: belowHeader(shots.threadNarrow) }}
       up="The first list is three answers up"
       alt="A QRabbit thread answering 'What are the main ways to learn a good policy?' with a numbered list. Two of its points are highlighted as branches, and the outline above the thread lists them under it."
     >

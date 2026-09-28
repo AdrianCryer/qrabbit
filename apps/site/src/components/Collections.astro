@@ -1,5 +1,5 @@
 ---
-import { shots } from "../shots";
+import { belowHeader, shots } from "../shots";
 import AppWindow from "./AppWindow.astro";
 
 // The collection folder, as the README documents it.
@@ -32,14 +32,20 @@ const tree: { name: string; note: string; depth?: number; accent?: boolean }[] =
       <AppWindow
         class="back"
         shot={shots.home}
-        alt="The QRabbit home screen listing three collections: Reinforcement learning, Transformers and Protein structure."
-        sizes="(min-width: 1280px) 660px, 58vw"
+        crop={belowHeader(shots.home)}
+        narrow={{ shot: shots.homeNarrow, crop: belowHeader(shots.homeNarrow), sizes: "100vw" }}
+        path={[]}
+        alt="The QRabbit home screen: a card to continue reading Reinforcement learning, and three recent collections with their sources, read counts, threads and folders."
+        sizes="(min-width: 1280px) 624px, (min-width: 901px) 52vw, 100vw"
       />
       <AppWindow
         class="front"
         shot={shots.readingList}
-        alt="A collection's reading list: four sources in reading order, the first marked read today."
-        sizes="(min-width: 1280px) 720px, 64vw"
+        crop={belowHeader(shots.readingList)}
+        narrow={{ shot: shots.readingListNarrow, crop: belowHeader(shots.readingListNarrow), sizes: "100vw" }}
+        path={[{ label: "Reinforcement learning" }, { label: "Reading list", icon: "list" }]}
+        alt="A collection's reading list: four sources in reading order, the first marked read today and the rest not started."
+        sizes="(min-width: 1280px) 744px, (min-width: 901px) 62vw, 100vw"
       />
     </div>
 
@@ -70,16 +76,12 @@ const tree: { name: string; note: string; depth?: number; accent?: boolean }[] =
 </section>
 
 <style>
-  /* As on the README image: the reading list runs off the bottom, so its empty lower half takes no room.
-     Only the bottom edge clips; the windows' shadows still spill out at the sides and top. */
-  .windows {
-    position: relative;
-    aspect-ratio: 1200 / 480;
-    clip-path: inset(-120px -120px 0 -120px);
-    mask-image: linear-gradient(180deg, #000 78%, transparent);
-  }
-  .windows :global(.back) { position: absolute; left: 0; top: 0; width: 55%; }
-  .windows :global(.front) { position: absolute; right: 0; top: 36%; width: 60%; }
+  /* As on the README image: home behind on the left, a reading list in front on the right. Both
+     share one grid cell, so the section is as tall as whichever reaches lower. */
+  .windows { display: grid; }
+  .windows > :global(*) { grid-area: 1 / 1; min-width: 0; }
+  .windows :global(.back) { width: 52%; justify-self: start; align-self: start; }
+  .windows :global(.front) { width: 62%; justify-self: end; align-self: start; margin-top: 19%; z-index: 1; }
 
   .files {
     margin-top: clamp(56px, 8vw, 96px);
@@ -110,13 +112,14 @@ const tree: { name: string; note: string; depth?: number; accent?: boolean }[] =
   .note { color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-ui); font-size: 13px; }
   .note::before { content: "# "; font-family: var(--font-mono); opacity: 0.6; }
 
+  /* Too narrow to overlap and still read: one above the other, each the full width. */
   @media (max-width: 900px) {
+    .windows { gap: 20px; }
+    .windows > :global(*) { grid-area: auto; }
+    .windows :global(.back), .windows :global(.front) { width: 100%; margin-top: 0; }
     .files { grid-template-columns: minmax(0, 1fr); }
   }
   @media (max-width: 640px) {
-    .windows { aspect-ratio: auto; display: grid; gap: 16px; clip-path: none; mask-image: none; }
-    .windows :global(.back), .windows :global(.front) { position: relative; width: 100%; }
-    .windows :global(.back) { display: none; }
     .note { display: none; }
   }
 </style>

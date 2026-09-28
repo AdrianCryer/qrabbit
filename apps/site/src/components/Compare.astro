@@ -7,8 +7,8 @@
  *   .a         the chat's answer           .paste   a pasted passage inside a .u (with <q>)
  *   .keys      a row of <kbd> between messages
  */
-import type { Shot } from "../shots";
-import AppWindow, { type Crop } from "./AppWindow.astro";
+import type { Crop, Shot } from "../shots";
+import AppWindow from "./AppWindow.astro";
 
 interface Props {
   id?: string;

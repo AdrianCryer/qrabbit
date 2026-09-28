@@ -7,15 +7,16 @@
  *
  * With `crop`, the window shows only part of the capture, enlarged to fill it, under a header bar
  * drawn at page size (the capture's own header is cut off or too small then), showing `path` the way
- * the app's header shows the collection and source. `narrow` swaps in another capture, crop or both
- * on phones, where the window is only as wide as the screen.
+ * the app's header does: the collection and what is open in it, or just the app's name on the home
+ * screen when `path` is empty. `narrow` swaps in another capture, crop or both on phones, where the
+ * window is only as wide as the screen.
  */
 import { getImage } from "astro:assets";
-import type { Shot } from "../shots";
+import type { Crop, Shot } from "../shots";
 
-/** A region of the capture, in its layout's pixels. */
-export type Crop = { x: number; y: number; w: number; h: number };
 export type Narrow = { shot?: Shot; crop?: Crop; sizes: string };
+/** One of the header's switchers, with the icon the app shows for what it switches. */
+export type Crumb = { label: string; icon?: "globe" | "list" };
 
 interface Props {
   shot: Shot;
@@ -26,10 +27,10 @@ interface Props {
   eager?: boolean;
   crop?: Crop;
   narrow?: Narrow;
-  /** The header's collection and source, when cropped. */
-  path?: [string, string];
+  /** The header's switchers, when cropped. */
+  path?: Crumb[];
 }
-const { shot, alt, sizes, class: className, eager = false, crop, narrow, path = ["Reinforcement learning", "Key Concepts in RL"] } = Astro.props;
+const { shot, alt, sizes, class: className, eager = false, crop, narrow, path = [{ label: "Reinforcement learning" }, { label: "Key Concepts in RL", icon: "globe" }] } = Astro.props;
 
 /** Where to put a capture in the window: the CSS variables the styles below read. */
 function frame({ img, width }: Shot, c: Crop | undefined, suffix = "") {
@@ -57,27 +58,37 @@ const small = narrow?.shot && (await optimise(narrow.shot));
     crop && (
       <div class="bar" aria-hidden="true">
         <span class="q">Q</span>
-        <span class="crumb">
-          {path[0]}
-          <svg class="chev" viewBox="0 0 24 24">
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </span>
-        <span class="sep">/</span>
-        <span class="crumb src">
-          <svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="9" />
-            <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
-          </svg>
-          {path[1]}
-          <svg class="chev" viewBox="0 0 24 24">
-            <path d="M6 9l6 6 6-6" />
-          </svg>
-        </span>
-        <span class="agent">
-          <i />
-          Claude Max
-        </span>
+        {path.length === 0 && <span class="brand">QRabbit</span>}
+        {path.map((c, i) => (
+          <Fragment>
+            {i > 0 && <span class="sep">/</span>}
+            <span class:list={["crumb", { last: i === path.length - 1 }]}>
+              {c.icon === "globe" && (
+                <svg viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+                </svg>
+              )}
+              {c.icon === "list" && (
+                <svg viewBox="0 0 24 24">
+                  <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />
+                </svg>
+              )}
+              {c.label}
+              <svg class="chev" viewBox="0 0 24 24">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </span>
+          </Fragment>
+        ))}
+        <span class="spacer" />
+        {/* The agent starts with a collection, so the home screen has no status. */}
+        {path.length > 0 && (
+          <span class="agent">
+            <i />
+            Claude Max
+          </span>
+        )}
         <span class="caps">
           <span>
             <svg viewBox="0 0 10 10">
@@ -184,15 +195,17 @@ const small = narrow?.shot && (await optimise(narrow.shot));
   .q { width: 20px; height: 20px; border-radius: 5px; background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; font-size: 13px; font-weight: 750; flex: none; margin-right: 4px; }
   .crumb { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .sep { color: var(--text-3); }
+  .brand { font-weight: 600; }
+  .spacer { flex: 1; }
   .bar svg { width: 14px; height: 14px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .bar .chev { width: 12px; height: 12px; color: var(--text-3); }
-  .agent { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 12px; font-weight: 400; }
+  .agent { display: inline-flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 12px; font-weight: 400; }
   .agent i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
   .caps { display: flex; flex: none; }
   .caps span { width: 40px; height: 40px; display: grid; place-items: center; }
   .bar .caps svg { width: 10px; height: 10px; stroke: #a3a8b0; stroke-width: 1; shape-rendering: crispEdges; overflow: visible; }
   .bar .caps svg.x { shape-rendering: geometricPrecision; }
   @container (max-width: 520px) {
-    .agent, .sep, .crumb:not(.src) { display: none; }
+    .agent, .sep, .crumb:not(.last) { display: none; }
   }
 </style>
