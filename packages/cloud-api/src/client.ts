@@ -28,8 +28,8 @@ export type SessionStore = {
 export type CloudClientOptions = {
   /** The Supabase project URL. */
   url: string;
-  /** The project's anon (publishable) key; row-level security does the rest. */
-  anonKey: string;
+  /** The project's publishable key (`sb_publishable_…`); row-level security does the rest. */
+  publishableKey: string;
   /** Without a store the session lives in memory and is gone when the process ends. */
   sessionStore?: SessionStore;
   fetch?: typeof fetch;
@@ -43,7 +43,7 @@ export class CloudClient {
   readonly supabase: SupabaseClient<Database>;
 
   constructor(opts: CloudClientOptions) {
-    this.supabase = createClient<Database>(opts.url, opts.anonKey, {
+    this.supabase = createClient<Database>(opts.url, opts.publishableKey, {
       auth: {
         persistSession: !!opts.sessionStore,
         ...(opts.sessionStore ? { storage: opts.sessionStore } : {}),

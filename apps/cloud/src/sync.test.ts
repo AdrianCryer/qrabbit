@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { MAX_BLOB_BYTES } from "@qrabbit/cloud-api";
 import type { CloudChanged, CloudSyncState } from "@qrabbit/shared";
 import { CloudSync, disableCloud, downloadCollection, enableCloud, isCloudCollection, readSyncState, type SyncReport } from "@qrabbit/cloud-sync";
 import {
@@ -220,5 +221,60 @@ describe.skipIf(!stack)("cloud sync and the quota", () => {
     expect(readSyncState(dir)?.unsaved).toEqual(["sources/huge/source.pdf"]);
     expect(states.at(-1)).toMatchObject({ phase: "idle", unsaved: 1 });
     await small.client.signOut();
+  });
+});
+
+describe.skipIf(!stack)("cloud sync and the limit per file", () => {
+  const s = stack as Stack;
+
+  it("leaves a file over the limit where it is on both sides", async () => {
+    const user = await newUser(s, "synclimit");
+    const clientB = await sameUser(s, user);
+    const a = tmp();
+    const b = tmp();
+    const pdf = "sources/scan/source.pdf";
+    initCollection(a, "Scans");
+    makeSource(a, "scan", "A long scan", bytes(16 * 1024, "scan.pdf"));
+    const { collectionId } = await enableCloud(a, user.client);
+    const states: CloudSyncState[] = [];
+    const syncA = new CloudSync({ dir: a, client: user.client, onState: (st) => states.push(st) });
+    let syncB: CloudSync | undefined;
+    try {
+      await syncA.requestSync();
+      await downloadCollection(b, clientB, collectionId);
+      syncB = new CloudSync({ dir: b, client: clientB });
+      const original = readFileSync(join(b, pdf));
+
+      // Grown past the limit here: not sent up, and not a removal either.
+      truncateSync(join(a, pdf), MAX_BLOB_BYTES + 1);
+      const grown = await syncA.requestSync();
+      expect(grown.tooLarge).toEqual([pdf]);
+      expect(grown.pushed).toBe(0);
+      expect(grown.removed).toBe(0);
+      expect(states.at(-1)).toMatchObject({ phase: "idle", tooLarge: 1 });
+      const quiet = await syncB.requestSync();
+      expect(quiet.pulled + quiet.deleted).toBe(0);
+      expect(readFileSync(join(b, pdf))).toEqual(original);
+
+      // Changed on the other machine: the change goes beside the large file, which stays as it is.
+      const v2 = bytes(20 * 1024, "scan-v2.pdf");
+      writeFileSync(join(b, pdf), v2);
+      await syncB.requestSync();
+      const beside = await syncA.requestSync();
+      expect(beside.kept).toBe(1);
+      expect(statSync(join(a, pdf)).size).toBe(MAX_BLOB_BYTES + 1);
+      expect(readFileSync(join(a, "sources/scan/source (from cloud).pdf"))).toEqual(Buffer.from(v2));
+
+      // Removed on the other machine: the large file still stays here.
+      rmSync(join(b, pdf));
+      await syncB.requestSync();
+      await syncA.requestSync();
+      expect(statSync(join(a, pdf)).size).toBe(MAX_BLOB_BYTES + 1);
+    } finally {
+      syncA.dispose();
+      syncB?.dispose();
+      await user.client.signOut();
+      await clientB.signOut();
+    }
   });
 });

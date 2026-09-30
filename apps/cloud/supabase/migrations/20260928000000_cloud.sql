@@ -528,8 +528,9 @@ grant execute on function public.gc_finish_blobs(jsonb) to service_role;
 
 -- ---------- storage: the blobs bucket ----------
 -- Objects are named `<user id>/<sha256>`. A user can read their own folder and may only upload what they reserved.
+-- 50 MiB per object, the most a Free project allows.
 insert into storage.buckets (id, name, public, file_size_limit)
-values ('blobs', 'blobs', false, 2147483648)
+values ('blobs', 'blobs', false, 52428800)
 on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit;
 
 create policy "blobs: read own" on storage.objects for select to authenticated

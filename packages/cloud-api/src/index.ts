@@ -5,6 +5,7 @@ export {
   BLOB_GRACE_DAYS,
   CloudError,
   DEFAULT_QUOTA_BYTES,
+  MAX_BLOB_BYTES,
   PENDING_WINDOW_HOURS,
   type BlobReservation,
   type ChangesCursor,

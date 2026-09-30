@@ -21,6 +21,8 @@ export type SyncReport = {
   conflicts: number;
   unsaved: string[];
   skipped: Skipped[];
+  /** Files over the cloud's limit per file. They stay here as they are, and the cloud keeps the version it had. */
+  tooLarge: string[];
   changed: CloudChanged;
 };
 
@@ -79,7 +81,7 @@ export class CloudSync {
   constructor(private readonly opts: CloudSyncOptions) {
     const s = readSyncState(opts.dir);
     if (!s) throw new Error("This collection is not kept in the cloud");
-    this.state = { collectionId: s.collectionId, phase: "idle", live: false, rev: s.rev, unsaved: s.unsaved?.length ?? 0, skipped: 0, ...(s.lastSync ? { lastSync: s.lastSync } : {}) };
+    this.state = { collectionId: s.collectionId, phase: "idle", live: false, rev: s.rev, unsaved: s.unsaved?.length ?? 0, skipped: 0, tooLarge: 0, ...(s.lastSync ? { lastSync: s.lastSync } : {}) };
   }
 
   get dir(): string {
@@ -119,7 +121,7 @@ export class CloudSync {
     this.emit({ phase: "syncing", error: undefined });
     try {
       const report = await this.sync();
-      this.emit({ phase: "idle", rev: report.rev, lastSync: new Date().toISOString(), unsaved: report.unsaved.length, skipped: report.skipped.length, error: undefined });
+      this.emit({ phase: "idle", rev: report.rev, lastSync: new Date().toISOString(), unsaved: report.unsaved.length, skipped: report.skipped.length, tooLarge: report.tooLarge.length, error: undefined });
       return report;
     } catch (err) {
       this.emit({ phase: "error", error: errText(err) });
@@ -137,10 +139,13 @@ export class CloudSync {
     const { dir, client, log } = this.opts;
     const state = readSyncState(dir);
     if (!state) throw new Error("This collection is no longer kept in the cloud");
-    const report: SyncReport = { rev: state.rev, pulled: 0, deleted: 0, pushed: 0, removed: 0, merged: 0, kept: 0, conflicts: 0, unsaved: [], skipped: [], changed: noChange() };
+    const report: SyncReport = { rev: state.rev, pulled: 0, deleted: 0, pushed: 0, removed: 0, merged: 0, kept: 0, conflicts: 0, unsaved: [], skipped: [], tooLarge: [], changed: noChange() };
     const scan = await scanCollection(dir, state.tree);
     report.skipped = scan.skipped;
+    report.tooLarge = scan.tooLarge;
     const local = scan.files;
+    // Too large to go up, and not to be replaced from the cloud either: missing from `local`, they are not removals.
+    const held = new Set(scan.tooLarge);
 
     // ----- pull -----
     const pull = async () => {
@@ -158,7 +163,7 @@ export class CloudSync {
       const isSourceJson = (p: string) => fileKind(p) === "source";
       const removals = entries.filter((e) => e.deleted).sort((a, b) => Number(isSourceJson(b.path)) - Number(isSourceJson(a.path)));
       const writes = entries.filter((e) => !e.deleted).sort((a, b) => Number(isSourceJson(a.path)) - Number(isSourceJson(b.path)));
-      for (const e of [...removals, ...writes]) await this.apply(e, state, local, report);
+      for (const e of [...removals, ...writes]) await this.apply(e, state, local, held, report);
       state.rev = rev;
       writeSyncState(dir, state);
     };
@@ -166,7 +171,7 @@ export class CloudSync {
 
     // ----- push -----
     const adds = [...local.values()].filter((f) => f.sha256 !== state.tree[f.path]?.sha256);
-    const gone = Object.keys(state.tree).filter((p) => !local.has(p));
+    const gone = Object.keys(state.tree).filter((p) => !local.has(p) && !held.has(p));
     if (adds.length || gone.length) {
       const bySha = new Map<string, LocalFile[]>();
       for (const f of adds) bySha.set(f.sha256, [...(bySha.get(f.sha256) ?? []), f]);
@@ -211,11 +216,12 @@ export class CloudSync {
     report.rev = state.rev;
     if (Object.values(report.changed).some(Boolean)) this.opts.onChanged?.(report.changed);
     if (report.unsaved.length) log?.warn(`${report.unsaved.length} file(s) did not fit in the cloud`);
+    if (report.tooLarge.length) log?.warn(`${report.tooLarge.length} file(s) are over the cloud's limit per file and stay on this machine`);
     return report;
   }
 
   /** Bring one cloud entry into the folder, or settle it against a local change. */
-  private async apply(e: FileEntry, state: SyncState, local: Map<string, LocalFile>, report: SyncReport): Promise<void> {
+  private async apply(e: FileEntry, state: SyncState, local: Map<string, LocalFile>, held: ReadonlySet<string>, report: SyncReport): Promise<void> {
     const { dir, client } = this.opts;
     const path = e.path;
     // Never write outside the folder, whatever the cloud says.
@@ -226,6 +232,22 @@ export class CloudSync {
     const syncedSha = synced?.sha256 ?? null;
     const localSha = loc?.sha256 ?? null;
     if (remoteSha === syncedSha) return;
+
+    if (held.has(path)) {
+      // The file here is too large to merge or send up, and nothing replaces it: a removal leaves it here alone,
+      // and a change goes beside it, as when two versions cannot be merged.
+      report.conflicts++;
+      report.kept++;
+      if (remoteSha === null) {
+        delete state.tree[path];
+        return;
+      }
+      const beside = sibling(path);
+      local.set(beside, this.writeFile(beside, await client.getBlob(remoteSha), remoteSha));
+      state.tree[path] = { sha256: remoteSha, size: e.size, mtimeMs: -1 };
+      markChanged(report.changed, path);
+      return;
+    }
 
     if (localSha === syncedSha) {
       // Only the cloud changed: take it.

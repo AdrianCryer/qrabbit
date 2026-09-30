@@ -18,6 +18,14 @@ function cloudLine(cloud: CloudAccount | null, sync: CloudSyncState | null): { d
   return { dot: "on", text: sync.lastSync ? `Synced ${ago(sync.lastSync)}` : "Synced" };
 }
 
+/** What stays out of the cloud and why, after the live line; empty when everything syncs. */
+function leftOut(sync: CloudSyncState): string {
+  let out = "";
+  if (sync.skipped) out += sync.skipped === 1 ? " One file name cannot be stored." : ` ${sync.skipped} file names cannot be stored.`;
+  if (sync.tooLarge) out += sync.tooLarge === 1 ? " One file is over 50 MB and stays on this computer." : ` ${sync.tooLarge} files are over 50 MB and stay on this computer.`;
+  return out;
+}
+
 const usageLine = (cloud: CloudAccount) => (cloud.usedBytes !== undefined && cloud.quotaBytes !== undefined ? ` · ${fmtStorage(cloud.usedBytes)} of ${fmtStorage(cloud.quotaBytes)} used` : "");
 
 export function Header() {
@@ -331,7 +339,7 @@ export function Header() {
                       <>
                         <div className="state">
                           <span>{cl.text}</span>
-                          <span className="m">{cloudSync.live ? "Changes on other computers arrive as they happen." : "Checked every few minutes."}{cloudSync.skipped ? ` ${cloudSync.skipped} file names cannot be stored.` : ""}</span>
+                          <span className="m">{cloudSync.live ? "Changes on other computers arrive as they happen." : "Checked every few minutes."}{leftOut(cloudSync)}</span>
                         </div>
                         <button className="mi" role="menuitem" onClick={() => { close(); void syncNow(); }}>
                           <Icon name="refresh" />

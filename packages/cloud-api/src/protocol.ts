@@ -11,6 +11,8 @@
 
 /** The cloud's default allowance per account: 5 GiB. Support can raise it per profile. */
 export const DEFAULT_QUOTA_BYTES = 5 * 1024 ** 3;
+/** The most the cloud stores in one file: 50 MiB (mirrored in the bucket's limit in SQL). Larger files stay on the machine. */
+export const MAX_BLOB_BYTES = 50 * 1024 ** 2;
 /** How long a reserved or freshly unreferenced blob still counts towards the quota (mirrored in SQL). */
 export const PENDING_WINDOW_HOURS = 1;
 /** How long an unreferenced blob is kept before the garbage collector removes it (mirrored in the GC function). */

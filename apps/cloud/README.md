@@ -8,7 +8,7 @@ Every account gets 5 GiB. The app talks to it through [`@qrabbit/cloud-api`](../
 
 ```
 supabase/
-  config.toml                       local stack: ten-minute codes, both sign-in emails carry the code, 2 GiB per object
+  config.toml                       local stack: ten-minute codes, both sign-in emails carry the code, 50 MiB per object
   migrations/20260928000000_cloud.sql  tables, row-level security, the sync functions, the blobs bucket and its policies
   functions/blob-gc/                edge function that removes content nothing references any more (service role only)
   templates/code.html               the sign-in email
@@ -49,26 +49,27 @@ One thing to know about the local stack: when the storage service refuses a larg
 1. Create a project at supabase.com and link it: `pnpm --filter @qrabbit/cloud exec supabase link --project-ref <ref>`.
 2. Push the schema: `pnpm --filter @qrabbit/cloud exec supabase db push`.
 3. Under Authentication → Emails, set both the "Confirm signup" and "Magic Link" templates to `supabase/templates/code.html` with the subject "Your QRabbit Cloud code", set the OTP expiry to 600 seconds, and turn off "Confirm email" (a code proves the address). Add a real SMTP provider under Authentication → SMTP; the built-in sender is for testing only.
-4. Under Storage → Settings, set the global upload limit to 2 GiB (the bucket's own limit is in the migration). Uploads over about 6 MB should move to resumable uploads once the app grows large libraries.
-5. Deploy the collector: `pnpm --filter @qrabbit/cloud exec supabase functions deploy blob-gc`. It runs with the service key and refuses any other caller.
-6. Schedule it hourly with pg_cron and pg_net (Database → Extensions, then in the SQL editor, with the project URL and the service key from Project Settings → API kept in Vault):
+4. Under Storage → Settings, set the global upload limit to 50 MB (the bucket's own limit is in the migration). That is also the most a Free project allows.
+5. Deploy the collector: `pnpm --filter @qrabbit/cloud exec supabase functions deploy blob-gc`. `config.toml` turns off JWT verification for it, because its caller presents a secret key, which is not a JWT; the function accepts any of the project's secret keys and refuses everyone else.
+6. Under Project Settings → API Keys, create a secret key named `blob-gc` for the scheduler, so it can be rotated on its own. Then schedule the collector hourly with pg_cron and pg_net (Database → Extensions, then in the SQL editor, with the key kept in Vault):
 
    ```sql
-   select vault.create_secret('<service role key>', 'service_role_key');
+   select vault.create_secret('<the blob-gc secret key>', 'blob_gc_key');
    select cron.schedule('blob-gc', '17 * * * *', $$
      select net.http_post(
        url := 'https://<ref>.supabase.co/functions/v1/blob-gc',
-       headers := jsonb_build_object('Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key'))
+       headers := jsonb_build_object('Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'blob_gc_key'))
      );
    $$);
    ```
 
-7. The app needs the project URL and the anon (publishable) key; nothing else leaves the project.
+   To rotate it: create a new secret key, `select vault.update_secret((select id from vault.secrets where name = 'blob_gc_key'), '<new key>')`, then delete the old key.
+7. Nothing uses the legacy `anon` and `service_role` keys; turn them off under Project Settings → API Keys.
+8. The app needs the project URL and the publishable key (`sb_publishable_…`); nothing else leaves the project.
 
 To raise one account's allowance: `update public.profiles set quota_bytes = … where email = …`.
 
 ## Not here yet
 
 - Billing. The $5 a month on the site will be Stripe: a checkout from the app, a webhook that sets `profiles.plan`, and the functions refusing writes on a lapsed plan. Everything else is in place for it.
-- Resumable uploads for very large PDFs (TUS, `tus-js-client`), which the bucket already supports.
 - Pruning old tombstones. They are small rows and are kept, so any machine can catch up from any revision.

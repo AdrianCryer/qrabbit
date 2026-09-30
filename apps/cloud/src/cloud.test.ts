@@ -337,24 +337,26 @@ describe.skipIf(!stack)("QRabbit Cloud", () => {
     const { data: before } = await a.from("blobs").select("refs, unreferenced_at").eq("user_id", user.id).eq("sha256", sha).single();
     expect(before?.refs).toBe(0);
     // Too young for the collector.
-    const early = await fetch(`${s.url}/functions/v1/blob-gc`, { method: "POST", headers: { authorization: `Bearer ${s.serviceKey}` } });
+    const early = await fetch(`${s.url}/functions/v1/blob-gc`, { method: "POST", headers: { authorization: `Bearer ${s.secretKey}` } });
     expect(early.status).toBe(200);
     expect((await a.from("blobs").select("sha256").eq("user_id", user.id).eq("sha256", sha)).data).toHaveLength(1);
     // Older than the grace period: gone, object and row.
     await a.from("blobs").update({ unreferenced_at: new Date(Date.now() - 8 * 86_400_000).toISOString() }).eq("user_id", user.id).eq("sha256", sha);
-    const swept = await fetch(`${s.url}/functions/v1/blob-gc`, { method: "POST", headers: { authorization: `Bearer ${s.serviceKey}` } });
+    const swept = await fetch(`${s.url}/functions/v1/blob-gc`, { method: "POST", headers: { authorization: `Bearer ${s.secretKey}` } });
     expect(swept.status).toBe(200);
     expect(((await swept.json()) as { removed: number }).removed).toBeGreaterThanOrEqual(1);
     expect((await a.from("blobs").select("sha256").eq("user_id", user.id).eq("sha256", sha)).data).toHaveLength(0);
     await expectCloudError(c.getBlob(sha), "storage");
-    // Without the service key nobody can start a sweep.
-    const denied = await fetch(`${s.url}/functions/v1/blob-gc`, { method: "POST", headers: { authorization: `Bearer ${s.anonKey}` } });
+    // Without a secret key nobody can start a sweep.
+    const denied = await fetch(`${s.url}/functions/v1/blob-gc`, { method: "POST", headers: { authorization: `Bearer ${s.publishableKey}` } });
     expect(denied.status).toBe(403);
+    const unsigned = await fetch(`${s.url}/functions/v1/blob-gc`, { method: "POST" });
+    expect(unsigned.status).toBe(403);
   });
 
   it("signs in with an emailed code", { skip: !stack?.mailUrl }, async () => {
     const email = `code-${Date.now().toString(36)}@qrabbit.test`;
-    const client = new CloudClient({ url: s.url, anonKey: s.anonKey });
+    const client = new CloudClient({ url: s.url, publishableKey: s.publishableKey });
     await client.requestCode(email);
     let code: string | null = null;
     for (let i = 0; i < 40 && !code; i++) {

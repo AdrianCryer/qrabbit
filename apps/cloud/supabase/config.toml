@@ -113,9 +113,9 @@ port = 54324
 
 [storage]
 enabled = true
-# One PDF at most; the account's 5 GiB quota is enforced in the database (see the migration).
+# One file at most; the account's 5 GiB quota is enforced in the database (see the migration).
 # The hosted project needs the same global limit under Storage settings.
-file_size_limit = "2GiB"
+file_size_limit = "50MiB"
 
 # Uncomment to configure local storage buckets
 # [storage.buckets.images]
@@ -390,6 +390,11 @@ deno_version = 2
 
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
+
+# The scheduler calls the collector with a secret key, which is not a JWT, so the gateway must not require one.
+# The function checks the key itself. `functions deploy` reads this setting.
+[functions.blob-gc]
+verify_jwt = false
 
 [analytics]
 # Off locally: it adds two containers and nothing the tests need.

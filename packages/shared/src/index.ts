@@ -262,6 +262,8 @@ export type CloudSyncState = {
   unsaved: number;
   /** Files whose names cannot be stored in the cloud (characters other systems refuse). */
   skipped: number;
+  /** Files over the cloud's 50 MB limit per file: they stay on this machine, and the cloud keeps what it had. */
+  tooLarge: number;
   error?: string;
 };
 

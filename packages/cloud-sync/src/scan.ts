@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { createReadStream, existsSync, readdirSync, statSync, type Dirent } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { pipeline } from "node:stream/promises";
-import { isSyncedPath, STATE_DIR, STATE_SYNCED, syncPathProblem } from "@qrabbit/cloud-api";
+import { isSyncedPath, MAX_BLOB_BYTES, STATE_DIR, STATE_SYNCED, syncPathProblem } from "@qrabbit/cloud-api";
 import type { SyncedFile } from "./state.js";
 
 export type LocalFile = SyncedFile & { path: string };
@@ -17,9 +17,10 @@ export async function hashFile(full: string): Promise<string> {
 
 /**
  * Every synced file in the folder with its hash. A file whose size and modification time match what the last
- * sync recorded keeps its hash; only changed files are read.
+ * sync recorded keeps its hash; only changed files are read. Files larger than the cloud stores are listed apart,
+ * unread.
  */
-export async function scanCollection(dir: string, known: Record<string, SyncedFile>): Promise<{ files: Map<string, LocalFile>; skipped: Skipped[] }> {
+export async function scanCollection(dir: string, known: Record<string, SyncedFile>): Promise<{ files: Map<string, LocalFile>; skipped: Skipped[]; tooLarge: string[] }> {
   const candidates: Array<{ full: string; path: string }> = [];
   const skipped: Skipped[] = [];
   const consider = (full: string, path: string) => {
@@ -55,6 +56,7 @@ export async function scanCollection(dir: string, known: Record<string, SyncedFi
   walk(dir);
 
   const files = new Map<string, LocalFile>();
+  const tooLarge: string[] = [];
   for (const { full, path } of candidates) {
     let st;
     try {
@@ -62,9 +64,13 @@ export async function scanCollection(dir: string, known: Record<string, SyncedFi
     } catch {
       continue;
     }
+    if (st.size > MAX_BLOB_BYTES) {
+      tooLarge.push(path);
+      continue;
+    }
     const k = known[path];
     const sha256 = k && k.size === st.size && k.mtimeMs === st.mtimeMs ? k.sha256 : await hashFile(full);
     files.set(path, { path, sha256, size: st.size, mtimeMs: st.mtimeMs });
   }
-  return { files, skipped };
+  return { files, skipped, tooLarge };
 }

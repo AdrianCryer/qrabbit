@@ -9,17 +9,16 @@ import { readJson, writeJson } from "@qrabbit/workspace";
 
 /** The local Supabase stack, the same on every machine that runs `pnpm cloud:start`; development builds use it unless told otherwise. */
 const LOCAL_URL = "http://127.0.0.1:54321";
-const LOCAL_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0";
+const LOCAL_PUBLISHABLE_KEY = "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
 const DEBOUNCE_MS = 2000;
 const PERIODIC_MS = 5 * 60_000;
 
-/** Where QRabbit Cloud is: `QRABBIT_CLOUD_URL` and `QRABBIT_CLOUD_ANON_KEY`, else the local stack in development, else nowhere. */
-export function cloudEndpoint(): { url: string; anonKey: string } | null {
+/** Where QRabbit Cloud is: `QRABBIT_CLOUD_URL` and `QRABBIT_CLOUD_PUBLISHABLE_KEY`, else the local stack in development, else nowhere. */
+export function cloudEndpoint(): { url: string; publishableKey: string } | null {
   const url = process.env["QRABBIT_CLOUD_URL"];
-  const anonKey = process.env["QRABBIT_CLOUD_ANON_KEY"];
-  if (url && anonKey) return { url, anonKey };
-  if (!app.isPackaged) return { url: LOCAL_URL, anonKey: LOCAL_ANON_KEY };
+  const publishableKey = process.env["QRABBIT_CLOUD_PUBLISHABLE_KEY"];
+  if (url && publishableKey) return { url, publishableKey };
+  if (!app.isPackaged) return { url: LOCAL_URL, publishableKey: LOCAL_PUBLISHABLE_KEY };
   return null;
 }
 
@@ -217,7 +216,7 @@ export class CloudHost {
     const runner = this.runners.get(path);
     if (runner) return runner.sync.state;
     const s = readSyncState(path);
-    return s ? { collectionId: s.collectionId, phase: "idle", live: false, rev: s.rev, unsaved: s.unsaved?.length ?? 0, skipped: 0, ...(s.lastSync ? { lastSync: s.lastSync } : {}) } : null;
+    return s ? { collectionId: s.collectionId, phase: "idle", live: false, rev: s.rev, unsaved: s.unsaved?.length ?? 0, skipped: 0, tooLarge: 0, ...(s.lastSync ? { lastSync: s.lastSync } : {}) } : null;
   }
 
   async download(collectionId: string, dir: string): Promise<void> {

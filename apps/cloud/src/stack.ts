@@ -9,8 +9,10 @@ const APP_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 export type Stack = {
   url: string;
-  anonKey: string;
-  serviceKey: string;
+  /** `sb_publishable_…`: what the app ships with. */
+  publishableKey: string;
+  /** `sb_secret_…`: bypasses row-level security. */
+  secretKey: string;
   /** The local mail catcher's web UI, which also has an API the OTP test reads codes from. */
   mailUrl: string | null;
 };
@@ -33,8 +35,8 @@ function parseEnv(text: string): Record<string, string> {
 /** The local stack's URL and keys: from the environment, else from `supabase status`. Null when it is not running. */
 export function localStack(): Stack | null {
   const env = process.env;
-  if (env["SUPABASE_URL"] && env["SUPABASE_ANON_KEY"] && env["SUPABASE_SERVICE_ROLE_KEY"]) {
-    return { url: env["SUPABASE_URL"], anonKey: env["SUPABASE_ANON_KEY"], serviceKey: env["SUPABASE_SERVICE_ROLE_KEY"], mailUrl: env["SUPABASE_MAIL_URL"] ?? null };
+  if (env["SUPABASE_URL"] && env["SUPABASE_PUBLISHABLE_KEY"] && env["SUPABASE_SECRET_KEY"]) {
+    return { url: env["SUPABASE_URL"], publishableKey: env["SUPABASE_PUBLISHABLE_KEY"], secretKey: env["SUPABASE_SECRET_KEY"], mailUrl: env["SUPABASE_MAIL_URL"] ?? null };
   }
   // The `supabase` package's bin is a Node shim in front of the platform binary.
   const shim = join(APP_DIR, "node_modules", "supabase", "dist", "supabase.js");
@@ -47,17 +49,17 @@ export function localStack(): Stack | null {
   }
   const vars = parseEnv(text);
   const url = vars["API_URL"];
-  const anonKey = vars["ANON_KEY"] ?? vars["PUBLISHABLE_KEY"];
-  const serviceKey = vars["SERVICE_ROLE_KEY"] ?? vars["SECRET_KEY"];
-  if (!url || !anonKey || !serviceKey) return null;
-  return { url, anonKey, serviceKey, mailUrl: vars["MAILPIT_URL"] ?? vars["INBUCKET_URL"] ?? null };
+  const publishableKey = vars["PUBLISHABLE_KEY"];
+  const secretKey = vars["SECRET_KEY"];
+  if (!url || !publishableKey || !secretKey) return null;
+  return { url, publishableKey, secretKey, mailUrl: vars["MAILPIT_URL"] ?? vars["INBUCKET_URL"] ?? null };
 }
 
 export type TestUser = { id: string; email: string; password: string; client: CloudClient };
 
-/** The service-role client: bypasses row-level security, for setting up and inspecting state. */
+/** A client on the secret key: bypasses row-level security, for setting up and inspecting state. */
 export function admin(stack: Stack): SupabaseClient<Database> {
-  return createClient<Database>(stack.url, stack.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  return createClient<Database>(stack.url, stack.secretKey, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
 let seq = 0;
@@ -68,7 +70,7 @@ export async function newUser(stack: Stack, label = "reader"): Promise<TestUser>
   const password = `pw-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
   const { data, error } = await admin(stack).auth.admin.createUser({ email, password, email_confirm: true });
   if (error) throw error;
-  const client = new CloudClient({ url: stack.url, anonKey: stack.anonKey });
+  const client = new CloudClient({ url: stack.url, publishableKey: stack.publishableKey });
   const signedIn = await client.supabase.auth.signInWithPassword({ email, password });
   if (signedIn.error) throw signedIn.error;
   return { id: data.user.id, email, password, client };
@@ -76,7 +78,7 @@ export async function newUser(stack: Stack, label = "reader"): Promise<TestUser>
 
 /** A second machine of the same account: its own client, same credentials. */
 export async function sameUser(stack: Stack, user: TestUser): Promise<CloudClient> {
-  const client = new CloudClient({ url: stack.url, anonKey: stack.anonKey });
+  const client = new CloudClient({ url: stack.url, publishableKey: stack.publishableKey });
   const { error } = await client.supabase.auth.signInWithPassword({ email: user.email, password: user.password });
   if (error) throw error;
   return client;
