@@ -1,0 +1,29 @@
+{
+  "name": "@qrabbit/cloud",
+  "version": "0.0.0",
+  "private": true,
+  "description": "QRabbit Cloud: the Supabase project behind sync and backup. Schema, row-level security, the sync functions, the blob garbage collector, and end-to-end tests against the local stack.",
+  "type": "module",
+  "scripts": {
+    "start": "supabase start",
+    "stop": "supabase stop",
+    "status": "supabase status",
+    "reset": "supabase db reset",
+    "types": "supabase gen types typescript --local --schema public > supabase/.temp/database.types.generated.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@qrabbit/cloud-api": "workspace:*",
+    "@supabase/supabase-js": "^2.117.2"
+  },
+  "devDependencies": {
+    "@qrabbit/cloud-sync": "workspace:*",
+    "@qrabbit/shared": "workspace:*",
+    "@qrabbit/workspace": "workspace:*",
+    "@types/node": "^22.15.0",
+    "supabase": "^2.118.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}

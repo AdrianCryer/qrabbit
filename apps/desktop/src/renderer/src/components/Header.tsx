@@ -1,10 +1,24 @@
+import { useEffect, useState } from "react";
+import type { CloudAccount, CloudSyncState } from "@qrabbit/shared";
 import { useStore } from "../state/store";
 import { displayPath } from "../lib/paths";
 // The same file the window and taskbar icon are rendered from, so the mark matches everywhere.
 import logo from "../../../../resources/icon.svg";
-import { relTime } from "../lib/time";
+import { ago, fmtStorage, relTime } from "../lib/time";
 import { Dropdown } from "./Dropdown";
 import { Icon } from "./Icons";
+
+/** The cloud pill's dot and its one-line state, from the account and the open collection's sync state. */
+function cloudLine(cloud: CloudAccount | null, sync: CloudSyncState | null): { dot: "" | "on" | "busy" | "bad"; text: string } {
+  if (!cloud?.signedIn) return { dot: "", text: "Not signed in to QRabbit Cloud" };
+  if (!sync) return { dot: "", text: "This collection is not in the cloud" };
+  if (sync.phase === "syncing") return { dot: "busy", text: "Syncing…" };
+  if (sync.phase === "error") return { dot: "bad", text: sync.error ? `Could not sync: ${sync.error}` : "Could not sync; trying again" };
+  if (sync.unsaved > 0) return { dot: "bad", text: sync.unsaved === 1 ? "One file did not fit; the cloud is full" : `${sync.unsaved} files did not fit; the cloud is full` };
+  return { dot: "on", text: sync.lastSync ? `Synced ${ago(sync.lastSync)}` : "Synced" };
+}
+
+const usageLine = (cloud: CloudAccount) => (cloud.usedBytes !== undefined && cloud.quotaBytes !== undefined ? ` · ${fmtStorage(cloud.usedBytes)} of ${fmtStorage(cloud.quotaBytes)} used` : "");
 
 export function Header() {
   const screen = useStore((s) => s.screen);
@@ -17,12 +31,20 @@ export function Header() {
 
   const agent = useStore((s) => s.agent);
   const menu = useStore((s) => s.menu);
-  const { connectAgent, loginAgent, setMenu, setSettingsOpen, setUrlDialogOpen } = useStore.getState();
+  const cloud = useStore((s) => s.cloud);
+  const cloudSync = useStore((s) => s.cloudSync);
+  const { connectAgent, loginAgent, setMenu, setSettingsOpen, setUrlDialogOpen, enableCloud, disableCloud, removeCloudCollection, syncNow } = useStore.getState();
+  // Removing a collection from the cloud asks once, inside the menu; the question goes away with the menu.
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  useEffect(() => {
+    if (menu !== "cloud") setConfirmRemove(false);
+  }, [menu]);
+  const cl = cloudLine(cloud, cloudSync);
   const kindIcon = (kind: string) => (kind === "web" ? "globe" : kind === "markdown" ? "lines" : "file");
   // Page numbers mean something for PDFs only; articles are one page.
   const pageChip = (sourceId: string | undefined, page: number | undefined) =>
     page && collection?.sources.find((s) => s.id === sourceId)?.kind === "pdf" ? <span className="chip">p.{page}</span> : null;
-  const controlled = (id: "collection" | "source" | "threads" | "marks") => ({ open: menu === id, onOpenChange: (v: boolean) => setMenu(v ? id : menu === id ? null : menu) });
+  const controlled = (id: "collection" | "source" | "threads" | "marks" | "cloud") => ({ open: menu === id, onOpenChange: (v: boolean) => setMenu(v ? id : menu === id ? null : menu) });
   const annotations = collection?.annotations ?? [];
   const { goToAnnotation } = useStore.getState();
   const source = collection?.sources.find((s) => s.id === sourceId) ?? null;
@@ -274,6 +296,76 @@ export function Header() {
                 </>
               )}
             </Dropdown>
+            {cloud?.available && (
+              <Dropdown
+                {...controlled("cloud")}
+                align="right"
+                title={cl.text}
+                label={
+                  <span className="cloudpill">
+                    <Icon name="cloud" />
+                    <span className={`dot ${cl.dot}`} />
+                  </span>
+                }
+              >
+                {(close) => (
+                  <>
+                    <div className="mh">QRabbit Cloud</div>
+                    {!cloud.signedIn ? (
+                      <>
+                        <div className="mempty">Keep this collection in step across your computers, with a copy of every file.</div>
+                        <button className="mi" role="menuitem" onClick={() => { close(); setSettingsOpen(true); }}>
+                          <Icon name="key" />
+                          <span className="txt"><span className="t">Sign in…</span><span className="m">A code by email, no password</span></span>
+                        </button>
+                      </>
+                    ) : !cloudSync ? (
+                      <>
+                        <div className="mempty">{cloud.email}{usageLine(cloud)}</div>
+                        <button className="mi" role="menuitem" onClick={() => { close(); void enableCloud(); }}>
+                          <Icon name="cloud" />
+                          <span className="txt"><span className="t">Keep {collection.info.name} in the cloud</span><span className="m">Every file in this folder, PDFs included</span></span>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="state">
+                          <span>{cl.text}</span>
+                          <span className="m">{cloudSync.live ? "Changes on other computers arrive as they happen." : "Checked every few minutes."}{cloudSync.skipped ? ` ${cloudSync.skipped} file names cannot be stored.` : ""}</span>
+                        </div>
+                        <button className="mi" role="menuitem" onClick={() => { close(); void syncNow(); }}>
+                          <Icon name="refresh" />
+                          <span className="txt"><span className="t">Sync now</span></span>
+                        </button>
+                        <button className="mi" role="menuitem" onClick={() => { close(); void disableCloud(); }}>
+                          <Icon name="x" />
+                          <span className="txt"><span className="t">Stop syncing on this computer</span><span className="m">The copy in the cloud stays</span></span>
+                        </button>
+                        {confirmRemove ? (
+                          <div className="confirm">
+                            <span>Remove {collection.info.name} from the cloud? Every computer keeps its folder.</span>
+                            <div className="btns">
+                              <button className="btn danger" onClick={() => { close(); void removeCloudCollection(cloudSync.collectionId); }}>Remove</button>
+                              <button className="btn" onClick={() => setConfirmRemove(false)}>Keep</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button className="mi danger" role="menuitem" onClick={() => setConfirmRemove(true)}>
+                            <Icon name="trash" />
+                            <span className="txt"><span className="t">Remove from the cloud…</span></span>
+                          </button>
+                        )}
+                        <div className="msep" />
+                        <button className="mi" role="menuitem" onClick={() => { close(); setSettingsOpen(true); }}>
+                          <Icon name="gear" />
+                          <span className="txt"><span className="t">Account and computers…</span><span className="m">{cloud.email}{usageLine(cloud)}</span></span>
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
+              </Dropdown>
+            )}
             <Dropdown
               align="right"
               title={agent?.error ?? "Agent status and sign-in"}

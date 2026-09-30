@@ -517,6 +517,36 @@ body.dragging { cursor: grabbing; user-select: none; }
 .mi[data-read] .mchk { color: var(--ok); }
 .mi[data-read] .mchk svg.i { stroke-width: 2.2; }
 
+/* ---------- cloud ---------- */
+.cloudpill { display: flex; align-items: center; gap: 5px; color: var(--text-3); padding: 0 4px; }
+.cloudpill .dot { width: 7px; height: 7px; background: var(--text-3); opacity: 0.6; }
+.cloudpill .dot.on { background: var(--ok); opacity: 1; }
+.cloudpill .dot.busy { background: var(--accent); opacity: 1; animation: pulse 1.2s ease-in-out infinite; }
+.cloudpill .dot.bad { background: #ff8a8a; opacity: 1; }
+@keyframes pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cloudpill .dot.busy { animation: none; } }
+.menu .state { display: grid; gap: 3px; padding: 8px 9px 6px; font-size: 12.5px; color: var(--text); }
+.menu .state .m { color: var(--text-3); font-size: 11.5px; line-height: 1.45; }
+.menu .confirm .btn.danger { margin-left: 0; }
+.usage { display: grid; gap: 6px; max-width: 380px; }
+.usage .bar { height: 6px; border-radius: var(--r-pill); background: var(--sunken); border: 1px solid var(--line); overflow: hidden; }
+.usage .bar i { display: block; height: 100%; background: var(--accent); border-radius: var(--r-pill); min-width: 2px; }
+.usage .bar.full i { background: #ff8a8a; }
+.usage span { color: var(--text-3); font-size: 12px; }
+.field input { font: inherit; font-size: 13px; color: var(--text); background: var(--sunken); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 6px 8px; min-width: 220px; }
+.field input:focus-visible { outline: none; border-color: color-mix(in srgb, var(--accent) 65%, transparent); }
+.field input:disabled { opacity: 0.6; }
+.machines { list-style: none; margin: 0; padding: 0; display: grid; }
+.machines li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; min-width: 0; }
+.machines li svg.i { color: var(--text-2); }
+.machines li .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.machines li .this { color: var(--accent); font-size: 11px; flex: none; }
+.machines li .m { color: var(--text-3); margin-left: auto; font-size: 11.5px; white-space: nowrap; flex: none; }
+.machines li .btn { padding: 4px 8px; font-size: 12px; flex: none; }
+.machines li .btn.danger { margin-left: 0; }
+.coll .meta svg.i { width: 13px; height: 13px; vertical-align: -2px; margin-right: 6px; color: var(--text-3); }
+.coll.cloudonly .ico { color: var(--text-3); }
+
 /* ---------- folder picker ---------- */
 .dialog.folder { width: min(100%, 620px); grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; }
 .dialog.folder > * { min-width: 0; }

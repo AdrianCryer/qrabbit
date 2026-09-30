@@ -39,3 +39,11 @@ export function fmtSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
+
+/** "5 GB", "1.2 GB", "340 MB": for the cloud's room, where a decimal only matters above a gigabyte. */
+export function fmtStorage(bytes: number): string {
+  const gb = bytes / 1024 ** 3;
+  if (gb >= 1) return `${Number.isInteger(gb) ? gb : gb.toFixed(1)} GB`;
+  if (bytes >= 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MB`;
+  return bytes > 0 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : "0 MB";
+}

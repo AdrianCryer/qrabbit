@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
-import type { AgentEvent, AgentStatus, PermissionRequest, QrabbitApi } from "@qrabbit/shared";
+import type { AgentEvent, AgentStatus, CloudAccount, CloudChanged, CloudSyncState, PermissionRequest, QrabbitApi } from "@qrabbit/shared";
 
 const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> => ipcRenderer.invoke(channel, ...args) as Promise<T>;
 
@@ -75,6 +75,23 @@ const api: QrabbitApi = {
     onEvent: (cb) => subscribe<[string, AgentEvent]>("agent:event", cb),
     onPermission: (cb) => subscribe<[PermissionRequest]>("agent:permission", cb),
     onStatus: (cb) => subscribe<[string, AgentStatus]>("agent:status", cb),
+  },
+  cloud: {
+    account: () => invoke("cloud:account"),
+    requestCode: (email) => invoke("cloud:requestCode", email),
+    verifyCode: (email, code) => invoke("cloud:verifyCode", email, code),
+    signOut: (scope) => invoke("cloud:signOut", scope),
+    devices: () => invoke("cloud:devices"),
+    collections: () => invoke("cloud:collections"),
+    enable: (collection) => invoke("cloud:enable", collection),
+    disable: (collection) => invoke("cloud:disable", collection),
+    remove: (collectionId) => invoke("cloud:remove", collectionId),
+    syncNow: (collection) => invoke("cloud:syncNow", collection),
+    syncState: (collection) => invoke("cloud:syncState", collection),
+    download: (collectionId) => invoke("cloud:download", collectionId),
+    onAccount: (cb) => subscribe<[CloudAccount]>("cloud:account", cb),
+    onSyncState: (cb) => subscribe<[string, CloudSyncState]>("cloud:syncState", cb),
+    onChanged: (cb) => subscribe<[string, CloudChanged]>("cloud:changed", cb),
   },
   app: {
     version: () => invoke("app:version"),

@@ -1,9 +1,146 @@
 import { useEffect, useState } from "react";
+import type { CloudDevice } from "@qrabbit/shared";
 import { useStore } from "../state/store";
+import { api } from "../lib/api";
+import { displayPath } from "../lib/paths";
 import { formatKeys, SHORTCUTS } from "../lib/shortcuts";
+import { ago, fmtStorage } from "../lib/time";
 import { Icon } from "./Icons";
 
 const REOPEN_KEY = "qrabbit:reopen-last";
+const errText = (err: unknown) => String((err as Error)?.message ?? err).replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
+
+/** Sign in with an emailed code; then the account: room used, computers, collections in the cloud. */
+function CloudSection() {
+  const cloud = useStore((s) => s.cloud);
+  const cloudCollections = useStore((s) => s.cloudCollections);
+  const home = useStore((s) => s.home);
+  const { cloudRequestCode, cloudVerifyCode, cloudSignOut, refreshCloud, removeCloudCollection } = useStore.getState();
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [devices, setDevices] = useState<CloudDevice[]>([]);
+  // "Remove" asks once by turning into "Really remove" for a few seconds.
+  const [removing, setRemoving] = useState<string | null>(null);
+  const signedIn = !!cloud?.signedIn;
+
+  useEffect(() => {
+    if (!signedIn) {
+      setDevices([]);
+      return;
+    }
+    void refreshCloud();
+    void api.cloud.devices().then(setDevices).catch(() => setDevices([]));
+  }, [signedIn, refreshCloud]);
+
+  useEffect(() => {
+    if (!removing) return;
+    const t = setTimeout(() => setRemoving(null), 4000);
+    return () => clearTimeout(t);
+  }, [removing]);
+
+  if (!cloud?.available) return null;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      if (!sent) {
+        await cloudRequestCode(email.trim());
+        setSent(true);
+      } else {
+        await cloudVerifyCode(email.trim(), code);
+        setSent(false);
+        setCode("");
+      }
+    } catch (err) {
+      setError(errText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!signedIn) {
+    return (
+      <section>
+        <h3>QRabbit Cloud</h3>
+        <p className="dsub">Keep collections in step across your computers, with a copy of every file. Sign in with your email: a code arrives by email, and there is no password.</p>
+        <form className="drow" onSubmit={(e) => void submit(e)}>
+          <label className="field">
+            <span>Email</span>
+            <input type="email" value={email} autoFocus disabled={sent} autoComplete="email" onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          {!sent ? (
+            <button className="btn primary" type="submit" disabled={busy || !email.includes("@")}><Icon name="mail" />Send code</button>
+          ) : (
+            <>
+              <label className="field">
+                <span>Code from the email</span>
+                <input inputMode="numeric" autoComplete="one-time-code" value={code} autoFocus onChange={(e) => setCode(e.target.value)} />
+              </label>
+              <button className="btn primary" type="submit" disabled={busy || code.replace(/\D/g, "").length < 6}><Icon name="key" />Sign in</button>
+              <button className="btn" type="button" onClick={() => { setSent(false); setCode(""); setError(null); }}>Another email</button>
+            </>
+          )}
+        </form>
+        {sent && !error && <p className="dsub">The code is on its way to {email.trim()}. It works once and expires in ten minutes.</p>}
+        {error && <p className="err">{error}</p>}
+      </section>
+    );
+  }
+
+  const used = cloud.usedBytes ?? 0;
+  const quota = cloud.quotaBytes;
+  return (
+    <section>
+      <h3>QRabbit Cloud</h3>
+      <p className="dsub">Signed in as {cloud.email}.{cloud.error ? ` The cloud could not be reached just now: ${cloud.error}` : ""}</p>
+      {quota !== undefined && (
+        <div className="usage">
+          <div className={`bar ${used / quota >= 0.95 ? "full" : ""}`}><i style={{ width: `${Math.min(100, (used / quota) * 100)}%` }} /></div>
+          <span>{fmtStorage(used)} of {fmtStorage(quota)} used</span>
+        </div>
+      )}
+      <h4>Computers</h4>
+      <ul className="machines">
+        {devices.map((d) => (
+          <li key={d.id}>
+            <Icon name="monitor" />
+            <span className="name">{d.name}</span>
+            {d.current && <span className="this">this computer</span>}
+            <span className="m">{d.platform === "win32" ? "Windows" : d.platform === "darwin" ? "macOS" : d.platform === "linux" ? "Linux" : d.platform} · seen {ago(d.lastSeenAt)}</span>
+          </li>
+        ))}
+      </ul>
+      <h4>Collections in the cloud</h4>
+      {cloudCollections.length === 0 ? (
+        <p className="dsub">None yet. Open a collection and choose "Keep in the cloud" from the cloud menu in the header.</p>
+      ) : (
+        <ul className="machines">
+          {cloudCollections.map((c) => (
+            <li key={c.id}>
+              <Icon name="cloud" />
+              <span className="name">{c.name}</span>
+              <span className="m">{c.localPath ? displayPath(c.localPath, home) : "not on this computer"} · {ago(c.updatedAt)}</span>
+              {removing === c.id ? (
+                <button className="btn danger" onClick={() => { setRemoving(null); void removeCloudCollection(c.id); }}>Really remove</button>
+              ) : (
+                <button className="btn quiet" title="Take it out of the cloud; every computer keeps its folder" onClick={() => setRemoving(c.id)}>Remove</button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="drow">
+        <button className="btn" onClick={() => void cloudSignOut("local")}><Icon name="x" />Sign out</button>
+        <button className="btn" onClick={() => void cloudSignOut("others")}><Icon name="monitor" />Sign out other computers</button>
+      </div>
+    </section>
+  );
+}
 
 function readFlag(key: string): boolean {
   try {
@@ -121,6 +258,8 @@ export function Settings() {
               </>
             )}
           </section>
+
+          <CloudSection />
 
           <section>
             <h3>On launch</h3>

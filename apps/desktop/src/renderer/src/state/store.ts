@@ -4,6 +4,10 @@ import type {
   AgentStatus,
   Anchor,
   Annotation,
+  CloudAccount,
+  CloudChanged,
+  CloudCollectionInfo,
+  CloudSyncState,
   CollectionInfo,
   CollectionSnapshot,
   ConfigOption,
@@ -82,7 +86,13 @@ type State = {
   folderScan: FolderScan | null;
   folderBusy: boolean;
   /** Which header menu a shortcut opened, if any. */
-  menu: "collection" | "source" | "threads" | "marks" | null;
+  menu: "collection" | "source" | "threads" | "marks" | "cloud" | null;
+  /** The cloud account on this machine; null until the first look. */
+  cloud: CloudAccount | null;
+  /** Where the open collection stands with the cloud; null when it is not kept there from this folder. */
+  cloudSync: CloudSyncState | null;
+  /** The account's collections, for the home screen. */
+  cloudCollections: CloudCollectionInfo[];
 };
 
 export type MenuId = State["menu"];
@@ -158,6 +168,22 @@ type Actions = {
   deleteAnnotation(id: string): Promise<void>;
   /** Show a bookmark or comment in the reader. */
   goToAnnotation(id: string): void;
+  /** Read the cloud account and its collections again. */
+  refreshCloud(): Promise<void>;
+  cloudRequestCode(email: string): Promise<void>;
+  cloudVerifyCode(email: string, code: string): Promise<void>;
+  cloudSignOut(scope: "local" | "others"): Promise<void>;
+  /** Keep the open collection in the cloud, from this folder. */
+  enableCloud(): Promise<void>;
+  /** Stop syncing this folder; the cloud copy stays. */
+  disableCloud(): Promise<void>;
+  /** Take a collection out of the cloud altogether. */
+  removeCloudCollection(id: string): Promise<void>;
+  syncNow(): Promise<void>;
+  /** Bring a cloud collection down into a folder chosen in a dialog, then open it. */
+  downloadCollection(id: string): Promise<void>;
+  /** Refresh what a pull changed on disk. */
+  applyCloudChanges(changed: CloudChanged): Promise<void>;
 };
 
 let subscribed = false;
@@ -188,12 +214,23 @@ export const useStore = create<State & Actions>((set, get) => ({
   folderScan: null,
   folderBusy: false,
   menu: null,
+  cloud: null,
+  cloudSync: null,
+  cloudCollections: [],
 
   async init() {
     const [platform, home, recent] = await Promise.all([api.app.platform(), api.app.home(), api.collections.recent()]);
     set({ platform, home, recent });
     if (subscribed) return;
     subscribed = true;
+    void get().refreshCloud();
+    api.cloud.onAccount((cloud) => set({ cloud }));
+    api.cloud.onSyncState((collectionPath, state) => {
+      if (get().collection?.info.path === collectionPath) set({ cloudSync: state });
+    });
+    api.cloud.onChanged((collectionPath, changed) => {
+      if (get().collection?.info.path === collectionPath) void get().applyCloudChanges(changed);
+    });
     // Optional: go straight back into the last collection.
     try {
       if (localStorage.getItem("qrabbit:reopen-last") === "1" && recent[0]) void get().openCollection(recent[0].path);
@@ -241,13 +278,20 @@ export const useStore = create<State & Actions>((set, get) => ({
     }
     // The remembered source, else the first in reading order; the list itself when there is nothing to read.
     if (!sourceId || !snap.sources.some((s) => s.id === sourceId)) sourceId = snap.sources[0]?.id ?? null;
-    set({ collection: snap, recent, screen: "reader", sourceId, lastSourceId: sourceId, thread: null, panelOpen: false, focus: false, composerQuote: null, agent: null, turns: {}, configOptions: {}, folderScan: null, folderBusy: false });
+    set({ collection: snap, recent, screen: "reader", sourceId, lastSourceId: sourceId, thread: null, panelOpen: false, focus: false, composerQuote: null, agent: null, turns: {}, configOptions: {}, folderScan: null, folderBusy: false, cloudSync: null });
     void get().connectAgent();
+    void api.cloud
+      .syncState(path)
+      .then((cloudSync) => {
+        if (get().collection?.info.path === path) set({ cloudSync });
+      })
+      .catch(() => {});
   },
 
   goHome() {
-    set({ screen: "home", thread: null, panelOpen: false, folderScan: null });
+    set({ screen: "home", thread: null, panelOpen: false, folderScan: null, cloudSync: null });
     void api.collections.recent().then((recent) => set({ recent }));
+    void get().refreshCloud();
   },
 
   selectSource(id) {
@@ -786,6 +830,126 @@ export const useStore = create<State & Actions>((set, get) => ({
     if (!a) return;
     if (a.source !== get().sourceId) get().selectSource(a.source);
     set({ focusTarget: { page: a.page ?? a.anchor?.page ?? 1, key: Date.now(), markId: id } });
+  },
+
+  // ---------- cloud ----------
+  async refreshCloud() {
+    try {
+      const cloud = await api.cloud.account();
+      set({ cloud });
+      set({ cloudCollections: cloud.signedIn ? await api.cloud.collections() : [] });
+    } catch (err) {
+      set((s) => ({ cloud: { ...(s.cloud ?? { available: true, signedIn: false }), error: errText(err) } }));
+    }
+  },
+
+  async cloudRequestCode(email) {
+    await api.cloud.requestCode(email);
+  },
+
+  async cloudVerifyCode(email, code) {
+    const cloud = await api.cloud.verifyCode(email, code);
+    set({ cloud });
+    void get().refreshCloud();
+    const c = get().collection;
+    if (c) void api.cloud.syncState(c.info.path).then((cloudSync) => set({ cloudSync })).catch(() => {});
+  },
+
+  async cloudSignOut(scope) {
+    const cloud = await api.cloud.signOut(scope);
+    set({ cloud, ...(scope === "local" ? { cloudSync: null, cloudCollections: [] } : {}) });
+    if (scope === "others") get().toast("Every other computer was signed out");
+  },
+
+  async enableCloud() {
+    const c = get().collection;
+    if (!c) return;
+    set({ menu: null });
+    try {
+      const cloudSync = await api.cloud.enable(c.info.path);
+      set({ cloudSync });
+      get().toast(`${c.info.name} is now kept in the cloud`);
+      void get().refreshCloud();
+    } catch (err) {
+      get().toast(`Could not keep ${c.info.name} in the cloud: ${errText(err)}`);
+    }
+  },
+
+  async disableCloud() {
+    const c = get().collection;
+    if (!c) return;
+    set({ menu: null });
+    try {
+      await api.cloud.disable(c.info.path);
+      set({ cloudSync: null });
+      get().toast(`${c.info.name} now stays on this computer; the copy in the cloud is kept`);
+      void get().refreshCloud();
+    } catch (err) {
+      get().toast(`Could not stop syncing: ${errText(err)}`);
+    }
+  },
+
+  async removeCloudCollection(id) {
+    set({ menu: null });
+    const name = get().cloudCollections.find((c) => c.id === id)?.name ?? "The collection";
+    try {
+      await api.cloud.remove(id);
+      if (get().cloudSync?.collectionId === id) set({ cloudSync: null });
+      get().toast(`${name} was removed from the cloud; every computer keeps its folder`);
+      void get().refreshCloud();
+    } catch (err) {
+      get().toast(`Could not remove ${name} from the cloud: ${errText(err)}`);
+    }
+  },
+
+  async syncNow() {
+    const c = get().collection;
+    if (!c) return;
+    set({ menu: null });
+    try {
+      set({ cloudSync: await api.cloud.syncNow(c.info.path) });
+    } catch (err) {
+      get().toast(`Sync did not finish: ${errText(err)}`);
+    }
+  },
+
+  async downloadCollection(id) {
+    try {
+      const snap = await api.cloud.download(id);
+      if (!snap) return;
+      await get().openCollection(snap.info.path);
+      get().toast(`${snap.info.name} is on this computer now and stays in step with the cloud`);
+    } catch (err) {
+      get().toast(`Could not download the collection: ${errText(err)}`);
+    }
+  },
+
+  async applyCloudChanges(changed) {
+    const c = get().collection;
+    if (!c) return;
+    const path = c.info.path;
+    const still = () => get().collection?.info.path === path;
+    if (changed.manifest || changed.readerState) {
+      // The manifest carries the order and the settings; a fresh snapshot is the simplest way to read both.
+      const snap = await api.collections.open(path);
+      if (!still()) return;
+      set((s) => (s.collection ? { collection: { ...s.collection, manifest: snap.manifest, sources: snap.sources, annotations: snap.annotations, threads: snap.threads, readerState: snap.readerState } } : {}));
+    } else {
+      if (changed.sources || changed.annotations) {
+        const [sources, annotations] = await Promise.all([api.sources.list(path), api.annotations.list(path)]);
+        if (!still()) return;
+        set((s) => (s.collection ? { collection: { ...s.collection, sources, annotations } } : {}));
+      }
+      if (changed.threads) await get().refreshThreads();
+    }
+    const open = get().thread;
+    if (changed.threads && open) {
+      const thread = await api.threads.read(path, open.id);
+      if (still()) set((s) => (s.thread?.id === open.id ? { thread } : {}));
+    }
+    // The source being read may have been removed on another computer.
+    const cur = get();
+    if (cur.sourceId && cur.collection && !cur.collection.sources.some((s) => s.id === cur.sourceId)) set({ sourceId: null });
   },
 }));
 

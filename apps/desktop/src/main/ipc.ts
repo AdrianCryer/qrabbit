@@ -33,6 +33,7 @@ import {
 } from "@qrabbit/workspace";
 import { forgetRecent, recentCollections, touchRecent } from "./recent";
 import { AgentHost, type AgentEmitter } from "./agent";
+import { CloudHost } from "./cloud";
 
 /** Main only touches collections this process opened; the renderer cannot point it at arbitrary folders. */
 const opened = new Set<string>();
@@ -85,6 +86,15 @@ function host(collection: string): AgentHost {
 export async function disposeAgents(): Promise<void> {
   await Promise.all([...hosts.values()].map((h) => h.dispose()));
   hosts.clear();
+  cloud?.dispose();
+}
+
+// ----- cloud: one host for the account, a sync runner per open cloud collection -----
+// Made in registerIpc, after the app is ready: the session store needs the OS keychain.
+let cloud: CloudHost | null = null;
+function cloudHost(): CloudHost {
+  if (!cloud) throw new Error("QRabbit Cloud is not ready yet");
+  return cloud;
 }
 
 function guard(path: string): string {
@@ -97,12 +107,22 @@ function snapshot(path: string): CollectionSnapshot {
   opened.add(path);
   for (const d of trustedFolders) allow(path, d);
   touchRecent(info);
+  cloud?.opened(path);
   return { info, manifest, sources: listSources(path), threads: listThreads(path), annotations: listAnnotations(path), readerState: readReaderState(path) };
 }
 
 const windowOf = (e: IpcMainInvokeEvent) => BrowserWindow.fromWebContents(e.sender) ?? undefined;
 
 export function registerIpc(): void {
+  cloud = new CloudHost(
+    {
+      account: (account) => broadcast("cloud:account", account),
+      syncState: (collection, state) => broadcast("cloud:syncState", collection, state),
+      changed: (collection, changed) => broadcast("cloud:changed", collection, changed),
+    },
+    recentCollections,
+  );
+
   // ----- collections -----
   ipcMain.handle("collections:recent", () => recentCollections());
   ipcMain.handle("collections:open", (_e, path: string) => snapshot(path));
@@ -240,6 +260,31 @@ export function registerIpc(): void {
     for (const h of hosts.values()) h.replyPermission(requestId, optionId);
   });
   ipcMain.handle("agent:login", (_e, collection: string, methodId: string) => host(collection).login(methodId));
+
+  // ----- cloud -----
+  ipcMain.handle("cloud:account", () => cloudHost().account());
+  ipcMain.handle("cloud:requestCode", (_e, email: string) => cloudHost().requestCode(String(email ?? "")));
+  ipcMain.handle("cloud:verifyCode", (_e, email: string, code: string) => cloudHost().verifyCode(String(email ?? ""), String(code ?? "")));
+  ipcMain.handle("cloud:signOut", (_e, scope: "local" | "others") => cloudHost().signOut(scope === "others" ? "others" : "local"));
+  ipcMain.handle("cloud:devices", () => cloudHost().devices());
+  ipcMain.handle("cloud:collections", () => cloudHost().collections());
+  ipcMain.handle("cloud:enable", (_e, collection: string) => cloudHost().enable(guard(collection)));
+  ipcMain.handle("cloud:disable", (_e, collection: string) => cloudHost().disable(guard(collection)));
+  ipcMain.handle("cloud:remove", (_e, collectionId: string) => cloudHost().remove(String(collectionId)));
+  ipcMain.handle("cloud:syncNow", (_e, collection: string) => cloudHost().syncNow(guard(collection)));
+  ipcMain.handle("cloud:syncState", (_e, collection: string) => cloudHost().syncState(guard(collection)));
+  ipcMain.handle("cloud:download", async (e, collectionId: string): Promise<CollectionSnapshot | null> => {
+    const win = windowOf(e);
+    const r = await dialog.showOpenDialog(win!, {
+      title: "Choose an empty folder for the collection",
+      properties: ["openDirectory", "createDirectory"],
+      buttonLabel: "Download here",
+    });
+    const dir = r.filePaths[0];
+    if (r.canceled || !dir) return null;
+    await cloudHost().download(String(collectionId), dir);
+    return snapshot(dir);
+  });
 
   // ----- app -----
   ipcMain.handle("app:version", () => app.getVersion());

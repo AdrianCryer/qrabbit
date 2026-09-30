@@ -63,6 +63,8 @@ pnpm desktop:build                     # build the app into apps/desktop/out
 pnpm desktop:drive <work-dir>          # scripted run with screenshots (see .claude/skills/run-desktop)
 pnpm spike:acp                         # the original ACP spike against Claude Code
 pnpm site:dev                          # the promo site (apps/site), at localhost:4321
+pnpm cloud:start                       # the local Supabase stack behind QRabbit Cloud (needs Docker)
+pnpm cloud:test                        # end-to-end sync tests against that stack
 ```
 
 ## Repository
@@ -70,10 +72,13 @@ pnpm site:dev                          # the promo site (apps/site), at localhos
 ```
 apps/desktop/        Electron app (electron-vite, React, PDF.js, KaTeX)
 apps/site/           promo site: features, agents, pricing, downloads (Astro, static)
+apps/cloud/          QRabbit Cloud: the Supabase project behind sync and backup (schema, policies, sync functions, tests)
 packages/shared/     types, ids, the renderer/main API contract
 packages/workspace/  the collection folder format: manifest, sources and web extraction, threads, reader state
 packages/acp-client/ generic Agent Client Protocol client: spawn, sign in, model picker, streaming, permissions
+packages/cloud-api/  the sync protocol (which paths sync, changes, commits, quota) and the client over Supabase
+packages/cloud-sync/ keeps a collection folder in step with the cloud: scan, pull, merge by file format, push
 tools/dev/           sample PDF generator, Playwright driver, icon, screenshot staging and probe tools
 tools/spike-acp/     step 0: drives the Claude Code ACP adapter from a script
-planning/            the plan (plan-v2.md), design notes and the clickable prototype
+planning/            the plan (plan-v2.md), the cloud design (plan-cloud.md), design notes and the clickable prototype
 ```

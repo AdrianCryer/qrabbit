@@ -1,6 +1,7 @@
 import type { CollectionInfo } from "@qrabbit/shared";
 import { useStore } from "../state/store";
 import { displayPath } from "../lib/paths";
+import { ago } from "../lib/time";
 import { Icon } from "./Icons";
 
 const countsLine = (c: CollectionInfo) => (c.counts ? `${c.counts.sources} sources · ${c.counts.read} read · ${c.counts.threads} threads` : null);
@@ -8,8 +9,12 @@ const countsLine = (c: CollectionInfo) => (c.counts ? `${c.counts.sources} sourc
 export function Home() {
   const recent = useStore((s) => s.recent);
   const home = useStore((s) => s.home);
-  const { openCollection, openCollectionDialog } = useStore.getState();
+  const cloud = useStore((s) => s.cloud);
+  const cloudCollections = useStore((s) => s.cloudCollections);
+  const { openCollection, openCollectionDialog, downloadCollection } = useStore.getState();
   const latest = recent[0];
+  // Collections the account keeps in the cloud that have no folder here yet.
+  const elsewhere = cloud?.signedIn ? cloudCollections.filter((c) => !c.localPath) : [];
 
   return (
     <section className="home" aria-label="Collections">
@@ -44,7 +49,10 @@ export function Home() {
                 {countsLine(c) && <span className="m">{countsLine(c)}</span>}
                 <span className="m">{displayPath(c.path, home)}</span>
               </span>
-              <span className="meta">{c.lastOpened ? new Date(c.lastOpened).toLocaleDateString() : ""}</span>
+              <span className="meta">
+                {c.cloud && <Icon name="cloud" />}
+                {c.lastOpened ? new Date(c.lastOpened).toLocaleDateString() : ""}
+              </span>
             </button>
           ))}
           <button className="coll new" onClick={() => void openCollectionDialog()}>
@@ -55,6 +63,26 @@ export function Home() {
             </span>
           </button>
         </div>
+
+        {elsewhere.length > 0 && (
+          <>
+            <div className="sect">
+              <h2>In the cloud, not on this computer</h2>
+            </div>
+            <div className="colls">
+              {elsewhere.map((c) => (
+                <button key={c.id} className="coll cloudonly" onClick={() => void downloadCollection(c.id)} title="Download into a folder on this computer">
+                  <span className="ico"><Icon name="cloud" /></span>
+                  <span className="txt">
+                    <span className="t">{c.name}</span>
+                    <span className="m">Download to a folder here; it then stays in step with the cloud</span>
+                  </span>
+                  <span className="meta">{ago(c.updatedAt)}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         <div className="hint">
           <Icon name="folder" />

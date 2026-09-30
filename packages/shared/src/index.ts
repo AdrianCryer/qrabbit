@@ -34,6 +34,8 @@ export type CollectionInfo = {
   lastOpened?: string;
   /** Filled in for the home screen; absent inside a snapshot. */
   counts?: CollectionCounts;
+  /** The folder is kept in QRabbit Cloud from this machine. */
+  cloud?: boolean;
 };
 
 // ---------- sources ----------
@@ -225,6 +227,47 @@ export type PermissionRequest = {
   options: Array<{ optionId: string; name: string; kind: string }>;
 };
 
+// ---------- cloud ----------
+/** Whether this build can reach QRabbit Cloud, and who is signed in on this machine. */
+export type CloudAccount = {
+  /** False when the build has no cloud endpoint; the cloud stays out of the interface then. */
+  available: boolean;
+  signedIn: boolean;
+  email?: string;
+  usedBytes?: number;
+  quotaBytes?: number;
+  /** This machine's id in the account, shown to other machines as who changed what. */
+  deviceId?: string;
+  /** Why the account could not be read just now (offline, expired); the session itself may still be there. */
+  error?: string;
+};
+
+export type CloudDevice = { id: string; name: string; platform: string; createdAt: string; lastSeenAt: string; current: boolean };
+
+/** A collection in the account, with the folder on this machine when one is known. */
+export type CloudCollectionInfo = { id: string; name: string; rev: number; updatedAt: string; localPath?: string };
+
+export type CloudSyncPhase = "idle" | "syncing" | "error";
+
+/** Where a synced collection stands, for the quiet state line. */
+export type CloudSyncState = {
+  collectionId: string;
+  phase: CloudSyncPhase;
+  /** The live channel is up: changes on other machines arrive without polling. */
+  live: boolean;
+  /** The cloud revision this folder has fully applied. */
+  rev: number;
+  lastSync?: string;
+  /** Files that did not fit in the quota; tried again on every run. */
+  unsaved: number;
+  /** Files whose names cannot be stored in the cloud (characters other systems refuse). */
+  skipped: number;
+  error?: string;
+};
+
+/** What a pull changed on disk, so the renderer refreshes only what it must. */
+export type CloudChanged = { manifest: boolean; sources: boolean; threads: boolean; annotations: boolean; readerState: boolean };
+
 // ---------- renderer ↔ main contract ----------
 export type CollectionSnapshot = {
   info: CollectionInfo;
@@ -315,6 +358,30 @@ export type QrabbitApi = {
     onEvent(cb: (threadId: string, event: AgentEvent) => void): () => void;
     onPermission(cb: (request: PermissionRequest) => void): () => void;
     onStatus(cb: (collectionPath: string, status: AgentStatus) => void): () => void;
+  };
+  cloud: {
+    account(): Promise<CloudAccount>;
+    /** Email a sign-in code; a new address gets an account. */
+    requestCode(email: string): Promise<void>;
+    verifyCode(email: string, code: string): Promise<CloudAccount>;
+    /** `local` signs this machine out; `others` every other machine. */
+    signOut(scope: "local" | "others"): Promise<CloudAccount>;
+    devices(): Promise<CloudDevice[]>;
+    /** The account's collections, matched to folders this machine knows. */
+    collections(): Promise<CloudCollectionInfo[]>;
+    /** Start keeping an open collection in the cloud, from this folder. */
+    enable(collectionPath: string): Promise<CloudSyncState>;
+    /** Stop syncing this folder. The copy in the cloud stays. */
+    disable(collectionPath: string): Promise<void>;
+    /** Take a collection out of the cloud altogether. Folders that synced it stop and keep their files. */
+    remove(collectionId: string): Promise<void>;
+    syncNow(collectionPath: string): Promise<CloudSyncState>;
+    syncState(collectionPath: string): Promise<CloudSyncState | null>;
+    /** Pick an empty folder and bring a cloud collection down into it; null when the dialog was cancelled. */
+    download(collectionId: string): Promise<CollectionSnapshot | null>;
+    onAccount(cb: (account: CloudAccount) => void): () => void;
+    onSyncState(cb: (collectionPath: string, state: CloudSyncState) => void): () => void;
+    onChanged(cb: (collectionPath: string, changed: CloudChanged) => void): () => void;
   };
   app: {
     version(): Promise<string>;

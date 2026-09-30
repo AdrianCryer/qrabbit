@@ -12,7 +12,12 @@
     "desktop:dev": "pnpm --filter @qrabbit/desktop run dev",
     "desktop:drive": "node tools/dev/drive-desktop.mjs",
     "site:dev": "pnpm --filter @qrabbit/site run dev",
-    "site:build": "pnpm --filter @qrabbit/site run build"
+    "site:build": "pnpm --filter @qrabbit/site run build",
+    "cloud:start": "pnpm --filter @qrabbit/cloud run start",
+    "cloud:stop": "pnpm --filter @qrabbit/cloud run stop",
+    "cloud:reset": "pnpm --filter @qrabbit/cloud run reset",
+    "cloud:types": "pnpm --filter @qrabbit/cloud run types",
+    "cloud:test": "pnpm --filter @qrabbit/cloud run test"
   },
   "engines": { "node": ">=22" }
 }
