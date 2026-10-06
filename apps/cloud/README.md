@@ -65,7 +65,7 @@ One thing to know about the local stack: when the storage service refuses a larg
 
    To rotate it: create a new secret key, `select vault.update_secret((select id from vault.secrets where name = 'blob_gc_key'), '<new key>')`, then delete the old key.
 7. Nothing uses the legacy `anon` and `service_role` keys; turn them off under Project Settings → API Keys.
-8. The app needs the project URL and the publishable key (`sb_publishable_…`); nothing else leaves the project.
+8. The app needs the project URL and the publishable key (`sb_publishable_…`); nothing else leaves the project. Both go in `HOSTED` in `apps/desktop/src/main/cloud.ts`. Run a development build against it with `QRABBIT_CLOUD=hosted`.
 
 To raise one account's allowance: `update public.profiles set quota_bytes = … where email = …`.
 
