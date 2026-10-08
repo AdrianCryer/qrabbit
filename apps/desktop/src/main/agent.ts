@@ -4,7 +4,6 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { app } from "electron";
 import * as acp from "@agentclientprotocol/sdk";
 import {
-  authMethodKind,
   buildClientApp,
   initialize,
   promptTurn,
@@ -16,9 +15,10 @@ import {
   type PermissionDecision,
   type SpawnedAgent,
 } from "@qrabbit/acp-client";
-import type { AgentEvent, AgentStatus, Anchor, ConfigOption, PermissionRequest, Thread } from "@qrabbit/shared";
+import { agentDefaults, agentInfo, type AgentEvent, type AgentId, type AgentSignIn, type AgentStatus, type Anchor, type ConfigOption, type PermissionRequest, type Thread } from "@qrabbit/shared";
 import { appendMessage, createThread, listThreads, openCollection, readThread, updateThread } from "@qrabbit/workspace";
 import { branchContextBlock, branchIntroBlocks, buildPromptBlocks, handoffPrompt, historyBlock, parseSummary, PREAMBLE, SUMMARY_PROMPT } from "./context";
+import { adapterRuntime } from "./runtime";
 import { dirtyBranches } from "./tree";
 
 export type AgentEmitter = {
@@ -32,23 +32,54 @@ const HANDOFF_WAIT_MS = 20_000;
 const SUMMARY_DELAY_MS = 1500;
 /** A session started only to learn the agent's options for Settings; it never prompts. */
 const PROBE_ID = "__settings__";
+/** The ACP config categories behind the thread's `model` and `effort` fields. */
+const CATEGORY = { model: "model", effort: "thought_level" } as const;
 
-function adapterEntry(): string {
+/** Each agent's ACP adapter: an npm package whose `dist/index.js` is the server, bundling the vendor's unmodified CLI. */
+const ADAPTERS: Record<AgentId, { pkg: string; env?: Record<string, string> }> = {
+  "claude-code": { pkg: "claude-agent-acp" },
+  // Read-only makes Codex ask before every file change, so the §5.6 policy decides: notes/ is allowed, the rest is
+  // the reader's call. Its own default lets it write anywhere in the collection unasked.
+  codex: { pkg: "codex-acp", env: { INITIAL_AGENT_MODE: "read-only" } },
+};
+
+/** Claude Code's terminal sign-in arguments, mirrored so login works even before initialize reported them. */
+const TERMINAL_ARGS: Record<string, string[]> = {
+  "claude-ai-login": ["--cli", "auth", "login", "--claudeai"],
+  "console-login": ["--cli", "auth", "login", "--console"],
+};
+
+function adapterEntry(agent: AgentId): string {
+  const { pkg } = ADAPTERS[agent];
   try {
-    return require.resolve("@agentclientprotocol/claude-agent-acp/dist/index.js");
+    return require.resolve(`@agentclientprotocol/${pkg}/dist/index.js`);
   } catch {
-    return join(app.getAppPath(), "node_modules", "@agentclientprotocol", "claude-agent-acp", "dist", "index.js");
+    return join(app.getAppPath(), "node_modules", "@agentclientprotocol", pkg, "dist", "index.js");
   }
 }
 
-/** The adapter is a Node program; run it on Electron's bundled Node so the app needs no system Node. */
-export function claudeLaunch(collection: string): AgentLaunch {
+/** The adapters are Node programs: run on a console Node on Windows, else on Electron's own (see runtime.ts). */
+export async function agentLaunch(agent: AgentId, collection: string): Promise<AgentLaunch> {
+  const runtime = await adapterRuntime();
   return {
-    command: process.execPath,
-    args: [adapterEntry()],
-    env: { ELECTRON_RUN_AS_NODE: "1", ELECTRON_NO_ATTACH_CONSOLE: "1" },
+    command: runtime.command,
+    args: [adapterEntry(agent)],
+    env: { ...runtime.env, ...ADAPTERS[agent].env },
     cwd: collection,
   };
+}
+
+/** The registry's sign-in methods, narrowed to those the adapter advertised (Codex hides ChatGPT without a browser). */
+function offeredSignIn(agent: AgentId, advertised?: acp.AuthMethod[]): AgentSignIn[] {
+  const all = agentInfo(agent).signIn;
+  if (!advertised?.length) return all;
+  const ids = new Set(advertised.map((m) => m.id));
+  return all.filter((m) => ids.has(m.id));
+}
+
+/** JSON-RPC's "Authentication required", which an adapter returns for a new session before anyone signed in. */
+function isAuthRequired(err: unknown): boolean {
+  return (err as { code?: unknown } | null)?.code === -32000;
 }
 
 function flattenOptions(options: acp.SessionConfigOption[] | null | undefined): ConfigOption[] {
@@ -72,21 +103,6 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-/** A stable, human name for the thread file: the adapter's package name is an implementation detail. */
-function agentShortName(reported?: string): string {
-  if (!reported) return "claude-code";
-  if (/claude/i.test(reported)) return "claude-code";
-  if (/codex/i.test(reported)) return "codex";
-  if (/copilot/i.test(reported)) return "copilot";
-  return reported.replace(/^@[^/]+\//, "").replace(/-acp$/, "");
-}
-
-/** The Claude adapter's terminal auth args, mirrored so login works even before initialize reported them. */
-function loginArgs(methodId: string): string[] {
-  if (methodId === "console-login") return ["--cli", "auth", "login", "--console"];
-  return ["--cli", "auth", "login", "--claudeai"];
-}
-
 type SessionEntry = {
   session: acp.ActiveSession;
   configOptions: ConfigOption[];
@@ -100,7 +116,7 @@ type SessionEntry = {
 
 /** One agent process per open collection, one ACP session per thread. */
 export class AgentHost {
-  status: AgentStatus = { connected: false, auth: null, authMethods: [] };
+  status: AgentStatus;
   private agent: SpawnedAgent | null = null;
   private ctx: acp.ClientContext | null = null;
   private closed = deferred<void>();
@@ -112,8 +128,15 @@ export class AgentHost {
   private handoffs = new Map<string, Promise<void>>();
   private summaryTimers = new Map<string, NodeJS.Timeout>();
   private permSeq = 0;
+  private disposed = false;
 
-  constructor(readonly collection: string, private readonly emit: AgentEmitter) {}
+  constructor(readonly collection: string, readonly agentId: AgentId, private readonly emit: AgentEmitter) {
+    this.status = this.idle();
+  }
+
+  private idle(error?: string): AgentStatus {
+    return { id: this.agentId, connected: false, auth: null, authMethods: offeredSignIn(this.agentId), ...(error ? { error } : {}) };
+  }
 
   // ---------- paths ----------
   private inside(p: string): boolean {
@@ -133,12 +156,16 @@ export class AgentHost {
   }
 
   private async doConnect(): Promise<AgentStatus> {
-    const launch = claudeLaunch(this.collection);
+    const launch = await agentLaunch(this.agentId, this.collection);
+    // Disposed while the runtime was being found (an agent switch as the collection opened): start nothing.
+    if (this.disposed) throw new Error("The agent was stopped");
     this.closed = deferred<void>();
     const agent = spawnAgent(launch, "pipe");
     this.agent = agent;
     agent.child.stderr?.on("data", (d: Buffer) => { const s = d.toString().trim(); if (s) console.log(`[agent] ${s}`); });
     void agent.exited.then(() => {
+      // After dispose() the host is gone; a late exit must not report over whatever replaced it.
+      if (this.agent !== agent) return;
       this.status = { ...this.status, connected: false };
       this.sessions.clear();
       this.emit.status(this.collection, this.status);
@@ -170,24 +197,29 @@ export class AgentHost {
         this.ctx = ctx;
         const init = await initialize(ctx, IDENTITY);
         this.status = {
+          id: this.agentId,
           connected: true,
           agent: { name: init.agentInfo?.name ?? "agent", version: init.agentInfo?.version ?? undefined },
           auth: this.status.auth,
-          authMethods: (init.authMethods ?? []).filter((m) => authMethodKind(m) === "terminal").map((m) => ({ id: m.id, name: m.name, description: m.description })),
+          authMethods: offeredSignIn(this.agentId, init.authMethods ?? undefined),
         };
         this.emit.status(this.collection, this.status);
         ready.resolve(this.status);
         await this.closed.promise; // hold the connection open until dispose()
       })
       .catch((err: unknown) => {
-        this.status = { connected: false, auth: null, authMethods: [], error: String((err as Error)?.message ?? err) };
-        this.emit.status(this.collection, this.status);
+        if (this.agent === agent) {
+          this.status = this.idle(String((err as Error)?.message ?? err));
+          this.emit.status(this.collection, this.status);
+        }
         ready.reject(err);
       });
     return ready.promise;
   }
 
+  /** For good: the host is dropped afterwards, and a connect still in flight starts nothing. */
   async dispose(): Promise<void> {
+    this.disposed = true;
     this.closed.resolve();
     for (const cancel of this.running.values()) cancel();
     for (const reply of this.pending.values()) reply({ outcome: "cancelled" });
@@ -198,7 +230,7 @@ export class AgentHost {
     this.agent = null;
     this.ctx = null;
     this.sessions.clear();
-    this.status = { connected: false, auth: null, authMethods: [] };
+    this.status = this.idle();
   }
 
   // ---------- sessions ----------
@@ -207,21 +239,31 @@ export class AgentHost {
     if (existing) return existing;
     await this.connect();
     if (!this.ctx) throw new Error("Agent is not connected");
-    const session = await this.ctx.buildSession(this.collection).start();
+    let session: acp.ActiveSession;
+    try {
+      session = await this.ctx.buildSession(this.collection).start();
+    } catch (err) {
+      if (!isAuthRequired(err)) throw err;
+      const first = this.status.authMethods[0];
+      throw new Error(`Not signed in to ${agentInfo(this.agentId).title}. Choose "Sign in · ${first?.name ?? "…"}" from the agent menu in the header.`);
+    }
     const native = flattenOptions(session.newSessionResponse.configOptions);
     const entry: SessionEntry = { session, configOptions: native, native, turns: 0, lock: Promise.resolve() };
     this.sessions.set(threadId, entry);
     this.threadBySession.set(session.sessionId, threadId);
-    // A thread's own choice wins; otherwise the collection's defaults from Settings apply.
+    // A thread's own choice wins; otherwise the collection's defaults from Settings apply. Either is skipped when
+    // this agent does not offer it: a thread that was with another agent keeps its record for when it goes back.
     const thread = readThread(this.collection, threadId);
-    const defaults = openCollection(this.collection).manifest.settings;
-    for (const [id, value] of [["model", thread?.model ?? defaults.model], ["effort", thread?.effort ?? defaults.effort]] as const) {
-      const opt = entry.configOptions.find((o) => o.id === id);
-      if (value && opt && opt.currentValue !== value) {
+    const defaults = agentDefaults(openCollection(this.collection).manifest.settings, this.agentId);
+    for (const key of ["model", "effort"] as const) {
+      // Found afresh each time: a new model can change which efforts are on offer.
+      const opt = entry.configOptions.find((o) => o.category === CATEGORY[key]);
+      const value = [thread?.[key], defaults[key]].find((v) => v && opt?.options?.some((o) => o.value === v));
+      if (opt && value && opt.currentValue !== value) {
         try {
-          entry.configOptions = flattenOptions(await setConfigOption(this.ctx, session.sessionId, id, value));
+          entry.configOptions = flattenOptions(await setConfigOption(this.ctx, session.sessionId, opt.id, value));
         } catch (err) {
-          console.warn(`[agent] could not restore ${id}=${value}:`, err);
+          console.warn(`[agent] could not restore ${key}=${value}:`, err);
         }
       }
     }
@@ -230,7 +272,7 @@ export class AgentHost {
 
   /**
    * The agent's options for Settings, with `currentValue` showing what the agent starts on by itself
-   * (Claude Code's own model choice). Comes from any live session, else from a probe session.
+   * (Claude Code's /model choice, Codex's config.toml). Comes from any live session, else from a probe session.
    */
   async options(): Promise<ConfigOption[]> {
     for (const [id, entry] of this.sessions) if (id !== PROBE_ID) return entry.native;
@@ -248,8 +290,11 @@ export class AgentHost {
   async setConfig(threadId: string, configId: string, value: string | boolean): Promise<ConfigOption[]> {
     const entry = await this.ensureSession(threadId);
     if (!this.ctx) throw new Error("Agent is not connected");
+    // Ids differ between agents (Claude's `effort` is Codex's `reasoning_effort`); the category says what it is.
+    const category = entry.configOptions.find((o) => o.id === configId)?.category;
+    const key = (Object.keys(CATEGORY) as Array<keyof typeof CATEGORY>).find((k) => CATEGORY[k] === category);
     entry.configOptions = flattenOptions(await setConfigOption(this.ctx, entry.session.sessionId, configId, value));
-    if (typeof value === "string" && (configId === "model" || configId === "effort")) updateThread(this.collection, threadId, { [configId]: value });
+    if (typeof value === "string" && key) updateThread(this.collection, threadId, { [key]: value });
     return entry.configOptions;
   }
 
@@ -387,7 +432,7 @@ export class AgentHost {
     if (reply.trim()) appendMessage(this.collection, threadId, { role: "assistant", body: reply.trimEnd() });
     // The model is recorded only when the reader picks one (setConfig); otherwise the thread keeps
     // following the collection's default, and Settings can change it later.
-    updateThread(this.collection, threadId, { agent: agentShortName(this.status.agent?.name) });
+    updateThread(this.collection, threadId, { agent: this.agentId });
     if (before.parent) this.scheduleSummary(threadId);
     return readThread(this.collection, threadId)!;
   }
@@ -454,11 +499,31 @@ export class AgentHost {
   }
 
   // ---------- sign-in ----------
-  /** Open the agent's own login in a terminal window. The app never sees a credential. */
-  login(methodId: string): void {
-    const method = this.status.authMethods.find((m) => m.id === methodId);
-    const launch = claudeLaunch(this.collection);
-    const cmd = terminalLoginCommand(launch, { id: methodId, name: method?.name ?? methodId, type: "terminal", args: loginArgs(methodId) });
+  /**
+   * Start the agent's own sign-in; the app never sees a credential. Claude Code's CLI runs in a terminal window.
+   * Codex opens ChatGPT's page in the browser itself, keeps the tokens in its own store, and pushes the new
+   * account on `_auth/status_update`.
+   */
+  async login(methodId: string): Promise<AgentSignIn["via"]> {
+    const info = agentInfo(this.agentId);
+    const method = info.signIn.find((m) => m.id === methodId);
+    if (!method) throw new Error(`${info.title} has no sign-in method "${methodId}"`);
+    if (method.via === "terminal") {
+      await this.openTerminalLogin(method);
+      return "terminal";
+    }
+    await this.connect();
+    if (!this.ctx) throw new Error("Agent is not connected");
+    // Settles when the browser flow does, possibly minutes from now, or never if the tab is abandoned (a
+    // second click starts a fresh flow). The status push is what reports the outcome.
+    this.ctx.request(acp.methods.agent.authenticate, { methodId }).catch((err: unknown) => console.warn(`[agent] ${method.name} sign-in did not finish:`, err));
+    return "browser";
+  }
+
+  private async openTerminalLogin(method: AgentSignIn): Promise<void> {
+    const args = TERMINAL_ARGS[method.id];
+    if (!args) throw new Error(`No terminal command for "${method.name}"`);
+    const cmd = terminalLoginCommand(await agentLaunch(this.agentId, this.collection), { id: method.id, name: method.name, type: "terminal", args });
     if (!cmd) return;
     const dir = join(app.getPath("userData"), "login");
     mkdirSync(dir, { recursive: true });
@@ -486,6 +551,6 @@ function titleFromQuote(quote: string, max = 60): string {
   return (at > 30 ? cut.slice(0, at) : cut) + "…";
 }
 
-export function adapterExists(): boolean {
-  return existsSync(adapterEntry());
+export function adapterExists(agent: AgentId): boolean {
+  return existsSync(adapterEntry(agent));
 }

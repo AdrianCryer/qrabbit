@@ -51,6 +51,8 @@ try {
   page.on("pageerror", (e) => errors.push(e.message));
   await page.waitForSelector(".hdr", { timeout: 30_000 });
   await page.setViewportSize({ width: 1400, height: 900 }).catch(() => {});
+  // The agent choice persists in the user-data folder; this check is about Claude Code's options.
+  await page.evaluate(() => window.__qrabbitStore.getState().chooseAgent("claude-code"));
   await page.evaluate((p) => window.__qrabbitStore.getState().openCollection(p), collection);
   await page.waitForSelector(".sheet.article", { timeout: 30_000 });
 
@@ -73,9 +75,10 @@ try {
   const pick = models.find((m) => m.value && m.value !== agentDefault && m.value !== "default") ?? models.find((m) => m.value && m.value !== agentDefault);
   expect(!!pick, `a model other than the agent default (${agentDefault}) to pick: ${pick?.value}`);
   await page.selectOption("#settings-model", pick.value);
-  await waitFor(page, (v) => window.__qrabbitStore.getState().collection.manifest.settings.model === v, { arg: pick.value, label: "the manifest to hold the default" });
+  await waitFor(page, (v) => window.__qrabbitStore.getState().collection.manifest.settings.agents?.["claude-code"]?.model === v, { arg: pick.value, label: "the manifest to hold the default" });
   const manifest = JSON.parse(readFileSync(join(collection, "qrabbit.json"), "utf8"));
-  expect(manifest.settings.model === pick.value, `qrabbit.json settings.model = ${manifest.settings.model}`);
+  const saved = manifest.settings.agents?.["claude-code"]?.model;
+  expect(saved === pick.value, `qrabbit.json settings.agents["claude-code"].model = ${saved}`);
   await shot(page, "02-settings-picked");
   await page.keyboard.press("Escape");
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { CloudAccount, CloudSyncState } from "@qrabbit/shared";
+import { AGENTS, agentInfo, authLabel, billingLine, type CloudAccount, type CloudSyncState } from "@qrabbit/shared";
 import { useStore } from "../state/store";
 import { displayPath } from "../lib/paths";
 // The same file the window and taskbar icon are rendered from, so the mark matches everywhere.
@@ -37,11 +37,12 @@ export function Header() {
   const threadId = useStore((s) => s.thread?.id ?? null);
   const { goHome, openCollection, openCollectionDialog, selectSource, showList, importSources, addFromFolder, toggleRead, openThread } = useStore.getState();
 
+  const agentId = useStore((s) => s.agentId);
   const agent = useStore((s) => s.agent);
   const menu = useStore((s) => s.menu);
   const cloud = useStore((s) => s.cloud);
   const cloudSync = useStore((s) => s.cloudSync);
-  const { connectAgent, loginAgent, setMenu, setSettingsOpen, setUrlDialogOpen, enableCloud, disableCloud, removeCloudCollection, syncNow } = useStore.getState();
+  const { connectAgent, loginAgent, chooseAgent, setMenu, setSettingsOpen, setUrlDialogOpen, enableCloud, disableCloud, removeCloudCollection, syncNow } = useStore.getState();
   // Removing a collection from the cloud asks once, inside the menu; the question goes away with the menu.
   const [confirmRemove, setConfirmRemove] = useState(false);
   useEffect(() => {
@@ -62,13 +63,9 @@ export function Header() {
   // Threads whose source was removed keep their quotes and stay reachable.
   const orphaned = threads.filter((t) => t.anchor?.source && !collection?.sources.some((s) => s.id === t.anchor?.source));
   const signedIn = !!agent?.connected && !!agent.auth && agent.auth.kind !== "none";
-  const agentLabel = !agent ? "Agent" : agent.error ? "Agent failed" : !agent.connected ? "Connecting…" : agent.auth?.label ?? agent.agent?.name ?? "Connected";
-  const loginMethods = agent?.authMethods.length
-    ? agent.authMethods
-    : [
-        { id: "claude-ai-login", name: "Claude subscription", description: "Sign in with your Claude plan" },
-        { id: "console-login", name: "Anthropic Console", description: "API usage billing" },
-      ];
+  const info = agentInfo(agentId);
+  const agentLabel = !agent ? "Agent" : agent.error ? "Agent failed" : !agent.connected ? "Connecting…" : authLabel(agent.auth) ?? info.title;
+  const loginMethods = agent?.authMethods.length ? agent.authMethods : info.signIn;
   const threadItem = (t: (typeof threads)[number], close: () => void) => (
     <button key={t.id} className={`mi ${t.id === threadId ? "cur" : ""}`} role="menuitem" onClick={() => { close(); void openThread(t.id); }}>
       <span className={`dot h${t.hue}`} />
@@ -386,13 +383,13 @@ export function Header() {
             >
               {(close) => (
                 <>
-                  <div className="mh">{agent?.agent?.name ?? "Claude Code"}{agent?.agent?.version ? ` · ${agent.agent.version}` : ""}</div>
+                  <div className="mh">{info.title}{agent?.agent?.version ? ` · ${agent.agent.version}` : ""}</div>
                   <div className="mempty">
                     {agent?.error
                       ? agent.error
                       : agent?.connected
                         ? agent.auth
-                          ? `Turns bill to ${agent.auth.label}.`
+                          ? billingLine(agent.auth)
                           : "Connected. The account is reported when the first message is sent."
                         : "Not connected."}
                   </div>
@@ -410,6 +407,17 @@ export function Header() {
                     <Icon name="refresh" />
                     <span className="txt"><span className="t">{agent?.connected ? "Reconnect" : "Connect"}</span></span>
                   </button>
+                  <div className="msep" />
+                  <div className="mh">Agent on this computer</div>
+                  {AGENTS.map((a) => (
+                    <button key={a.id} className={`mi ${a.id === agentId ? "cur" : ""}`} role="menuitemradio" aria-checked={a.id === agentId} onClick={() => { close(); void chooseAgent(a.id); }}>
+                      <Icon name="terminal" />
+                      <span className="txt">
+                        <span className="t">{a.title}</span>
+                        <span className="m">{a.plan}</span>
+                      </span>
+                    </button>
+                  ))}
                 </>
               )}
             </Dropdown>

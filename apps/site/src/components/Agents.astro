@@ -1,7 +1,7 @@
 ---
 /**
  * Bring your own subscription: QRabbit is an Agent Client Protocol client, so any agent that speaks
- * ACP can drive it with its own sign-in. Claude Code works today; the rest are the plan
+ * ACP can drive it with its own sign-in. Claude Code and Codex work today; the rest are the plan
  * (planning/plan-v2.md §5.2). Picking one shows what the composer's chips would say.
  */
 type Agent = {
@@ -33,10 +33,11 @@ const agents: Agent[] = [
     id: "codex",
     name: "Codex",
     plan: "ChatGPT Plus or Pro",
+    live: true,
     account: "ChatGPT Plus",
     model: "Default",
     effort: "Medium",
-    signin: "Sign in with your ChatGPT account in Codex's own login.",
+    signin: "Sign in with your ChatGPT account in the browser, through Codex's own login, started from the header menu.",
     icon: "M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z",
   },
   {
@@ -87,8 +88,8 @@ const first = agents[0]!;
       <h2 class="h2">Use the AI you already pay for. <em>Or run your own.</em></h2>
       <p class="lede">
         QRabbit doesn't sell AI and never asks for an API key. It drives the coding agent you already have through the
-        Agent Client Protocol, so every turn comes out of your existing plan. Claude Code works today; more agents and
-        local models are on the way.
+        Agent Client Protocol, so every turn comes out of your existing plan. Claude Code and Codex work today; more
+        agents and local models are on the way.
       </p>
     </div>
 

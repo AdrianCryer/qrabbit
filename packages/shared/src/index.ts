@@ -20,7 +20,13 @@ export type CollectionManifest = {
   id: string;
   name: string;
   created: string;
-  settings: { agent?: string; model?: string; effort?: string };
+  settings: {
+    /** Defaults for new threads, per agent: one agent's model ids mean nothing to another. Read through `agentDefaults`. */
+    agents?: Partial<Record<AgentId, AgentDefaults>>;
+    /** Claude Code's defaults from before QRabbit drove other agents; they move under `agents` when next changed. */
+    model?: string;
+    effort?: string;
+  };
   /** Source ids in reading order. Sources not listed come after, oldest first. */
   order?: string[];
 };
@@ -187,14 +193,98 @@ export type ReaderPosition = { page: number; scrollTop: number; zoom: number };
 export type ReaderState = Record<string, ReaderPosition>;
 
 // ---------- agent ----------
+/** The agents QRabbit drives, each through its vendor's ACP adapter and its vendor's own sign-in. */
+export type AgentId = "claude-code" | "codex";
+
+export type AgentSignIn = {
+  id: string;
+  name: string;
+  description: string;
+  /** `terminal`: the agent's CLI login runs in a terminal window. `browser`: the agent opens its vendor's sign-in page itself. */
+  via: "terminal" | "browser";
+};
+
+export type AgentInfo = {
+  id: AgentId;
+  title: string;
+  /** The plan turns draw on after the first sign-in method. */
+  plan: string;
+  /** Sign-in methods offered, the subscription first. API-key methods are left out on purpose. */
+  signIn: AgentSignIn[];
+  /** Where the agent keeps its own default model, for Settings. */
+  ownDefault: string;
+};
+
+export const AGENTS: readonly AgentInfo[] = [
+  {
+    id: "claude-code",
+    title: "Claude Code",
+    plan: "Claude subscription",
+    signIn: [
+      { id: "claude-ai-login", name: "Claude subscription", description: "Sign in with your Claude plan", via: "terminal" },
+      { id: "console-login", name: "Anthropic Console", description: "API usage billing", via: "terminal" },
+    ],
+    ownDefault: "its /model choice in ~/.claude/settings.json, or ANTHROPIC_MODEL",
+  },
+  {
+    id: "codex",
+    title: "Codex",
+    plan: "ChatGPT subscription",
+    signIn: [{ id: "chat-gpt", name: "ChatGPT subscription", description: "Sign in with your ChatGPT plan in the browser", via: "browser" }],
+    ownDefault: "the model in ~/.codex/config.toml",
+  },
+];
+
+export const DEFAULT_AGENT: AgentId = "claude-code";
+
+export function isAgentId(value: unknown): value is AgentId {
+  return AGENTS.some((a) => a.id === value);
+}
+
+export function agentInfo(id: AgentId): AgentInfo {
+  return AGENTS.find((a) => a.id === id) ?? AGENTS[0]!;
+}
+
+export type AgentDefaults = { model?: string; effort?: string };
+
+/** A collection's defaults for new threads under one agent. */
+export function agentDefaults(settings: CollectionManifest["settings"], agent: AgentId): AgentDefaults {
+  const own = settings.agents?.[agent];
+  if (own) return own;
+  return agent === "claude-code" ? { model: settings.model, effort: settings.effort } : {};
+}
+
+/** The settings patch that changes one agent's defaults, moving Claude Code's old top-level pair under `agents`. */
+export function agentDefaultsPatch(settings: CollectionManifest["settings"], agent: AgentId, patch: AgentDefaults): CollectionManifest["settings"] {
+  const next = { ...agentDefaults(settings, agent), ...patch };
+  return {
+    agents: { ...settings.agents, [agent]: next },
+    ...(agent === "claude-code" ? { model: undefined, effort: undefined } : {}),
+  };
+}
+
 export type AgentAuth = { kind: string; label: string } | null;
 
+/** The account to show, in the app's own words for "none" (Codex says "Not logged in"); null before any report. */
+export function authLabel(auth: AgentAuth): string | null {
+  if (!auth) return null;
+  return auth.kind === "none" ? "Not signed in" : auth.label;
+}
+
+/** One line on what a turn bills, for the agent menu and Settings. */
+export function billingLine(auth: NonNullable<AgentAuth>): string {
+  return auth.kind === "none" ? "Not signed in yet." : `Turns bill to ${auth.label}.`;
+}
+
 export type AgentStatus = {
+  /** The agent this status is about; the choice is per computer and can change while a collection is open. */
+  id: AgentId;
   connected: boolean;
   agent?: { name: string; version?: string };
   /** Pushed by the adapter: which account the next turn bills. */
   auth: AgentAuth;
-  authMethods: Array<{ id: string; name: string; description?: string | null }>;
+  /** The sign-in methods to offer: the registry's, narrowed to those the running adapter advertises. */
+  authMethods: AgentSignIn[];
   error?: string;
 };
 
@@ -342,6 +432,10 @@ export type QrabbitApi = {
     delete(collectionPath: string, id: string): Promise<boolean>;
   };
   agent: {
+    /** The agent this computer uses. */
+    current(): Promise<AgentId>;
+    /** Switch agent: every open collection's agent process stops, and the next call starts the chosen one. */
+    choose(id: AgentId): Promise<void>;
     status(collectionPath: string): Promise<AgentStatus>;
     connect(collectionPath: string): Promise<AgentStatus>;
     /** Ensure a session exists for the thread and return its config options. */
@@ -355,8 +449,8 @@ export type QrabbitApi = {
     cancel(collectionPath: string, threadId: string): Promise<void>;
     setConfig(collectionPath: string, threadId: string, configId: string, value: string | boolean): Promise<ConfigOption[]>;
     replyPermission(requestId: string, optionId: string | null): Promise<void>;
-    /** Run the agent's own terminal sign-in flow in a terminal window. */
-    login(collectionPath: string, methodId: string): Promise<void>;
+    /** Start the agent's own sign-in: its CLI in a terminal window, or its vendor's page in the browser. */
+    login(collectionPath: string, methodId: string): Promise<AgentSignIn["via"]>;
     onEvent(cb: (threadId: string, event: AgentEvent) => void): () => void;
     onPermission(cb: (request: PermissionRequest) => void): () => void;
     onStatus(cb: (collectionPath: string, status: AgentStatus) => void): () => void;

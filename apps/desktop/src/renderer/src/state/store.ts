@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { agentDefaultsPatch, agentInfo, DEFAULT_AGENT, type AgentDefaults, type AgentId } from "@qrabbit/shared";
 import type {
   AgentEvent,
   AgentStatus,
@@ -34,7 +35,8 @@ export type TurnState = {
 const emptyTurn = (): TurnState => ({ running: true, text: "", activity: [], permission: null, error: null });
 
 const lastSourceKey = (collectionId: string) => `qrabbit:last-source:${collectionId}`;
-const errText = (err: unknown) => String((err as Error)?.message ?? err);
+/** An error's message without the "Error invoking remote method '…': Error:" wrapper IPC adds around main's errors. */
+const errText = (err: unknown) => String((err as Error)?.message ?? err).replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
 
 function titleFromQuote(quote: string, max = 60): string {
   const one = quote.replace(/\s+/g, " ").trim();
@@ -72,6 +74,8 @@ type State = {
   /** Where the reader should scroll: a page, and optionally a mark on it. */
   focusTarget: { page: number; key: number; markId?: string } | null;
   toasts: Toast[];
+  /** The agent this computer uses; switching it restarts the agent process. */
+  agentId: AgentId;
   agent: AgentStatus | null;
   turns: Record<string, TurnState>;
   configOptions: Record<string, ConfigOption[]>;
@@ -147,6 +151,8 @@ type Actions = {
   setConfig(configId: string, value: string | boolean): Promise<void>;
   replyPermission(requestId: string, optionId: string | null): void;
   connectAgent(): Promise<void>;
+  /** Switch this computer's agent. Open threads continue: the new agent gets their history on its first turn. */
+  chooseAgent(id: AgentId): Promise<void>;
   loginAgent(methodId: string): Promise<void>;
   savePosition(sourceId: string, pos: ReaderPosition): void;
   toast(text: string, action?: Toast["action"]): void;
@@ -160,7 +166,8 @@ type Actions = {
   /** Show the panel with the current thread, or hide it. */
   togglePanel(): void;
   openParent(): Promise<void>;
-  updateCollectionSettings(patch: { model?: string; effort?: string }): Promise<void>;
+  /** Change the open collection's defaults for new threads under the current agent. */
+  updateAgentDefaults(patch: AgentDefaults): Promise<void>;
   /** Bookmark a span, or a page when no anchor is given. */
   addBookmark(sourceId: string, page: number, anchor?: Anchor): Promise<void>;
   addComment(sourceId: string, page: number | undefined, anchor: Anchor, text: string): Promise<void>;
@@ -203,6 +210,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   composerFocusKey: 0,
   focusTarget: null,
   toasts: [],
+  agentId: DEFAULT_AGENT,
   agent: null,
   turns: {},
   configOptions: {},
@@ -219,8 +227,8 @@ export const useStore = create<State & Actions>((set, get) => ({
   cloudCollections: [],
 
   async init() {
-    const [platform, home, recent] = await Promise.all([api.app.platform(), api.app.home(), api.collections.recent()]);
-    set({ platform, home, recent });
+    const [platform, home, recent, agentId] = await Promise.all([api.app.platform(), api.app.home(), api.collections.recent(), api.agent.current()]);
+    set({ platform, home, recent, agentId });
     if (subscribed) return;
     subscribed = true;
     void get().refreshCloud();
@@ -238,7 +246,16 @@ export const useStore = create<State & Actions>((set, get) => ({
       /* ignore */
     }
     api.agent.onStatus((collectionPath, status) => {
-      if (get().collection?.info.path === collectionPath) set({ agent: status });
+      // A process stopped by a switch may still report; only the chosen agent speaks for the collection.
+      if (get().collection?.info.path !== collectionPath || status.id !== get().agentId) return;
+      const before = get().agent?.auth;
+      set({ agent: status });
+      // Signing in finishes outside the app; once the account arrives, retry what failed for want of it.
+      if (status.auth && status.auth.kind !== "none" && (before?.kind !== status.auth.kind || before?.label !== status.auth.label)) {
+        const thread = get().thread;
+        if (thread && !get().configOptions[thread.id]) warmSession(collectionPath, thread.id);
+        if (get().settingsOpen && get().optionsError) void get().refreshOptions();
+      }
     });
     api.agent.onPermission((request) => {
       set((s) => ({ turns: { ...s.turns, [request.threadId]: { ...(s.turns[request.threadId] ?? emptyTurn()), permission: request } } }));
@@ -581,13 +598,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       patch.focusTarget = { page: a.page, key: Date.now(), markId: thread.id };
     }
     set(patch);
-    // Warm the agent session so the pickers show real options.
-    if (!get().configOptions[id]) {
-      api.agent
-        .session(c.info.path, id)
-        .then(({ configOptions }) => set((s) => ({ configOptions: { ...s.configOptions, [id]: configOptions }, knownOptions: configOptions })))
-        .catch(() => { /* status pill shows the problem */ });
-    }
+    if (!get().configOptions[id]) warmSession(c.info.path, id);
   },
 
   closePanel() {
@@ -720,15 +731,41 @@ export const useStore = create<State & Actions>((set, get) => ({
       const status = await api.agent.connect(c.info.path);
       if (get().collection?.info.path === c.info.path) set({ agent: status });
     } catch (err) {
-      set({ agent: { connected: false, auth: null, authMethods: [], error: errText(err) } });
+      const id = get().agentId;
+      set({ agent: { id, connected: false, auth: null, authMethods: agentInfo(id).signIn, error: errText(err) } });
     }
+  },
+
+  async chooseAgent(id) {
+    if (id === get().agentId) return;
+    if (Object.values(get().turns).some((t) => t.running)) {
+      get().toast("An answer is still coming. Stop it or let it finish, then switch agents.");
+      return;
+    }
+    await api.agent.choose(id);
+    set({ agentId: id, agent: null, configOptions: {}, knownOptions: [], optionsError: null });
+    const c = get().collection;
+    if (!c) return;
+    await get().connectAgent();
+    const thread = get().thread;
+    if (thread) warmSession(c.info.path, thread.id);
+    if (get().settingsOpen) void get().refreshOptions();
   },
 
   async loginAgent(methodId) {
     const c = get().collection;
     if (!c) return;
-    await api.agent.login(c.info.path, methodId);
-    get().toast("A terminal window opened for sign-in. Finish there, then send a message here.");
+    const method = agentInfo(get().agentId).signIn.find((m) => m.id === methodId);
+    try {
+      const via = await api.agent.login(c.info.path, methodId);
+      get().toast(
+        via === "browser"
+          ? `Your browser opened to sign in with your ${method?.name ?? "account"}. Finish there; QRabbit picks it up by itself.`
+          : "A terminal window opened for sign-in. Finish there, then send a message here.",
+      );
+    } catch (err) {
+      get().toast(`Could not start sign-in: ${errText(err)}`);
+    }
   },
 
   savePosition(sourceId, pos) {
@@ -757,12 +794,14 @@ export const useStore = create<State & Actions>((set, get) => ({
   async refreshOptions() {
     const c = get().collection;
     if (!c) return;
+    const agentId = get().agentId;
+    const current = () => get().collection?.info.path === c.info.path && get().agentId === agentId;
     set({ optionsLoading: true, optionsError: null });
     try {
       const options = await api.agent.options(c.info.path);
-      if (get().collection?.info.path === c.info.path) set({ knownOptions: options, optionsLoading: false });
+      if (current()) set({ knownOptions: options, optionsLoading: false });
     } catch (err) {
-      set({ optionsLoading: false, optionsError: errText(err) });
+      if (current()) set({ optionsLoading: false, optionsError: errText(err) });
     }
   },
 
@@ -784,10 +823,10 @@ export const useStore = create<State & Actions>((set, get) => ({
     if (t?.parent) await get().openThread(t.parent.thread);
   },
 
-  async updateCollectionSettings(patch) {
+  async updateAgentDefaults(patch) {
     const c = get().collection;
     if (!c) return;
-    const manifest = await api.collections.updateSettings(c.info.path, patch);
+    const manifest = await api.collections.updateSettings(c.info.path, agentDefaultsPatch(c.manifest.settings, get().agentId, patch));
     set((s) => (s.collection ? { collection: { ...s.collection, manifest } } : {}));
   },
 
@@ -952,6 +991,19 @@ export const useStore = create<State & Actions>((set, get) => ({
     if (cur.sourceId && cur.collection && !cur.collection.sources.some((s) => s.id === cur.sourceId)) set({ sourceId: null });
   },
 }));
+
+/** Start the thread's session so the composer's pickers show the agent's real options. */
+function warmSession(collectionPath: string, threadId: string): void {
+  const agentId = useStore.getState().agentId;
+  api.agent
+    .session(collectionPath, threadId)
+    .then(({ configOptions }) => {
+      // After a switch these would be the old agent's options.
+      if (useStore.getState().agentId !== agentId) return;
+      useStore.setState((s) => ({ configOptions: { ...s.configOptions, [threadId]: configOptions }, knownOptions: configOptions }));
+    })
+    .catch(() => { /* the status pill shows the problem */ });
+}
 
 function applyEvent(t: TurnState, ev: AgentEvent): void {
   switch (ev.type) {

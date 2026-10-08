@@ -51,6 +51,17 @@ describe("manifest", () => {
     const remote = { ...base, settings: { model: "opus" } };
     expect(mergeManifest(local, remote, base).settings).toEqual({ model: "haiku" });
   });
+  it("merges each agent's defaults on their own", () => {
+    const base: CollectionManifest = { id: "col_1", name: "P", created: "x", settings: { agents: { "claude-code": { model: "sonnet" } } } };
+    const local = { ...base, settings: { agents: { "claude-code": { model: "opus", effort: "high" } } } };
+    const remote = { ...base, settings: { agents: { "claude-code": { model: "sonnet" }, codex: { model: "gpt-5.5" } } } };
+    expect(mergeManifest(local, remote, base).settings).toEqual({ agents: { "claude-code": { model: "opus", effort: "high" }, codex: { model: "gpt-5.5" } } });
+  });
+  it("drops an agent's default that this machine cleared", () => {
+    const base: CollectionManifest = { id: "col_1", name: "P", created: "x", settings: { agents: { codex: { model: "gpt-5.5" } } } };
+    const local = { ...base, settings: { agents: { codex: {} } } };
+    expect(mergeManifest(local, base, base).settings).toEqual({});
+  });
 });
 
 describe("source.json", () => {

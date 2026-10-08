@@ -79,9 +79,24 @@ export function mergeOrder(local: string[] = [], remote: string[] = [], base: st
   return out;
 }
 
+type AgentDefaultsMap = NonNullable<CollectionManifest["settings"]["agents"]>;
+
+/** Field by field within each agent, so one computer's Claude Code choice and another's Codex choice both stay. */
+function mergeAgentDefaults(local: AgentDefaultsMap = {}, remote: AgentDefaultsMap = {}, base: AgentDefaultsMap | null): AgentDefaultsMap | undefined {
+  const out: Record<string, object> = {};
+  for (const id of new Set([...Object.keys(local), ...Object.keys(remote)]) as Set<keyof AgentDefaultsMap>) {
+    const v = pickFields(local[id] ?? {}, remote[id] ?? {}, base ? (base[id] ?? {}) : null);
+    if (Object.keys(v).length) out[id] = v;
+  }
+  return Object.keys(out).length ? (out as AgentDefaultsMap) : undefined;
+}
+
 export function mergeManifest(local: CollectionManifest, remote: CollectionManifest, base: CollectionManifest | null): CollectionManifest {
   const out = pickFields(local, remote, base);
   out.settings = pickFields(local.settings ?? {}, remote.settings ?? {}, base ? (base.settings ?? {}) : null);
+  const agents = mergeAgentDefaults(local.settings?.agents, remote.settings?.agents, base ? (base.settings?.agents ?? {}) : null);
+  if (agents) out.settings.agents = agents;
+  else delete out.settings.agents;
   out.order = mergeOrder(local.order, remote.order, base ? (base.order ?? []) : null);
   out.id = local.id;
   return out;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { Anchor, ConfigOption, Message, ThreadMeta } from "@qrabbit/shared";
+import { agentInfo, authLabel, type Anchor, type ConfigOption, type Message, type ThreadMeta } from "@qrabbit/shared";
 import { useStore, type Activity, type TurnState } from "../state/store";
 import { anchorToRangeIn, offsetsForRange, rectsForRange, selectorFor, textOfElement } from "../pdf/anchoring";
 import { formatKeys, isTyping, matches } from "../lib/shortcuts";
@@ -260,6 +260,7 @@ export function ThreadPanel() {
     anchor?.page && sources.find((x) => x.id === anchor.source)?.kind === "pdf" ? `p.${anchor.page}` : "";
   const focus = useStore((s) => s.focus);
   const composerQuote = useStore((s) => s.composerQuote);
+  const agentId = useStore((s) => s.agentId);
   const agent = useStore((s) => s.agent);
   const turn = useStore((s) => (s.thread ? s.turns[s.thread.id] : undefined));
   const options = useStore((s) => (s.thread ? s.configOptions[s.thread.id] : undefined));
@@ -329,7 +330,7 @@ export function ThreadPanel() {
 
   if (!thread) return null;
   const hue = thread.hue;
-  const agentName = agent?.agent?.name?.includes("claude") ? "Claude Code" : agent?.agent?.name ?? "Agent";
+  const agentName = agentInfo(agentId).title;
   const running = !!turn?.running;
   const modelOpt = options?.find((o) => o.category === "model" || o.id === "model");
   const effortOpt = options?.find((o) => o.category === "thought_level" || o.id === "effort");
@@ -548,9 +549,9 @@ export function ThreadPanel() {
           }}
         />
         <div className="crow">
-          <span className="pick" title={agent?.auth?.label ?? "Not signed in"}>
+          <span className="pick" title={`${agentName} · ${authLabel(agent?.auth ?? null) ?? "account not reported yet"}`}>
             <Icon name="terminal" />
-            {agent?.connected ? (agent.auth?.label ?? agentName) : "No agent"}
+            {agent?.connected ? (authLabel(agent.auth) ?? agentName) : "No agent"}
           </span>
           {modelOpt && <Picker option={modelOpt} onPick={(v) => void setConfig(modelOpt.id, v)} />}
           {effortOpt && <Picker option={effortOpt} onPick={(v) => void setConfig(effortOpt.id, v)} />}

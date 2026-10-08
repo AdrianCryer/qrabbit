@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, type IpcMainInvokeEvent } from "electron";
 import { statSync } from "node:fs";
 import { basename, delimiter, resolve, sep } from "node:path";
-import type { Anchor, Annotation, CollectionManifest, CollectionSnapshot, DropResult, FolderScan, ImportResult, Message, ReaderPosition, RemovedSource } from "@qrabbit/shared";
+import { isAgentId, type Anchor, type Annotation, type CollectionManifest, type CollectionSnapshot, type DropResult, type FolderScan, type ImportResult, type Message, type ReaderPosition, type RemovedSource } from "@qrabbit/shared";
 import {
   addAnnotation,
   autoTitleSource,
@@ -33,6 +33,7 @@ import {
 } from "@qrabbit/workspace";
 import { forgetRecent, recentCollections, touchRecent } from "./recent";
 import { AgentHost, type AgentEmitter } from "./agent";
+import { chooseAgent, chosenAgent } from "./prefs";
 import { CloudHost } from "./cloud";
 
 /** Main only touches collections this process opened; the renderer cannot point it at arbitrary folders. */
@@ -78,7 +79,7 @@ function host(collection: string): AgentHost {
   guard(collection);
   let h = hosts.get(collection);
   if (!h) {
-    h = new AgentHost(collection, emitter);
+    h = new AgentHost(collection, chosenAgent(), emitter);
     hosts.set(collection, h);
   }
   return h;
@@ -239,6 +240,16 @@ export function registerIpc(): void {
   });
 
   // ----- agent -----
+  ipcMain.handle("agent:current", () => chosenAgent());
+  ipcMain.handle("agent:choose", async (_e, id: unknown) => {
+    if (!isAgentId(id)) throw new Error(`Unknown agent: ${String(id)}`);
+    if (id === chosenAgent()) return;
+    chooseAgent(id);
+    // Sessions belong to the old agent's process; threads carry their history to the new one on its first turn.
+    const old = [...hosts.values()];
+    hosts.clear();
+    await Promise.all(old.map((h) => h.dispose()));
+  });
   ipcMain.handle("agent:status", (_e, collection: string) => host(collection).status);
   ipcMain.handle("agent:connect", (_e, collection: string) => host(collection).connect());
   ipcMain.handle("agent:session", async (_e, collection: string, threadId: string) => {

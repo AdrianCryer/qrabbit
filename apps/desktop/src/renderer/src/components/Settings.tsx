@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { CloudDevice } from "@qrabbit/shared";
+import { AGENTS, agentDefaults, agentInfo, billingLine, isAgentId, type CloudDevice } from "@qrabbit/shared";
 import { useStore } from "../state/store";
 import { api } from "../lib/api";
 import { displayPath } from "../lib/paths";
@@ -154,11 +154,12 @@ export function Settings() {
   const open = useStore((s) => s.settingsOpen);
   const platform = useStore((s) => s.platform);
   const collection = useStore((s) => s.collection);
+  const agentId = useStore((s) => s.agentId);
   const agent = useStore((s) => s.agent);
   const known = useStore((s) => s.knownOptions);
   const optionsLoading = useStore((s) => s.optionsLoading);
   const optionsError = useStore((s) => s.optionsError);
-  const { setSettingsOpen, updateCollectionSettings, loginAgent, connectAgent, refreshOptions } = useStore.getState();
+  const { setSettingsOpen, updateAgentDefaults, loginAgent, connectAgent, chooseAgent, refreshOptions } = useStore.getState();
   const [reopen, setReopen] = useState(() => readFlag(REOPEN_KEY));
 
   useEffect(() => {
@@ -172,10 +173,12 @@ export function Settings() {
 
   if (!open) return null;
 
-  const settings = collection?.manifest.settings ?? {};
+  const info = agentInfo(agentId);
+  const defaults = collection ? agentDefaults(collection.manifest.settings, agentId) : {};
+  const signIn = agent?.authMethods.length ? agent.authMethods : info.signIn;
   const modelOpt = known.find((o) => o.category === "model" || o.id === "model");
   const effortOpt = known.find((o) => o.category === "thought_level" || o.id === "effort");
-  // What the agent starts on when nothing is chosen here: Claude Code's own /model choice, or its recommended default.
+  // What the agent starts on when nothing is chosen here: the agent's own configured model, or its recommended default.
   const currentName = (opt: typeof modelOpt) => {
     if (!opt) return null;
     const cur = opt.options?.find((o) => o.value === opt.currentValue);
@@ -210,49 +213,63 @@ export function Settings() {
         <div className="dbody">
           <section>
             <h3>Agent</h3>
-            <p className="dsub">
-              {agent?.connected ? `Connected to ${agent.agent?.name?.includes("claude") ? "Claude Code" : agent.agent?.name}. ${agent.auth ? `Turns bill to ${agent.auth.label}.` : ""}` : "Not connected."}
-            </p>
             <div className="drow">
-              <button className="btn" onClick={() => void connectAgent()}><Icon name="refresh" />{agent?.connected ? "Reconnect" : "Connect"}</button>
-              <button className="btn" onClick={() => void loginAgent("claude-ai-login")}><Icon name="key" />Sign in with Claude subscription</button>
-              <button className="btn" onClick={() => void loginAgent("console-login")}><Icon name="key" />Sign in with Anthropic Console</button>
+              <label className="field">
+                <span>Agent on this computer</span>
+                <select id="settings-agent" value={agentId} onChange={(e) => { if (isAgentId(e.target.value)) void chooseAgent(e.target.value); }}>
+                  {AGENTS.map((a) => (
+                    <option key={a.id} value={a.id}>{a.title} · {a.plan}</option>
+                  ))}
+                </select>
+              </label>
             </div>
+            <p className="dsub">
+              {agent?.connected ? `Connected to ${info.title}. ${agent.auth ? billingLine(agent.auth) : ""}` : collection ? "Not connected." : `Connects to ${info.title} when a collection opens.`}
+            </p>
+            {collection && (
+              <div className="drow">
+                <button className="btn" onClick={() => void connectAgent()}><Icon name="refresh" />{agent?.connected ? "Reconnect" : "Connect"}</button>
+                {signIn.map((m) => (
+                  <button key={m.id} className="btn" title={m.description} onClick={() => void loginAgent(m.id)}><Icon name="key" />Sign in with {m.name}</button>
+                ))}
+              </div>
+            )}
             {collection && (
               <>
                 <h4>Defaults for new threads in {collection.info.name}</h4>
-                <p className="dsub">A thread keeps whatever you pick in its composer; these apply until you do. Saved in the collection's manifest.</p>
+                <p className="dsub">A thread keeps whatever you pick in its composer; these apply until you do. Saved in the collection's manifest, separately for each agent.</p>
                 <div className="drow">
                   <label className="field">
                     <span>Model</span>
-                    <select id="settings-model" value={settings.model ?? ""} disabled={optionsLoading && !modelOpt} onChange={(e) => void updateCollectionSettings({ model: e.target.value || undefined })}>
+                    <select id="settings-model" value={defaults.model ?? ""} disabled={optionsLoading && !modelOpt} onChange={(e) => void updateAgentDefaults({ model: e.target.value || undefined })}>
                       <option value="">{agentModel ? `Agent default (${agentModel})` : "Agent default"}</option>
                       {modelOpt?.options?.map((o) => (
                         <option key={o.value} value={o.value}>{o.name}{o.value === "default" && o.description ? ` · ${o.description}` : ""}</option>
                       ))}
-                      {!modelOpt && settings.model && <option value={settings.model}>{settings.model}</option>}
+                      {defaults.model && !modelOpt?.options?.some((o) => o.value === defaults.model) && <option value={defaults.model}>{defaults.model}</option>}
                     </select>
                   </label>
                   <label className="field">
                     <span>Effort</span>
-                    <select id="settings-effort" value={settings.effort ?? ""} disabled={optionsLoading && !effortOpt} onChange={(e) => void updateCollectionSettings({ effort: e.target.value || undefined })}>
+                    <select id="settings-effort" value={defaults.effort ?? ""} disabled={optionsLoading && !effortOpt} onChange={(e) => void updateAgentDefaults({ effort: e.target.value || undefined })}>
                       <option value="">{agentEffort ? `Agent default (${agentEffort})` : "Agent default"}</option>
                       {effortOpt?.options?.map((o) => (
                         <option key={o.value} value={o.value}>{o.name}</option>
                       ))}
-                      {!effortOpt && settings.effort && <option value={settings.effort}>{settings.effort}</option>}
+                      {defaults.effort && !effortOpt?.options?.some((o) => o.value === defaults.effort) && <option value={defaults.effort}>{defaults.effort}</option>}
                     </select>
                   </label>
                 </div>
                 {optionsLoading && !modelOpt && <p className="dsub">Asking the agent for its models…</p>}
-                {optionsError && (
+                {optionsError && agent?.auth?.kind === "none" && <p className="dsub">Sign in to {info.title} to see its models.</p>}
+                {optionsError && agent?.auth?.kind !== "none" && (
                   <p className="dsub">
                     Could not reach the agent: {optionsError} <button className="btn" onClick={() => void refreshOptions()}><Icon name="refresh" />Try again</button>
                   </p>
                 )}
                 {modelOpt && (
                   <p className="dsub">
-                    The agent's own default is whatever Claude Code is set to (its /model choice in ~/.claude/settings.json, or ANTHROPIC_MODEL). A choice here overrides it for new threads in this collection; a thread keeps a model only once you pick one in its composer.
+                    The agent's own default is whatever {info.title} is set to ({info.ownDefault}). A choice here overrides it for new threads in this collection; a thread keeps a model only once you pick one in its composer.
                   </p>
                 )}
               </>

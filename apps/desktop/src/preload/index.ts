@@ -62,6 +62,8 @@ const api: QrabbitApi = {
     delete: (collection, id) => invoke("annotations:delete", collection, id),
   },
   agent: {
+    current: () => invoke("agent:current"),
+    choose: (id) => invoke("agent:choose", id),
     status: (collection) => invoke("agent:status", collection),
     connect: (collection) => invoke("agent:connect", collection),
     session: (collection, threadId) => invoke("agent:session", collection, threadId),

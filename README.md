@@ -2,7 +2,7 @@
 
 Read difficult material with AI. Highlight a passage, explore it in a thread, branch off inside the answer when something else is unclear, and go as deep as you need. The paper stays where you left it, and everything you explored stays attached to the passage it came from.
 
-QRabbit runs on the coding agent you already pay for. It talks to Claude Code through the Agent Client Protocol, so turns draw on your Claude subscription rather than an API key, and the app never sees a credential.
+QRabbit runs on the coding agent you already pay for. It talks to Claude Code or Codex through the Agent Client Protocol, so turns draw on your Claude or ChatGPT subscription rather than an API key, and the app never sees a credential.
 
 https://github.com/user-attachments/assets/55911246-5bcf-4ba2-ac15-7b373cc4e1fc
 
@@ -39,13 +39,15 @@ my-research/
 
 ## The agent
 
-Opening a collection starts one agent process, Claude Code through its ACP adapter, with the collection as its working directory. Each thread gets its own session, and the model and effort pickers beside the composer come from the agent itself.
+Opening a collection starts one agent process, Claude Code or Codex through its ACP adapter, with the collection as its working directory. Each thread gets its own session, and the model and effort pickers beside the composer come from the agent itself.
 
-Sign-in happens in Claude Code's own terminal flow, started from the header menu. Reads inside the collection and writes under `notes/` are allowed automatically; anything else asks you in the thread panel.
+The agent is chosen per computer, from the header's agent menu or Settings, because a sign-in belongs to the machine while a collection may sync to others. Switching keeps every thread: the new agent gets a thread's history on its first turn. Model and effort defaults are kept per agent in the collection's manifest.
+
+Sign-in happens in the agent's own flow, started from the header menu: Claude Code's runs in a terminal window, and Codex opens ChatGPT's sign-in page in the browser and keeps the tokens in its own store. API-key sign-in is deliberately not offered. Reads inside the collection and writes under `notes/` are allowed automatically; anything else asks you in the thread panel. Codex runs in its read-only mode, so each file change it wants comes to that same check.
 
 ## Running it
 
-QRabbit is early and not yet packaged. You need Node 22 or later, pnpm, and a Claude Code sign-in on the machine.
+QRabbit is early and not yet packaged. You need Node 22 or later, pnpm, and a Claude Code or ChatGPT (Codex) sign-in on the machine. Both agents' CLIs come with the install; nothing else needs installing. On Windows the agents run on that Node rather than on Electron's: a hidden console Node passes a windowless console down to everything the agents start, where Electron, a GUI program, would leave each console program to open a window of its own.
 
 ```bash
 pnpm install
@@ -61,6 +63,7 @@ pnpm typecheck                         # every package
 pnpm test                              # vitest where a package has tests
 pnpm desktop:build                     # build the app into apps/desktop/out
 pnpm desktop:drive <work-dir>          # scripted run with screenshots (see .claude/skills/run-desktop)
+node tools/dev/drive-agents.mjs <dir>  # switch to Codex and back, checking sign-in, Settings and windows
 pnpm spike:acp                         # the original ACP spike against Claude Code
 pnpm site:dev                          # the promo site (apps/site), at localhost:4321
 pnpm cloud:start                       # the local Supabase stack behind QRabbit Cloud (needs Docker)
