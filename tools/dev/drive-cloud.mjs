@@ -75,7 +75,7 @@ try {
   await shot(page, "01-home");
 
   // ----- sign in from Settings with a code from the mail catcher -----
-  await page.evaluate(() => window.__qrabbitStore.getState().setSettingsOpen(true));
+  await page.evaluate(() => window.__qrabbitStore.getState().setSettingsOpen(true, "cloud"));
   await page.waitForSelector(".dialog input[type=email]", { timeout: 10_000 });
   await shot(page, "02-settings-signed-out");
   const email = `drive-${Date.now().toString(36)}@qrabbit.test`;

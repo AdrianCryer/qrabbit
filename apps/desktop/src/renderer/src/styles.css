@@ -430,11 +430,31 @@ body.resizing .rscroll, body.resizing .msgs { pointer-events: none; }
 .field select { font: inherit; font-size: 13px; color: var(--text); background: var(--raised); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 6px 8px; }
 .check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
 .check input { accent-color: var(--accent); width: 15px; height: 15px; }
-.kgroup { display: grid; gap: 4px; }
 table.keys { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 table.keys td { padding: 5px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
 table.keys td:last-child { text-align: right; white-space: nowrap; }
 table.keys kbd { margin-left: 4px; }
+/* side tabs: the pages down the left, the chosen one on the right; the dialog keeps one size across them */
+.dialog.settings { width: min(100%, 840px); height: min(88vh, 640px); grid-template-columns: 184px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.stabs { display: flex; flex-direction: column; padding: 14px 10px; background: var(--sunken); border-right: 1px solid var(--line); min-width: 0; overflow: auto; }
+.stabs .stitle { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); font-weight: 500; padding: 4px 10px 10px; }
+.stablist { display: grid; gap: 2px; }
+.stab { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 7px; color: var(--text-2); font-weight: 500; text-align: left; width: 100%; white-space: nowrap; }
+.stab svg.i { color: var(--text-3); }
+.stab:hover { background: var(--raised); color: var(--text); }
+.stab[aria-selected="true"] { background: var(--raised-2); color: var(--text); }
+.stab[aria-selected="true"] svg.i { color: var(--accent); }
+.spanel { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; }
+.spanel .dhead { padding-left: 22px; }
+.spanel .dbody { padding: 14px 22px 22px; align-content: start; }
+.spanel .dbody > section:first-child > h3 { margin-top: 2px; }
+@media (max-width: 760px) {
+  .dialog.settings { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .stabs { flex-direction: row; align-items: center; padding: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .stabs .stitle { display: none; }
+  .stablist { display: flex; }
+  .stab { width: auto; flex: none; }
+}
 .seltool kbd { background: rgba(0, 0, 0, 0.18); border-color: transparent; color: inherit; }
 .seltool button:not(.primary) kbd { background: var(--sunken); border-color: var(--line); color: var(--text-2); }
 

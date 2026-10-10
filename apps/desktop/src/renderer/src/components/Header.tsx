@@ -319,7 +319,7 @@ export function Header() {
                     {!cloud.signedIn ? (
                       <>
                         <div className="mempty">Keep this collection in step across your computers, with a copy of every file.</div>
-                        <button className="mi" role="menuitem" onClick={() => { close(); setSettingsOpen(true); }}>
+                        <button className="mi" role="menuitem" onClick={() => { close(); setSettingsOpen(true, "cloud"); }}>
                           <Icon name="key" />
                           <span className="txt"><span className="t">Sign in…</span><span className="m">A code by email, no password</span></span>
                         </button>
@@ -361,7 +361,7 @@ export function Header() {
                           </button>
                         )}
                         <div className="msep" />
-                        <button className="mi" role="menuitem" onClick={() => { close(); setSettingsOpen(true); }}>
+                        <button className="mi" role="menuitem" onClick={() => { close(); setSettingsOpen(true, "cloud"); }}>
                           <Icon name="gear" />
                           <span className="txt"><span className="t">Account and computers…</span><span className="m">{cloud.email}{usageLine(cloud)}</span></span>
                         </button>

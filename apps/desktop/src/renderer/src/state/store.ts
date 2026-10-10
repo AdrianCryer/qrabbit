@@ -85,6 +85,8 @@ type State = {
   optionsLoading: boolean;
   optionsError: string | null;
   settingsOpen: boolean;
+  /** The page Settings opens on when a menu asks for one; null means the page last used. */
+  settingsTab: SettingsTab | null;
   urlDialogOpen: boolean;
   /** The folder picker is open while a scan is held here. */
   folderScan: FolderScan | null;
@@ -100,6 +102,8 @@ type State = {
 };
 
 export type MenuId = State["menu"];
+/** The pages of the Settings dialog. */
+export type SettingsTab = "agent" | "cloud" | "general" | "shortcuts";
 
 type Actions = {
   init(): Promise<void>;
@@ -159,7 +163,7 @@ type Actions = {
   dismissToast(id: number): void;
   /** Delete a thread and its branches. The panel moves to the parent, or closes. */
   deleteThread(id: string): Promise<void>;
-  setSettingsOpen(open: boolean): void;
+  setSettingsOpen(open: boolean, tab?: SettingsTab): void;
   /** Ask the agent for its models and effort levels, so Settings can offer them before any thread exists. */
   refreshOptions(): Promise<void>;
   setMenu(menu: MenuId): void;
@@ -218,6 +222,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   optionsLoading: false,
   optionsError: null,
   settingsOpen: false,
+  settingsTab: null,
   urlDialogOpen: false,
   folderScan: null,
   folderBusy: false,
@@ -786,8 +791,8 @@ export const useStore = create<State & Actions>((set, get) => ({
     set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
   },
 
-  setSettingsOpen(open) {
-    set({ settingsOpen: open, menu: null });
+  setSettingsOpen(open, tab) {
+    set({ settingsOpen: open, settingsTab: open ? (tab ?? null) : null, menu: null });
     if (open && get().collection) void get().refreshOptions();
   },
 
