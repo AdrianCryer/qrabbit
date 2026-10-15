@@ -111,6 +111,9 @@ try {
   await shot(page, "03-settings-signed-in");
   const me = await page.evaluate(() => window.__qrabbitStore.getState().cloud);
   check(me.email === email && me.quotaBytes > 0 && me.deviceId, `signed in as ${email} with a quota and a device`);
+  // Signing in asks for the device twice at once (the auth event and the code exchange); it must register once.
+  const devices = await page.evaluate(() => window.qrabbit.cloud.devices());
+  check(devices.length === 1 && devices[0].id === me.deviceId && devices[0].current, `one device registered, this one (${devices.length})`);
   await page.evaluate(() => window.__qrabbitStore.getState().setSettingsOpen(false));
 
   // ----- open the collection and keep it in the cloud -----

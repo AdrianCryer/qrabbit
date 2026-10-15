@@ -82,6 +82,8 @@ export class CloudHost {
   private readonly runners = new Map<string, Runner>();
   private readonly openPaths = new Set<string>();
   private deviceId: string | null = null;
+  /** The device lookup for the signed-in account, shared by concurrent callers so a sign-in registers one device. */
+  private device: { userId: string; id: Promise<string> } | null = null;
   private last: CloudAccount = { available: false, signedIn: false };
 
   constructor(
@@ -95,6 +97,7 @@ export class CloudHost {
       if (!session) {
         this.stopAll();
         this.deviceId = null;
+        this.device = null;
       }
       void this.account().catch(() => {});
     });
@@ -125,9 +128,28 @@ export class CloudHost {
     return join(app.getPath("userData"), "cloud-devices.json");
   }
 
-  /** This machine's device in the account, registered on first sight and remembered per account. */
-  private async ensureDevice(userId: string): Promise<string> {
-    if (this.deviceId) return this.deviceId;
+  /**
+   * This machine's device in the account, registered on first sight and remembered per account. Signing in fires the
+   * auth event and the code exchange at once, and each asks; they share one lookup, or each would register a device.
+   */
+  private ensureDevice(userId: string): Promise<string> {
+    if (this.device?.userId !== userId) {
+      const id = this.findOrRegisterDevice(userId);
+      this.device = { userId, id };
+      // Kept only while it is still this account's lookup; a failed one is tried again on the next call.
+      id.then(
+        (value) => {
+          if (this.device?.id === id) this.deviceId = value;
+        },
+        () => {
+          if (this.device?.id === id) this.device = null;
+        },
+      );
+    }
+    return this.device.id;
+  }
+
+  private async findOrRegisterDevice(userId: string): Promise<string> {
     const client = this.client!;
     const known = readJson<Record<string, string>>(this.devicesFile) ?? {};
     const devices = await client.devices();
@@ -138,7 +160,6 @@ export class CloudHost {
     } else {
       void client.touchDevice(id).catch(() => {});
     }
-    this.deviceId = id;
     return id;
   }
 
