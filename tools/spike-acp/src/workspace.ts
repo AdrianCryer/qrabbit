@@ -8,7 +8,7 @@ export function createSampleWorkspace(root: string): { root: string; textPath: s
   mkdirSync(sources, { recursive: true });
   mkdirSync(notesDir, { recursive: true });
 
-  const agents = `# QRabbit collection
+  const agents = `# Qrabbit collection
 
 This folder is a reading collection. You are a tutor helping the reader understand the sources here.
 

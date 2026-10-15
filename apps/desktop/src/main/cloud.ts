@@ -15,7 +15,7 @@ const PERIODIC_MS = 5 * 60_000;
 const endpoint = (url: string | undefined, publishableKey: string | undefined): CloudEndpoint | null => (url && publishableKey ? { url, publishableKey } : null);
 
 /**
- * Where QRabbit Cloud is: `QRABBIT_CLOUD_URL` with `QRABBIT_CLOUD_PUBLISHABLE_KEY` from the environment the app runs
+ * Where Qrabbit Cloud is: `QRABBIT_CLOUD_URL` with `QRABBIT_CLOUD_PUBLISHABLE_KEY` from the environment the app runs
  * in, else as the build's environment had them (see `apps/desktop/.env.example`). Null without both: no cloud.
  */
 export function cloudEndpoint(): CloudEndpoint | null {
@@ -164,12 +164,12 @@ export class CloudHost {
   }
 
   async requestCode(email: string): Promise<void> {
-    if (!this.client) throw new Error("QRabbit Cloud is not available in this build");
+    if (!this.client) throw new Error("Qrabbit Cloud is not available in this build");
     await this.client.requestCode(email);
   }
 
   async verifyCode(email: string, code: string): Promise<CloudAccount> {
-    if (!this.client) throw new Error("QRabbit Cloud is not available in this build");
+    if (!this.client) throw new Error("Qrabbit Cloud is not available in this build");
     await this.client.verifyCode(email, code);
     const account = await this.account();
     for (const path of this.openPaths) void this.startRunner(path);
@@ -208,10 +208,10 @@ export class CloudHost {
   }
 
   async enable(path: string): Promise<CloudSyncState> {
-    if (!this.client) throw new Error("QRabbit Cloud is not available in this build");
+    if (!this.client) throw new Error("Qrabbit Cloud is not available in this build");
     await enableCloud(path, this.client);
     const runner = await this.startRunner(path);
-    if (!runner) throw new Error("Sign in to QRabbit Cloud first");
+    if (!runner) throw new Error("Sign in to Qrabbit Cloud first");
     return runner.sync.state;
   }
 
@@ -231,7 +231,7 @@ export class CloudHost {
 
   async syncNow(path: string): Promise<CloudSyncState> {
     const runner = this.runners.get(path) ?? (await this.startRunner(path));
-    if (!runner) throw new Error("Sign in to QRabbit Cloud first");
+    if (!runner) throw new Error("Sign in to Qrabbit Cloud first");
     await runner.sync.requestSync();
     return runner.sync.state;
   }
@@ -244,9 +244,9 @@ export class CloudHost {
   }
 
   async download(collectionId: string, dir: string): Promise<void> {
-    if (!this.client) throw new Error("QRabbit Cloud is not available in this build");
+    if (!this.client) throw new Error("Qrabbit Cloud is not available in this build");
     const account = await this.account();
-    if (!account.signedIn) throw new Error("Sign in to QRabbit Cloud first");
+    if (!account.signedIn) throw new Error("Sign in to Qrabbit Cloud first");
     await downloadCollection(dir, this.client, collectionId, { ...(account.deviceId ? { deviceId: account.deviceId } : {}), log: console });
   }
 

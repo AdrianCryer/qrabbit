@@ -36,7 +36,7 @@ export type CloudClientOptions = {
 };
 
 /**
- * QRabbit Cloud from the app's side. One instance per signed-in account; every method throws a `CloudError`
+ * Qrabbit Cloud from the app's side. One instance per signed-in account; every method throws a `CloudError`
  * with a code the app can act on.
  */
 export class CloudClient {
@@ -91,7 +91,7 @@ export class CloudClient {
 
   private async userId(): Promise<string> {
     const session = await this.session();
-    if (!session) throw new CloudError("unauthenticated", "Sign in to QRabbit Cloud first");
+    if (!session) throw new CloudError("unauthenticated", "Sign in to Qrabbit Cloud first");
     return session.user.id;
   }
 
@@ -100,7 +100,7 @@ export class CloudClient {
   async me(): Promise<Me> {
     const { data, error } = await this.supabase.rpc("me");
     if (error) throw fromPostgrest(error);
-    if (!data) throw new CloudError("unauthenticated", "Sign in to QRabbit Cloud first");
+    if (!data) throw new CloudError("unauthenticated", "Sign in to Qrabbit Cloud first");
     return data as unknown as Me;
   }
 
@@ -234,7 +234,7 @@ const looksLikeNetwork = (message: string) => /fetch failed|network|ECONN|ENOTFO
 function describe(code: CloudErrorCode, details: unknown, fallback: string): string {
   switch (code) {
     case "unauthenticated":
-      return "Sign in to QRabbit Cloud first";
+      return "Sign in to Qrabbit Cloud first";
     case "collection_not_found":
       return "This collection is not in the cloud";
     case "quota_exceeded": {
@@ -250,7 +250,7 @@ function describe(code: CloudErrorCode, details: unknown, fallback: string): str
       return paths.length ? `These paths cannot be stored in the cloud: ${paths.slice(0, 3).join(", ")}${paths.length > 3 ? "…" : ""}` : "A path cannot be stored in the cloud";
     }
     case "network":
-      return "QRabbit Cloud could not be reached";
+      return "Qrabbit Cloud could not be reached";
     default:
       return fallback;
   }

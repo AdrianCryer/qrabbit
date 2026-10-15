@@ -14,7 +14,7 @@ const errText = (err: unknown) => String((err as Error)?.message ?? err).replace
 /** The pages down the side of the dialog, in order. Cloud only shows in a build that can reach it. */
 const TABS: { id: SettingsTab; label: string; title: string; icon: string }[] = [
   { id: "agent", label: "Agent", title: "Agent", icon: "bot" },
-  { id: "cloud", label: "Cloud", title: "QRabbit Cloud", icon: "cloud" },
+  { id: "cloud", label: "Cloud", title: "Qrabbit Cloud", icon: "cloud" },
   { id: "general", label: "General", title: "General", icon: "sliders" },
   { id: "shortcuts", label: "Shortcuts", title: "Shortcuts", icon: "keyboard" },
 ];

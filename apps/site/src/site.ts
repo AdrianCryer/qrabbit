@@ -3,13 +3,13 @@
  * means editing this file and nothing else.
  */
 export const site = {
-  name: "QRabbit",
-  title: "QRabbit: read difficult material with AI",
+  name: "Qrabbit",
+  title: "Qrabbit: read difficult material with AI",
   description:
-    "Highlight a passage, explore it with AI, branch off inside any answer and go as deep as you need. QRabbit keeps your way back, and runs on the agent subscription you already pay for.",
+    "Highlight a passage, explore it with AI, branch off inside any answer and go as deep as you need. Qrabbit keeps your way back, and runs on the agent subscription you already pay for.",
   /** The download buttons point here until each platform has its own asset URL below. */
   releases: "https://github.com/AdrianCryer/qrabbit/releases/latest",
-  /** QRabbit Cloud's monthly price in US dollars. */
+  /** Qrabbit Cloud's monthly price in US dollars. */
   cloudPrice: 5,
 };
 

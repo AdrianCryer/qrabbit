@@ -193,7 +193,7 @@ function logoPage() {
   <div id="veil"></div>
   <svg id="type" class="layer ui" width="${W}" height="${H}">
     <defs><clipPath id="reveal"><rect id="revealRect" x="0" y="0" width="${W}" height="${H}"/></clipPath></defs>
-    <text id="wordFull" font-size="136" font-weight="600" letter-spacing="-2.7" visibility="hidden">QRabbit</text>
+    <text id="wordFull" font-size="136" font-weight="600" letter-spacing="-2.7" visibility="hidden">Qrabbit</text>
     <g clip-path="url(#reveal)">
       <g id="letters" font-size="136" font-weight="600" fill="#e9ebee"></g>
       <text id="tag" font-size="34" fill="#a3a8b0" opacity="0">Read difficult material with AI.</text>

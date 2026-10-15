@@ -12,7 +12,7 @@ import type {
 
 export const AUTH_STATUS_UPDATE_METHOD = "_auth/status_update";
 
-/** Capabilities QRabbit advertises. `auth.terminal` is what makes the Claude adapter offer subscription login. */
+/** Capabilities Qrabbit advertises. `auth.terminal` is what makes the Claude adapter offer subscription login. */
 export function defaultClientCapabilities(): acp.ClientCapabilities {
   return {
     fs: { readTextFile: true, writeTextFile: true },

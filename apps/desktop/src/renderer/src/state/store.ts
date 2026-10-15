@@ -765,7 +765,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       const via = await api.agent.login(c.info.path, methodId);
       get().toast(
         via === "browser"
-          ? `Your browser opened to sign in with your ${method?.name ?? "account"}. Finish there; QRabbit picks it up by itself.`
+          ? `Your browser opened to sign in with your ${method?.name ?? "account"}. Finish there; Qrabbit picks it up by itself.`
           : "A terminal window opened for sign-in. Finish there, then send a message here.",
       );
     } catch (err) {

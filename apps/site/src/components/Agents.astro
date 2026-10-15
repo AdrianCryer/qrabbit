@@ -1,6 +1,6 @@
 ---
 /**
- * Bring your own subscription: QRabbit is an Agent Client Protocol client, so any agent that speaks
+ * Bring your own subscription: Qrabbit is an Agent Client Protocol client, so any agent that speaks
  * ACP can drive it with its own sign-in. Claude Code and Codex work today; the rest are the plan
  * (planning/plan-v2.md §5.2). Picking one shows what the composer's chips would say.
  */
@@ -73,7 +73,7 @@ const agents: Agent[] = [
     plan: "OpenCode, Cursor, Qwen Code, Kiro…",
     account: "OpenCode",
     model: "Default",
-    signin: "Whatever the agent offers. QRabbit only ever talks to it over the protocol.",
+    signin: "Whatever the agent offers. Qrabbit only ever talks to it over the protocol.",
     icon: "M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14",
   },
 ];
@@ -87,7 +87,7 @@ const first = agents[0]!;
       <p class="label accent">Bring your own subscription</p>
       <h2 class="h2">Use the AI you already pay for. <em>Or run your own.</em></h2>
       <p class="lede">
-        QRabbit doesn't sell AI and never asks for an API key. It drives the coding agent you already have through the
+        Qrabbit doesn't sell AI and never asks for an API key. It drives the coding agent you already have through the
         Agent Client Protocol, so every turn comes out of your existing plan. Claude Code and Codex work today; more
         agents and local models are on the way.
       </p>
@@ -150,11 +150,11 @@ const first = agents[0]!;
         <p class="signin" data-signin>{first.signin}</p>
 
         <ol class="flow" aria-label="How a turn reaches your plan">
-          <li><b>QRabbit</b><span>speaks ACP</span></li>
+          <li><b>Qrabbit</b><span>speaks ACP</span></li>
           <li><b>The agent's own app</b><span>signs in its own way</span></li>
           <li><b>Your plan</b><span>pays for the turn</span></li>
         </ol>
-        <p class="fine">QRabbit never reads an agent's tokens, config files or keychain entries.</p>
+        <p class="fine">Qrabbit never reads an agent's tokens, config files or keychain entries.</p>
       </div>
     </div>
   </div>

@@ -1,4 +1,4 @@
--- QRabbit Cloud: schema, row-level security and the sync functions.
+-- Qrabbit Cloud: schema, row-level security and the sync functions.
 --
 -- The user's disk holds the truth; the cloud keeps a copy of every synced file of every collection. Content is
 -- stored once per user by SHA-256 in the `blobs` bucket (object name `<user id>/<sha256>`), and `files` holds the

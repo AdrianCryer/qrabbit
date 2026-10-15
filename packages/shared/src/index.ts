@@ -23,7 +23,7 @@ export type CollectionManifest = {
   settings: {
     /** Defaults for new threads, per agent: one agent's model ids mean nothing to another. Read through `agentDefaults`. */
     agents?: Partial<Record<AgentId, AgentDefaults>>;
-    /** Claude Code's defaults from before QRabbit drove other agents; they move under `agents` when next changed. */
+    /** Claude Code's defaults from before Qrabbit drove other agents; they move under `agents` when next changed. */
     model?: string;
     effort?: string;
   };
@@ -40,7 +40,7 @@ export type CollectionInfo = {
   lastOpened?: string;
   /** Filled in for the home screen; absent inside a snapshot. */
   counts?: CollectionCounts;
-  /** The folder is kept in QRabbit Cloud from this machine. */
+  /** The folder is kept in Qrabbit Cloud from this machine. */
   cloud?: boolean;
 };
 
@@ -193,7 +193,7 @@ export type ReaderPosition = { page: number; scrollTop: number; zoom: number };
 export type ReaderState = Record<string, ReaderPosition>;
 
 // ---------- agent ----------
-/** The agents QRabbit drives, each through its vendor's ACP adapter and its vendor's own sign-in. */
+/** The agents Qrabbit drives, each through its vendor's ACP adapter and its vendor's own sign-in. */
 export type AgentId = "claude-code" | "codex";
 
 export type AgentSignIn = {
@@ -318,7 +318,7 @@ export type PermissionRequest = {
 };
 
 // ---------- cloud ----------
-/** Whether this build can reach QRabbit Cloud, and who is signed in on this machine. */
+/** Whether this build can reach Qrabbit Cloud, and who is signed in on this machine. */
 export type CloudAccount = {
   /** False when the build has no cloud endpoint; the cloud stays out of the interface then. */
   available: boolean;

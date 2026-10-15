@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 /**
  * What runs the agent adapters, which are Node programs.
  *
- * On Windows it has to be a console program. QRabbit has no console, so a console program that an adapter starts
+ * On Windows it has to be a console program. Qrabbit has no console, so a console program that an adapter starts
  * without hiding it (Codex's `codex.exe`, a shell command an agent runs, the PowerShell that opens a sign-in page)
  * gets a console of its own, and Windows 11 shows it as a Windows Terminal window. Started hidden, `node.exe` gets a
  * console without a window, and everything below it inherits that console however it was started. Electron running

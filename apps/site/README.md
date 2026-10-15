@@ -1,4 +1,4 @@
-# QRabbit promo site
+# Qrabbit promo site
 
 A single static page: the features, the rabbit hole, bring your own subscription, pricing and downloads. Built with Astro; `pnpm build` writes plain files to `dist/` for any static host.
 
@@ -15,7 +15,7 @@ Set `SITE_URL` when building for a real domain (`SITE_URL=https://example.com pn
 - **Release details** live in `src/site.ts`: the download link for each platform (all point at GitHub Releases for now, which is private until the repo is public), the formats shown, and the Cloud price.
 - **App screenshots**: the highlighting comparison is imported straight from `docs/screenshots/raw/`, the capture behind the README image, so rerunning `tools/dev/make-showcase.mjs` updates it too. The thread, the home screen and the reading list are captured by `node tools/dev/make-site-shots.mjs` (after `pnpm desktop:build`) into `src/assets/`, at about the width the site draws them and again at a phone's width: at the README's 1280 their text comes out too small. Each capture's layout width is recorded in `src/shots.ts`, and crops are given in that layout. Astro turns them all into responsive WebP at build time.
 - **The demo video** is left out of git. Put `demo.mp4` from `tools/dev/record-demo.mjs` (and optionally a `demo-poster.jpg`) in `public/` and a "See it move" section appears after the rabbit hole.
-- **`public/og.png`** is the 1200×630 social preview, rendered from the site's own components.
+- **`public/og.png`** is the 1200×630 social preview, rendered from the site's own components by `node tools/dev/make-og-image.mjs` after `pnpm site:build` (build again to ship it).
 - **The README's images** (`docs/screenshots/highlight.png`, `lists.png`, `collections.png`) are this site's sections, rendered by `node tools/dev/make-readme-images.mjs` after `pnpm site:build`. Change the comparisons here and render them again, rather than editing the images.
 
 ## Design

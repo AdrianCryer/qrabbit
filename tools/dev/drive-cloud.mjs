@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Drives the built desktop app through QRabbit Cloud: sign in with an emailed code (read from the local
+// Drives the built desktop app through Qrabbit Cloud: sign in with an emailed code (read from the local
 // stack's mail catcher), keep a collection in the cloud, and check it arrived. Takes screenshots.
 // Usage: node tools/dev/drive-cloud.mjs <work-dir>
 // Needs the local stack (pnpm cloud:start) and a build (pnpm --filter @qrabbit/desktop build). The app is pointed at

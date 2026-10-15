@@ -2,7 +2,7 @@
 export function agentsMd(collectionName: string): string {
   return `# ${collectionName}
 
-This folder is a QRabbit reading collection. You are a tutor and research assistant helping the reader understand the sources here. Prefer explaining over doing.
+This folder is a Qrabbit reading collection. You are a tutor and research assistant helping the reader understand the sources here. Prefer explaining over doing.
 
 ## Layout
 

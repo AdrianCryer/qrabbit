@@ -42,7 +42,7 @@ const adapterBin = join(dirname(adapterLib), "index.js");
 
 const ws = createSampleWorkspace(join(outDir, "workspace"));
 const launch: AgentLaunch = { command: process.execPath, args: [adapterBin], cwd: ws.root };
-const identity = { name: "qrabbit-spike", title: "QRabbit spike", version: "0.0.0" };
+const identity = { name: "qrabbit-spike", title: "Qrabbit spike", version: "0.0.0" };
 
 const summary: Record<string, unknown> = { startedAt: new Date().toISOString() };
 const toolCalls: Array<{ id: string; title: string; status?: string }> = [];

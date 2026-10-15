@@ -10,7 +10,7 @@ import { Icon } from "./Icons";
 
 /** The cloud pill's dot and its one-line state, from the account and the open collection's sync state. */
 function cloudLine(cloud: CloudAccount | null, sync: CloudSyncState | null): { dot: "" | "on" | "busy" | "bad"; text: string } {
-  if (!cloud?.signedIn) return { dot: "", text: "Not signed in to QRabbit Cloud" };
+  if (!cloud?.signedIn) return { dot: "", text: "Not signed in to Qrabbit Cloud" };
   if (!sync) return { dot: "", text: "This collection is not in the cloud" };
   if (sync.phase === "syncing") return { dot: "busy", text: "Syncing…" };
   if (sync.phase === "error") return { dot: "bad", text: sync.error ? `Could not sync: ${sync.error}` : "Could not sync; trying again" };
@@ -83,7 +83,7 @@ export function Header() {
     <header className="hdr">
       <button className="brand" onClick={goHome} title="All collections (Ctrl+Shift+H)">
         <img className="q" src={logo} alt="" draggable={false} />
-        {screen === "home" && <span>QRabbit</span>}
+        {screen === "home" && <span>Qrabbit</span>}
       </button>
       {screen === "home" && (
         <div className="hright">
@@ -315,7 +315,7 @@ export function Header() {
               >
                 {(close) => (
                   <>
-                    <div className="mh">QRabbit Cloud</div>
+                    <div className="mh">Qrabbit Cloud</div>
                     {!cloud.signedIn ? (
                       <>
                         <div className="mempty">Keep this collection in step across your computers, with a copy of every file.</div>

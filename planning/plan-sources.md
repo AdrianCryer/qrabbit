@@ -1,4 +1,4 @@
-# QRabbit — Sources plan (v1)
+# Qrabbit — Sources plan (v1)
 
 Status: built 2026-09-26, verified by `tools/dev/drive-sources.mjs`. Extends plan-v2 §3.1, §4.1, §6.2 and §8. The questions raised in the draft were settled the same day; §7 records the answers.
 

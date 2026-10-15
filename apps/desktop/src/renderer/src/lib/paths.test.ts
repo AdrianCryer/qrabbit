@@ -3,7 +3,7 @@ import { displayPath } from "./paths";
 
 describe("displayPath", () => {
   it("shows paths under the home folder with ~", () => {
-    expect(displayPath("C:\\Users\\ada\\Documents\\QRabbit\\RL", "C:\\Users\\ada")).toBe("~\\Documents\\QRabbit\\RL");
+    expect(displayPath("C:\\Users\\ada\\Documents\\Qrabbit\\RL", "C:\\Users\\ada")).toBe("~\\Documents\\Qrabbit\\RL");
     expect(displayPath("c:\\users\\ADA\\Notes", "C:\\Users\\ada")).toBe("~\\Notes");
     expect(displayPath("/home/ada/papers", "/home/ada")).toBe("~/papers");
     expect(displayPath("/home/ada", "/home/ada/")).toBe("~");

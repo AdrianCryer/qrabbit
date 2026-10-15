@@ -23,7 +23,7 @@ export type WebPage = {
 type Elementish = { getAttribute(name: string): string | null };
 
 const MAX_BYTES = 8 * 1024 * 1024;
-const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 QRabbit/0.1";
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 Qrabbit/0.1";
 
 function titleFromUrl(url: string): string {
   try {

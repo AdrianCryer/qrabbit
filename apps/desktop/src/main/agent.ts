@@ -27,7 +27,7 @@ export type AgentEmitter = {
   status(collection: string, status: AgentStatus): void;
 };
 
-const IDENTITY = { name: "qrabbit", title: "QRabbit", version: app.getVersion() };
+const IDENTITY = { name: "qrabbit", title: "Qrabbit", version: app.getVersion() };
 const HANDOFF_WAIT_MS = 20_000;
 const SUMMARY_DELAY_MS = 1500;
 /** A session started only to learn the agent's options for Settings; it never prompts. */
@@ -531,12 +531,12 @@ export class AgentHost {
     if (process.platform === "win32") {
       const script = join(dir, "sign-in.cmd");
       const envLines = Object.entries(cmd.env ?? {}).map(([k, v]) => `set ${k}=${v}`).join("\r\n");
-      writeFileSync(script, `@echo off\r\ntitle QRabbit sign-in\r\n${envLines}\r\n${quote(cmd.command)} ${cmd.args.map(quote).join(" ")}\r\necho.\r\necho Done. You can close this window and return to QRabbit.\r\npause\r\n`);
-      spawn("cmd.exe", ["/c", "start", "QRabbit sign-in", script], { detached: true, stdio: "ignore", windowsHide: false }).unref();
+      writeFileSync(script, `@echo off\r\ntitle Qrabbit sign-in\r\n${envLines}\r\n${quote(cmd.command)} ${cmd.args.map(quote).join(" ")}\r\necho.\r\necho Done. You can close this window and return to Qrabbit.\r\npause\r\n`);
+      spawn("cmd.exe", ["/c", "start", "Qrabbit sign-in", script], { detached: true, stdio: "ignore", windowsHide: false }).unref();
     } else {
       const script = join(dir, "sign-in.command");
       const envLines = Object.entries(cmd.env ?? {}).map(([k, v]) => `export ${k}=${quote(v)}`).join("\n");
-      writeFileSync(script, `#!/bin/bash\n${envLines}\n${quote(cmd.command)} ${cmd.args.map(quote).join(" ")}\necho\necho "Done. You can close this window and return to QRabbit."\nread -r\n`, { mode: 0o755 });
+      writeFileSync(script, `#!/bin/bash\n${envLines}\n${quote(cmd.command)} ${cmd.args.map(quote).join(" ")}\necho\necho "Done. You can close this window and return to Qrabbit."\nread -r\n`, { mode: 0o755 });
       const opener = process.platform === "darwin" ? ["open", ["-a", "Terminal", script]] : ["x-terminal-emulator", ["-e", `bash ${quote(script)}`]];
       spawn(opener[0] as string, opener[1] as string[], { detached: true, stdio: "ignore" }).unref();
     }

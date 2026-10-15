@@ -1,4 +1,4 @@
-# QRabbit Cloud
+# Qrabbit Cloud
 
 The service behind the Cloud plan on the site: collections, threads and marks synced between a reader's computers, with the full PDFs, and everything kept off the machine as a copy. It is a Supabase project: Postgres holds the sync state, Supabase Auth signs people in with an emailed code, and Supabase Storage holds the file content. There is no server of our own to run.
 

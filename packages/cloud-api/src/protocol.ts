@@ -1,5 +1,5 @@
 /**
- * The QRabbit Cloud sync protocol, as the app sees it.
+ * The Qrabbit Cloud sync protocol, as the app sees it.
  *
  * A collection in the cloud is a set of files, each the latest version of one path: a content hash, a size and the
  * collection revision it changed at. Deleting leaves a tombstone at a new revision, so other machines learn of it.

@@ -2,7 +2,7 @@
   "name": "@qrabbit/cloud",
   "version": "0.0.0",
   "private": true,
-  "description": "QRabbit Cloud: the Supabase project behind sync and backup. Schema, row-level security, the sync functions, the blob garbage collector, and end-to-end tests against the local stack.",
+  "description": "Qrabbit Cloud: the Supabase project behind sync and backup. Schema, row-level security, the sync functions, the blob garbage collector, and end-to-end tests against the local stack.",
   "type": "module",
   "scripts": {
     "start": "supabase start",

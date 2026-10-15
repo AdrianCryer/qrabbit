@@ -2,7 +2,7 @@
   "name": "@qrabbit/cloud-api",
   "version": "0.0.0",
   "private": true,
-  "description": "QRabbit Cloud from the app's side: the sync protocol (which paths sync, changes, commits, quota) and a client over Supabase.",
+  "description": "Qrabbit Cloud from the app's side: the sync protocol (which paths sync, changes, commits, quota) and a client over Supabase.",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

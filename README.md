@@ -1,14 +1,14 @@
-# QRabbit
+# Qrabbit
 
 Read difficult material with AI. Highlight a passage, explore it in a thread, branch off inside the answer when something else is unclear, and go as deep as you need. The paper stays where you left it, and everything you explored stays attached to the passage it came from.
 
-QRabbit runs on the coding agent you already pay for. It talks to Claude Code or Codex through the Agent Client Protocol, so turns draw on your Claude or ChatGPT subscription rather than an API key, and the app never sees a credential.
+Qrabbit runs on the coding agent you already pay for. It talks to Claude Code or Codex through the Agent Client Protocol, so turns draw on your Claude or ChatGPT subscription rather than an API key, and the app never sees a credential.
 
 https://github.com/user-attachments/assets/55911246-5bcf-4ba2-ac15-7b373cc4e1fc
 
-![No more copying text, just highlight it: a passage pasted into a typical chat without its context on the left, and a passage selected in QRabbit with the Explore toolbar on the right](docs/screenshots/highlight.png)
+![No more copying text, just highlight it: a passage pasted into a typical chat without its context on the left, and a passage selected in Qrabbit with the Explore toolbar on the right](docs/screenshots/highlight.png)
 
-![AI loves a list, keep them tidy: one long chat on the left where follow-ups on numbered points pile up into lists inside lists, and QRabbit on the right with a branch for each point asked about and the outline of those branches](docs/screenshots/lists.png)
+![AI loves lists, keep them tidy: one long chat on the left where follow-ups on numbered points pile up into lists inside lists, and Qrabbit on the right with a branch for each point asked about and the outline of those branches](docs/screenshots/lists.png)
 
 ![One reading list per subject, one plain folder per list: the home screen listing collections, and a collection's reading list with read marks](docs/screenshots/collections.png)
 
@@ -47,7 +47,7 @@ Sign-in happens in the agent's own flow, started from the header menu: Claude Co
 
 ## Running it
 
-QRabbit is early and not yet packaged. You need Node 22 or later, pnpm, and a Claude Code or ChatGPT (Codex) sign-in on the machine. Both agents' CLIs come with the install; nothing else needs installing. On Windows the agents run on that Node rather than on Electron's: a hidden console Node passes a windowless console down to everything the agents start, where Electron, a GUI program, would leave each console program to open a window of its own.
+Qrabbit is early and not yet packaged. You need Node 22 or later, pnpm, and a Claude Code or ChatGPT (Codex) sign-in on the machine. Both agents' CLIs come with the install; nothing else needs installing. On Windows the agents run on that Node rather than on Electron's: a hidden console Node passes a windowless console down to everything the agents start, where Electron, a GUI program, would leave each console program to open a window of its own.
 
 ```bash
 pnpm install
@@ -66,7 +66,7 @@ pnpm desktop:drive <work-dir>          # scripted run with screenshots (see .cla
 node tools/dev/drive-agents.mjs <dir>  # switch to Codex and back, checking sign-in, Settings and windows
 pnpm spike:acp                         # the original ACP spike against Claude Code
 pnpm site:dev                          # the promo site (apps/site), at localhost:4321
-pnpm cloud:start                       # the local Supabase stack behind QRabbit Cloud (needs Docker)
+pnpm cloud:start                       # the local Supabase stack behind Qrabbit Cloud (needs Docker)
 pnpm cloud:test                        # end-to-end sync tests against that stack
 ```
 
@@ -75,7 +75,7 @@ pnpm cloud:test                        # end-to-end sync tests against that stac
 ```
 apps/desktop/        Electron app (electron-vite, React, PDF.js, KaTeX)
 apps/site/           promo site: features, agents, pricing, downloads (Astro, static)
-apps/cloud/          QRabbit Cloud: the Supabase project behind sync and backup (schema, policies, sync functions, tests)
+apps/cloud/          Qrabbit Cloud: the Supabase project behind sync and backup (schema, policies, sync functions, tests)
 packages/shared/     types, ids, the renderer/main API contract
 packages/workspace/  the collection folder format: manifest, sources and web extraction, threads, reader state
 packages/acp-client/ generic Agent Client Protocol client: spawn, sign in, model picker, streaming, permissions

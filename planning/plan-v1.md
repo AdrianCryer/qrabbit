@@ -10,7 +10,7 @@ The central interaction is:
 
 The goal is not to build another generic AI chat or paper summarizer. The distinctive idea is to treat **questions, explorations, source passages, and understanding as persistent first-class objects**.
 
-Working name ideas include **QRabbit**, **Rabbit**, **Burrow**, **Tangent**, etc. Naming is unresolved.
+Working name ideas include **Qrabbit**, **Rabbit**, **Burrow**, **Tangent**, etc. Naming is unresolved.
 
 ---
 
@@ -400,7 +400,7 @@ This is the central interaction to optimise around.
 
 Current naming exploration:
 
-* QRabbit
+* Qrabbit
 * Rabbit
 * Rabbithole
 * Rabbithink
@@ -412,7 +412,7 @@ Current naming exploration:
 * Delve
 * Fathom
 
-**QRabbit** is particularly interesting because Q can simultaneously suggest:
+**Qrabbit** is particularly interesting because Q can simultaneously suggest:
 
 * question
 * query

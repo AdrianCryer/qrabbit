@@ -3,7 +3,7 @@ import { CloudClient, CloudError, DEFAULT_QUOTA_BYTES, PATH_FIXTURES, sha256Hex,
 import { admin, bytes, localStack, newUser, sameUser, sleep, type Stack, type TestUser } from "./stack.js";
 
 const stack = localStack();
-if (!stack) console.warn("\n  QRabbit Cloud tests skipped: the local Supabase stack is not running (pnpm --filter @qrabbit/cloud start).\n");
+if (!stack) console.warn("\n  Qrabbit Cloud tests skipped: the local Supabase stack is not running (pnpm --filter @qrabbit/cloud start).\n");
 
 const enc = new TextEncoder();
 const text = (s: string) => enc.encode(s);
@@ -29,7 +29,7 @@ async function expectCloudError(p: Promise<unknown>, code: string): Promise<Clou
   throw new Error(`expected a ${code} error`);
 }
 
-describe.skipIf(!stack)("QRabbit Cloud", () => {
+describe.skipIf(!stack)("Qrabbit Cloud", () => {
   const s = stack as Stack;
   let user: TestUser;
 

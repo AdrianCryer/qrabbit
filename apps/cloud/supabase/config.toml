@@ -250,11 +250,11 @@ otp_expiry = 600
 # one the "magic link" email, so both carry the code. The hosted project needs the same two templates
 # (Authentication → Emails).
 [auth.email.template.confirmation]
-subject = "Your QRabbit Cloud code"
+subject = "Your Qrabbit Cloud code"
 content_path = "./supabase/templates/code.html"
 
 [auth.email.template.magic_link]
-subject = "Your QRabbit Cloud code"
+subject = "Your Qrabbit Cloud code"
 content_path = "./supabase/templates/code.html"
 
 # Uncomment to customize notification email template

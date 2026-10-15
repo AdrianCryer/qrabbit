@@ -2,7 +2,7 @@
   "name": "@qrabbit/site",
   "version": "0.0.0",
   "private": true,
-  "description": "QRabbit's promo site: features, agents, pricing and downloads. A static Astro site.",
+  "description": "Qrabbit's promo site: features, agents, pricing and downloads. A static Astro site.",
   "type": "module",
   "scripts": {
     "dev": "astro dev",

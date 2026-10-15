@@ -1,4 +1,4 @@
-# QRabbit Cloud: sync and backup
+# Qrabbit Cloud: sync and backup
 
 *2026-09-28. The service behind the Cloud plan on the site. Backend and client library built; the app's sync loop is next.*
 

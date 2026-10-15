@@ -10,7 +10,7 @@
 //   Build first: pnpm desktop:build. Needs network access for the articles. --keep leaves the
 //   collections in place afterwards.
 //
-// The collections are made under ~/Documents/QRabbit so the app shows natural paths (~\Documents\…),
+// The collections are made under ~/Documents/Qrabbit so the app shows natural paths (~\Documents\…),
 // marked as made by this tool, and deleted when it finishes. It will not touch that folder otherwise.
 // The thread's answers are written, not asked of the agent, so the images are the same every time.
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -66,9 +66,9 @@ async function capture() {
   const log = (...a) => console.log(`[showcase] ${a.join(" ")}`);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const workDir = resolve(ARGS[0] ?? join(here, "out", "showcase"));
-  const base = join(homedir(), "Documents", "QRabbit");
+  const base = join(homedir(), "Documents", "Qrabbit");
   const marker = join(base, ".made-by-qrabbit-showcase");
-  if (existsSync(base) && !existsSync(marker) && !existsSync(join(base, ".made-by-qrabbit-site-shots"))) throw new Error(`${base} exists and was not made by a QRabbit tool; move it first`);
+  if (existsSync(base) && !existsSync(marker) && !existsSync(join(base, ".made-by-qrabbit-site-shots"))) throw new Error(`${base} exists and was not made by a Qrabbit tool; move it first`);
   rmSync(base, { recursive: true, force: true });
   mkdirSync(base, { recursive: true });
   writeFileSync(marker, "Made by tools/dev/make-showcase.mjs for the app captures; deleted when it finishes.\n");
@@ -131,17 +131,19 @@ async function capture() {
       const concepts = ordered[0];
       await page.evaluate(async ({ p, id, passage, question, answer, branches }) => {
         const api = window.qrabbit;
+        // A fixed time of day on the messages, so the captures come out the same whenever they are made.
+        const clock = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return d.toISOString(); };
         const text = (await api.sources.readText(p, id)) ?? "";
         const at = Math.max(0, text.indexOf("rule used by an agent"));
         const root = await api.threads.create(p, { title: "What are the main ways to learn a good policy?", anchor: { target: "source", source: id, page: 1, quote: passage, prefix: "", suffix: "", start: at, end: at + passage.length } });
-        await api.threads.appendMessage(p, root.id, { role: "user", body: question });
-        const withAnswer = await api.threads.appendMessage(p, root.id, { role: "assistant", body: answer });
+        await api.threads.appendMessage(p, root.id, { role: "user", body: question, at: clock(10, 41) });
+        const withAnswer = await api.threads.appendMessage(p, root.id, { role: "assistant", body: answer, at: clock(10, 42) });
         const answerId = withAnswer.messages.at(-1).id;
         for (const b of branches) {
           const start = answer.indexOf(b.quote);
           const child = await api.threads.create(p, { title: b.quote, parent: { thread: root.id, message: answerId }, anchor: { target: "message", thread: root.id, message: answerId, quote: b.quote, prefix: "", suffix: "", start, end: start + b.quote.length } });
-          await api.threads.appendMessage(p, child.id, { role: "user", body: b.question });
-          await api.threads.appendMessage(p, child.id, { role: "assistant", body: b.answer });
+          await api.threads.appendMessage(p, child.id, { role: "user", body: b.question, at: clock(10, 44) });
+          await api.threads.appendMessage(p, child.id, { role: "assistant", body: b.answer, at: clock(10, 45) });
         }
         return root.id;
       }, { p: path, id: concepts.id, passage: PASSAGE, question: QUESTION, answer: ANSWER, branches: BRANCHES });

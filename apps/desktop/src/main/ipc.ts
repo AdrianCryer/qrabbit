@@ -94,7 +94,7 @@ export async function disposeAgents(): Promise<void> {
 // Made in registerIpc, after the app is ready: the session store needs the OS keychain.
 let cloud: CloudHost | null = null;
 function cloudHost(): CloudHost {
-  if (!cloud) throw new Error("QRabbit Cloud is not ready yet");
+  if (!cloud) throw new Error("Qrabbit Cloud is not ready yet");
   return cloud;
 }
 
