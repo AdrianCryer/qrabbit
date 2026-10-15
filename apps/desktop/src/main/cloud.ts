@@ -9,27 +9,20 @@ import { readJson, writeJson } from "@qrabbit/workspace";
 
 type CloudEndpoint = { url: string; publishableKey: string };
 
-/** The local Supabase stack, the same on every machine that runs `pnpm cloud:start`. */
-const LOCAL: CloudEndpoint = { url: "http://127.0.0.1:54321", publishableKey: "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH" };
-/**
- * The hosted project, which released builds use. Neither value is a secret: the key only names the project, and
- * row-level security decides what a signed-in reader may touch. Null until the project exists.
- */
-const HOSTED: CloudEndpoint | null = null;
 const DEBOUNCE_MS = 2000;
 const PERIODIC_MS = 5 * 60_000;
 
+const endpoint = (url: string | undefined, publishableKey: string | undefined): CloudEndpoint | null => (url && publishableKey ? { url, publishableKey } : null);
+
 /**
- * Where QRabbit Cloud is. `QRABBIT_CLOUD_URL` with `QRABBIT_CLOUD_PUBLISHABLE_KEY` points anywhere, a staging
- * project say; `QRABBIT_CLOUD=hosted` points a development build at the hosted project. Otherwise a released build
- * uses the hosted project and a development build the local stack.
+ * Where QRabbit Cloud is: `QRABBIT_CLOUD_URL` with `QRABBIT_CLOUD_PUBLISHABLE_KEY` from the environment the app runs
+ * in, else as the build's environment had them (see `apps/desktop/.env.example`). Null without both: no cloud.
  */
 export function cloudEndpoint(): CloudEndpoint | null {
-  const url = process.env["QRABBIT_CLOUD_URL"];
-  const publishableKey = process.env["QRABBIT_CLOUD_PUBLISHABLE_KEY"];
-  if (url && publishableKey) return { url, publishableKey };
-  if (app.isPackaged || process.env["QRABBIT_CLOUD"] === "hosted") return HOSTED;
-  return LOCAL;
+  return (
+    endpoint(process.env["QRABBIT_CLOUD_URL"], process.env["QRABBIT_CLOUD_PUBLISHABLE_KEY"]) ??
+    endpoint(import.meta.env.QRABBIT_CLOUD_URL, import.meta.env.QRABBIT_CLOUD_PUBLISHABLE_KEY)
+  );
 }
 
 /** The session, a refresh token, kept encrypted with the OS keychain in the app's data folder. */

@@ -2,8 +2,10 @@
 // Drives the built desktop app through QRabbit Cloud: sign in with an emailed code (read from the local
 // stack's mail catcher), keep a collection in the cloud, and check it arrived. Takes screenshots.
 // Usage: node tools/dev/drive-cloud.mjs <work-dir>
-// Needs the local stack (pnpm cloud:start) and a build (pnpm --filter @qrabbit/desktop build).
+// Needs the local stack (pnpm cloud:start) and a build (pnpm --filter @qrabbit/desktop build). The app is pointed at
+// the local stack whatever cloud the build was made for.
 import { _electron as electron } from "playwright-core";
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -58,8 +60,25 @@ async function codeFor(email) {
   throw new Error(`no code arrived for ${email} (is the local stack running, and its mail catcher at ${MAIL}?)`);
 }
 
+/** The local stack's API URL and publishable key, from `supabase status` (KEY="VALUE" lines, or one JSON object when piped). */
+function localStack() {
+  const cloudDir = join(repo, "apps", "cloud");
+  let text = "";
+  try {
+    text = execFileSync(process.execPath, [join(cloudDir, "node_modules", "supabase", "dist", "supabase.js"), "status", "-o", "env"], { cwd: cloudDir, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 60_000 }).trim();
+  } catch {
+    /* reported below */
+  }
+  const vars = text.startsWith("{")
+    ? JSON.parse(text)
+    : Object.fromEntries(text.split(/\r?\n/).flatMap((line) => { const m = /^([A-Z0-9_]+)="?(.*?)"?$/.exec(line.trim()); return m ? [[m[1], m[2]]] : []; }));
+  if (!vars.API_URL || !vars.PUBLISHABLE_KEY) throw new Error("the local stack is not running (pnpm cloud:start)");
+  return { url: vars.API_URL, publishableKey: vars.PUBLISHABLE_KEY };
+}
+
 const consoleErrors = [];
-const env = { ...process.env };
+const stack = localStack();
+const env = { ...process.env, QRABBIT_CLOUD_URL: stack.url, QRABBIT_CLOUD_PUBLISHABLE_KEY: stack.publishableKey };
 delete env.ELECTRON_RUN_AS_NODE;
 let app;
 try {

@@ -6,6 +6,7 @@ out
 Thumbs.db
 .env
 .env.*
+!.env.example
 # spike output
 tools/spike-acp/out/
 

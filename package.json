@@ -15,6 +15,7 @@
     "site:build": "pnpm --filter @qrabbit/site run build",
     "cloud:start": "pnpm --filter @qrabbit/cloud run start",
     "cloud:stop": "pnpm --filter @qrabbit/cloud run stop",
+    "cloud:status": "pnpm --filter @qrabbit/cloud run status",
     "cloud:reset": "pnpm --filter @qrabbit/cloud run reset",
     "cloud:types": "pnpm --filter @qrabbit/cloud run types",
     "cloud:test": "pnpm --filter @qrabbit/cloud run test"
