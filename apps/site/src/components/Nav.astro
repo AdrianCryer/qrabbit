@@ -1,3 +1,8 @@
+---
+import { site } from "../site";
+import GitHubMark from "./GitHubMark.astro";
+---
+
 <header class="nav" data-nav>
   <div class="wrap bar">
     <a href="#top" class="brand" aria-label="Qrabbit, back to top">
@@ -10,6 +15,7 @@
       <a href="#agents">Your agent</a>
       <a href="#pricing">Pricing</a>
     </nav>
+    <a class="gh" href={site.repo} aria-label="Qrabbit on GitHub" title="Qrabbit on GitHub"><GitHubMark class="mark" /></a>
     <a class="btn primary small" href="#download">Download</a>
   </div>
 </header>
@@ -41,8 +47,12 @@
   nav { display: flex; gap: 4px; margin-left: auto; }
   nav a { padding: 8px 12px; border-radius: 9px; color: var(--text-2); font-size: 14.5px; font-weight: 500; transition: color 0.2s, background 0.2s; }
   nav a:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+  /* The mark sits in a box the size of the Download button, pulled in so it reads as the last item of the nav. */
+  .gh { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin: 0 -8px 0 -16px; border-radius: 10px; color: var(--text-2); transition: color 0.2s, background 0.2s; }
+  .gh:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+  .gh .mark { width: 20px; height: 20px; fill: currentColor; }
   @media (max-width: 760px) {
     nav { display: none; }
-    .bar > .btn { margin-left: auto; }
+    .gh { margin-left: auto; }
   }
 </style>

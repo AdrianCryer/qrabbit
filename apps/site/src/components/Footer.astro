@@ -1,4 +1,6 @@
 ---
+import { site } from "../site";
+
 const year = new Date().getFullYear();
 ---
 
@@ -15,10 +17,11 @@ const year = new Date().getFullYear();
       <a href="#pricing">Pricing</a>
       <a href="#download">Download</a>
       <a href="#faq">FAQ</a>
+      <a href={site.repo}>GitHub</a>
     </nav>
   </div>
   <div class="wrap fine">
-    <span>© {year} Qrabbit</span>
+    <span>© {year} Qrabbit · <a class="license" href={`${site.repo}/blob/main/LICENSE`}>Apache-2.0</a></span>
     <span>Claude, Codex, GitHub Copilot and Gemini are trademarks of their owners.</span>
   </div>
 </footer>
@@ -33,6 +36,8 @@ const year = new Date().getFullYear();
   nav a { color: var(--text-2); font-size: 14px; transition: color 0.2s; }
   nav a:hover { color: var(--text); }
   .fine { margin-top: 28px; display: flex; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; color: var(--text-3); font-size: 12.5px; }
+  .license { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; transition: color 0.2s; }
+  .license:hover { color: var(--text-2); }
   @media (max-width: 720px) {
     nav { margin-left: 0; width: 100%; }
   }

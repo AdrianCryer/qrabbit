@@ -1,5 +1,6 @@
 ---
-import { downloads, type Platform } from "../site";
+import { downloads, site, type Platform } from "../site";
+import GitHubMark from "./GitHubMark.astro";
 
 const icons: Record<Platform, string> = {
   windows: "M3 5.5l7.5-1v7H3zM12 4.2L21 3v8.5h-9zM3 12.5h7.5v7L3 18.5zM12 12.5h9V21l-9-1.2z",
@@ -15,7 +16,7 @@ const order: Platform[] = ["windows", "mac", "linux"];
       <p class="label accent">Download</p>
       <h2 class="h2">Pick something hard to read. <em>Start there.</em></h2>
       <p class="lede">
-        Qrabbit is in early access and free. To power the agent you'll need a Claude plan that includes Claude Code, or
+        Qrabbit is in early access, free and open source. To power the agent you'll need a Claude plan that includes Claude Code, or
         a ChatGPT plan that includes Codex; you sign in from inside the app.
       </p>
     </div>
@@ -56,6 +57,12 @@ const order: Platform[] = ["windows", "mac", "linux"];
       <li><b>Keeps</b> your collections in folders you choose, on your own disk.</li>
       <li><b>Updates</b> arrive as new releases while Qrabbit is in early access.</li>
     </ul>
+
+    <a class="source reveal" href={site.repo}>
+      <GitHubMark class="mark" />
+      <span><b>Open source</b> under Apache-2.0. Read the code, or build it yourself, on GitHub.</span>
+      <svg class="arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m0 0l-5.5-5.5M19 12l-5.5 5.5" /></svg>
+    </a>
   </div>
 </section>
 
@@ -101,7 +108,18 @@ const order: Platform[] = ["windows", "mac", "linux"];
   .needs li { color: var(--text-3); font-size: 14px; line-height: 1.55; padding: 0 4px; }
   .needs b { color: var(--text-2); font-weight: 600; }
 
+  /* The source, in the same quiet register as the fine print above it, one notch brighter because it goes somewhere. */
+  .source { margin-top: 36px; display: inline-flex; align-items: center; gap: 14px; padding: 0 4px; color: var(--text-2); font-size: 15px; line-height: 1.5; transition: color 0.2s; }
+  .source b { color: var(--text); font-weight: 600; }
+  .source .mark { width: 22px; height: 22px; flex: none; fill: var(--text); }
+  .source .arrow { width: 18px; height: 18px; flex: none; fill: none; stroke: var(--text-3); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.25s var(--ease), stroke 0.2s; }
+  .source:hover { color: var(--text); }
+  .source:hover .arrow { stroke: var(--accent); transform: translateX(3px); }
+
   @media (max-width: 860px) {
     .platforms, .needs { grid-template-columns: minmax(0, 1fr); }
+    .source { align-items: start; margin-top: 28px; }
+    .source .mark { margin-top: 1px; }
+    .source .arrow { display: none; }
   }
 </style>
