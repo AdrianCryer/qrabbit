@@ -1,6 +1,6 @@
 # Qrabbit promo site
 
-A single static page: the features, the rabbit hole, bring your own subscription, pricing and downloads. Built with Astro; `pnpm build` writes plain files to `dist/` for any static host.
+A single static page: the features, the rabbit hole, bring your own subscription, pricing and downloads. Built with Astro; `pnpm build` writes plain files to `dist/`, which Cloudflare Workers serves as static assets (see Deploying).
 
 ```bash
 pnpm site:dev      # from the repo root, http://localhost:4321
@@ -8,7 +8,7 @@ pnpm site:build    # dist/
 pnpm --filter @qrabbit/site run typecheck
 ```
 
-Set `SITE_URL` when building for a real domain (`SITE_URL=https://example.com pnpm site:build`) so the social preview and canonical link get absolute URLs.
+The social preview and canonical link are absolute URLs on the site's origin, which the build takes from the custom domain in `wrangler.jsonc`; set `SITE_URL` to build for another origin.
 
 ## What to edit
 
@@ -17,6 +17,33 @@ Set `SITE_URL` when building for a real domain (`SITE_URL=https://example.com pn
 - **The demo video** is left out of git. Put `demo.mp4` from `tools/dev/record-demo.mjs` (and optionally a `demo-poster.jpg`) in `public/` and a "See it move" section appears after the rabbit hole.
 - **`public/og.png`** is the 1200×630 social preview, rendered from the site's own components by `node tools/dev/make-og-image.mjs` after `pnpm site:build` (build again to ship it).
 - **The README's images** (`docs/screenshots/highlight.png`, `lists.png`, `collections.png`) are this site's sections, rendered by `node tools/dev/make-readme-images.mjs` after `pnpm site:build`. Change the comparisons here and render them again, rather than editing the images.
+
+## Deploying
+
+The site is hosted on Cloudflare Workers as static assets (`wrangler.jsonc`): `dist/` is uploaded as-is and there is no Worker code. The custom domains are declared there too, so a deploy creates their DNS records and certificates. Cloudflare builds it from git (Workers Builds) on every push to `main` that touches the site; nothing routine deploys from a laptop.
+
+The Worker's build settings, in the dashboard under Settings → Build:
+
+| Setting | Value |
+| --- | --- |
+| Root directory | `apps/site` |
+| Build command | `pnpm install --frozen-lockfile --filter @qrabbit/site && pnpm build` |
+| Deploy command | `npx wrangler deploy` |
+| Build watch paths | `apps/site/**`, `docs/screenshots/raw/**`, `pnpm-lock.yaml` |
+
+Production answers only on the custom domains (`workers_dev` is off); a push to any other branch builds too and gets a preview URL (`preview_urls`).
+
+Build variables:
+
+| Variable | Value | Why |
+| --- | --- | --- |
+| `SKIP_DEPENDENCY_INSTALL` | `1` | Cloudflare's own install step would install the whole workspace, Electron and the Supabase CLI included. The build command installs only this package. |
+| `NODE_VERSION` | `22` | What the repo requires (`engines` in the root package.json). |
+| `PNPM_VERSION` | `8.6.9` | Must match `packageManager` in the root package.json: the image's default pnpm refuses this lockfile under `--frozen-lockfile`. Bump both together. |
+
+To deploy by hand, or just to check the config, run `pnpm build && pnpm exec wrangler deploy` here (`--dry-run` validates without uploading). Run a deploy that adds a custom domain from a real terminal: without a TTY, wrangler replaces any DNS record already at that name without asking, where a terminal gets a prompt.
+
+The `www` host redirects to the apex with a Redirect Rule on the zone (Rules → Redirect Rules, the "redirect from WWW to root" template), which is outside wrangler's reach.
 
 ## Design
 

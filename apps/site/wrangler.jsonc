@@ -1,0 +1,17 @@
+// Cloudflare Workers (static assets) hosting for the promo site: dist/ is served as-is, no Worker code.
+// Builds run from Cloudflare's git integration (Workers Builds); the settings live in apps/site/README.md.
+// The custom domains below are created by `wrangler deploy` (DNS record and certificate); astro.config.mjs
+// reads the first one as the site's origin. Production answers only on those domains (no workers.dev host), while
+// branch builds still get preview URLs. Full-line comments only: astro.config.mjs strips them to parse this.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "qrabbit-site",
+  "compatibility_date": "2026-10-17",
+  "assets": { "directory": "./dist" },
+  "workers_dev": false,
+  "preview_urls": true,
+  "routes": [
+    { "pattern": "qrabbit.cloud", "custom_domain": true },
+    { "pattern": "www.qrabbit.cloud", "custom_domain": true }
+  ]
+}
