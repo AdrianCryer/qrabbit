@@ -109,6 +109,7 @@ const first = agents[0]!;
               data-signin={a.signin}
               data-name={a.name}
               data-live={a.live ? "" : undefined}
+              data-icon={a.icon}
             >
               <span class="ico">
                 <svg viewBox="0 0 24 24">
@@ -125,7 +126,7 @@ const first = agents[0]!;
         }
       </div>
 
-      <div class="preview" aria-live="polite">
+      <div class="preview" aria-live="polite" data-preview>
         <div class="status">
           <span class="dot" data-dot></span>
           <span data-status>{first.name} · connected</span>
@@ -141,7 +142,7 @@ const first = agents[0]!;
           </div>
           <p class="ph">Ask a follow-up, or highlight the paper and choose Ask here</p>
           <div class="chips">
-            <span class="c"><svg viewBox="0 0 24 24"><path d="M4 17l6-6-6-6M12 19h8"></path></svg><b data-account>{first.account}</b></span>
+            <span class="c"><svg viewBox="0 0 24 24"><path d={first.icon} data-icon></path></svg><b data-account>{first.account}</b></span>
             <span class="c"><i>model</i><b data-model>{first.model}</b><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg></span>
             <span class="c" data-effort-chip hidden={!first.effort}><i>effort</i><b data-effort>{first.effort}</b><svg class="chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg></span>
             <span class="send"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"></path></svg></span>
@@ -163,8 +164,11 @@ const first = agents[0]!;
 <script>
   const group = document.querySelector<HTMLElement>("[data-options]")!;
   const options = [...group.querySelectorAll<HTMLButtonElement>(".opt")];
-  const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
+  // The options carry the same data-* names as the preview's slots, so look inside the preview only.
+  const preview = document.querySelector<HTMLElement>("[data-preview]")!;
+  const $ = <T extends Element = HTMLElement>(sel: string) => preview.querySelector<T>(sel)!;
   const out = {
+    icon: $<SVGPathElement>("[data-icon]"),
     account: $("[data-account]"),
     model: $("[data-model]"),
     effort: $("[data-effort]"),
@@ -183,6 +187,7 @@ const first = agents[0]!;
     if (focus) opt.focus();
     const d = opt.dataset;
     const live = d.live !== undefined;
+    out.icon.setAttribute("d", d.icon ?? "");
     out.account.textContent = d.account ?? "";
     out.model.textContent = d.model ?? "";
     out.effort.textContent = d.effort ?? "";

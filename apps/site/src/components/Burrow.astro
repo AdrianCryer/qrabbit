@@ -165,8 +165,9 @@ const steps = [
       }
       if (!visible) break;
       step(4);
-      burrow.classList.add("back");
       await hop(nodes[0]!, 900);
+      // Once the rabbit is back, the thread's chip grows in and nudges it along, rather than widening under it mid-hop.
+      burrow.classList.add("back");
       await sleep(3800);
     }
     running = false;
@@ -183,7 +184,11 @@ const steps = [
   }
 
   still();
-  new ResizeObserver(place).observe(burrow);
+  // Keep the rabbit at the end of its chamber: when the burrow resizes, and frame by frame while a
+  // chamber grows to fit a chip, so the pill pushes the rabbit along instead of widening under it.
+  const sizes = new ResizeObserver(place);
+  sizes.observe(burrow);
+  for (const li of nodes) sizes.observe(li.querySelector<HTMLElement>(":scope > .pill")!);
   new IntersectionObserver(
     ([e]) => {
       visible = !!e?.isIntersecting;
@@ -293,14 +298,24 @@ const steps = [
   }
   .tree :global(.pill .t) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .tree :global(.pill .dot) { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); flex: none; transition: background 0.5s; }
-  .tree :global(.pill .k) { font: 11px var(--font-mono); color: var(--text-3); flex: none; }
-  .tree :global(.pill .note) { display: none; flex: none; font-size: 11px; padding: 1px 8px; }
+  /* The kind and a chip share the slot at the pill's end. One collapses as the other grows, so the
+     chamber widens smoothly and the rabbit sitting past it is nudged along rather than jumped. */
+  .tree :global(.pill .k), .tree :global(.pill .note) {
+    flex: none;
+    overflow: hidden;
+    white-space: nowrap;
+    transition: max-width 0.5s ease-in-out, padding 0.5s ease-in-out, margin 0.5s ease-in-out, border-width 0.5s ease-in-out, opacity 0.3s;
+  }
+  .tree :global(.pill .k) { font: 11px var(--font-mono); color: var(--text-3); max-width: 48px; }
+  .tree :global(.pill .note) { font-size: 11px; padding: 1px 8px; max-width: 150px; }
+  /* Collapsed: no width, and a negative margin swallows the pill's gap before it. */
+  .tree :global(.pill .note),
+  .burrow:global(.handoff) :global(li.lit > .pill:has(.handoff) .k),
+  .burrow:global(.back) :global(.pill:has(.included) .k) { max-width: 0; padding-inline: 0; margin-left: -10px; border-width: 0; opacity: 0; }
+  .burrow:global(.handoff) :global(li.lit > .pill .note.handoff),
+  .burrow:global(.back) :global(.pill .note.included) { max-width: 150px; padding-inline: 8px; margin-left: 0; border-width: 1px; opacity: 1; }
   .tree :global(li.lit > .pill) { color: var(--text); border-color: var(--accent-line); background: #1b1f18; }
   .tree :global(li.lit > .pill .dot) { background: var(--accent); }
-  .burrow:global(.handoff) :global(li.lit > .pill .note.handoff),
-  .burrow:global(.back) :global(.pill .note.included) { display: inline-flex; }
-  .burrow:global(.handoff) :global(li.lit > .pill:has(.handoff) .k),
-  .burrow:global(.back) :global(.pill:has(.included) .k) { display: none; }
 
   .breadcrumb {
     position: absolute;
