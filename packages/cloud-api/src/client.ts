@@ -59,13 +59,13 @@ export class CloudClient {
   /** Email a sign-in code. New addresses get an account. */
   async requestCode(email: string): Promise<void> {
     const { error } = await this.supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } });
-    if (error) throw fromAuth(error);
+    if (error) throw fromAuth(error, "signing in");
   }
 
   /** Exchange the emailed code for a session. */
   async verifyCode(email: string, code: string): Promise<Session> {
     const { data, error } = await this.supabase.auth.verifyOtp({ email: email.trim(), token: code.replace(/\s+/g, ""), type: "email" });
-    if (error) throw fromAuth(error);
+    if (error) throw fromAuth(error, "signing in");
     if (!data.session) throw new CloudError("unauthenticated", "The code was accepted but no session came back");
     return data.session;
   }
@@ -280,10 +280,16 @@ export function fromPostgrest(e: PostgrestError): CloudError {
 /** Auth errors about the session mean "sign in again"; everything else is about the request (a wrong code, a rate limit). */
 const SESSION_ERRORS = new Set(["session_not_found", "session_expired", "refresh_token_not_found", "refresh_token_already_used", "bad_jwt", "no_authorization", "user_not_found"]);
 
-function fromAuth(e: AuthError): CloudError {
+/**
+ * `during` names a step that has no session yet. A 401 there is the cloud refusing this build's key, not a
+ * missing sign-in, and saying "sign in first" would send the reader round in circles.
+ */
+function fromAuth(e: AuthError, during?: "signing in"): CloudError {
   let code: CloudErrorCode = "bad_request";
   if (looksLikeNetwork(e.message)) code = "network";
-  else if (e.status === 401 || (e.code && SESSION_ERRORS.has(e.code))) code = "unauthenticated";
+  else if (e.status === 401 && during && !(e.code && SESSION_ERRORS.has(e.code))) {
+    return new CloudError("bad_request", `Qrabbit Cloud refused the request while ${during}: ${e.message}. This build may carry the wrong cloud key.`, { status: e.status, details: e.code, cause: e });
+  } else if (e.status === 401 || (e.code && SESSION_ERRORS.has(e.code))) code = "unauthenticated";
   let message = e.message;
   if (code === "network" || code === "unauthenticated") message = describe(code, undefined, e.message);
   else if (e.code === "otp_expired") message = "That code has expired or was already used; ask for a new one";
