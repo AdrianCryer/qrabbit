@@ -8,7 +8,7 @@ import Rabbit from "./Rabbit.astro";
   <div class="glow" aria-hidden="true"></div>
   <div class="wrap">
     <div class="copy">
-      <p class="eyebrow chip accent">Early access · free on Windows, macOS and Linux</p>
+      <p class="eyebrow chip accent">Early access · free on Windows · macOS and Linux soon</p>
       <h1 class="display">Go down the rabbit hole. <em>Keep your way back.</em></h1>
       <p class="lede">
         Qrabbit is a reader for difficult material. Highlight a passage, explore it with AI, branch off inside any
@@ -42,8 +42,8 @@ import Rabbit from "./Rabbit.astro";
 <script>
   import { downloads, type Platform } from "../site";
 
-  // Offer the visitor's own platform in the hero. Anything unrecognised (phones included) keeps the
-  // link to the downloads section.
+  // Offer the visitor's own platform in the hero. Anything unrecognised (phones included), or a
+  // platform whose build isn't out yet, keeps the link to the downloads section.
   const ua = navigator.userAgent;
   const platform: Platform | null = /Windows/.test(ua)
     ? "windows"
@@ -53,7 +53,7 @@ import Rabbit from "./Rabbit.astro";
         ? "linux"
         : null;
   const cta = document.querySelector<HTMLAnchorElement>("[data-download-cta]");
-  if (platform && cta) {
+  if (platform && cta && !downloads[platform].soon) {
     cta.href = downloads[platform].href;
     cta.querySelector("span")!.textContent = `Download for ${downloads[platform].name}`;
   }

@@ -24,8 +24,10 @@ const order: Platform[] = ["windows", "mac", "linux"];
       {
         order.map((p) => {
           const d = downloads[p];
+          // A build that isn't out yet is a plain card, not a link.
+          const Card = d.soon ? "div" : "a";
           return (
-            <a class="platform reveal" href={d.href} data-platform={p}>
+            <Card class={`platform reveal${d.soon ? " soon" : ""}`} href={d.soon ? undefined : d.href} data-platform={p}>
               <span class="mine chip accent">Your system</span>
               <svg class:list={["logo", p]} viewBox="0 0 24 24" aria-hidden="true">
                 <path d={icons[p]} />
@@ -33,13 +35,17 @@ const order: Platform[] = ["windows", "mac", "linux"];
               <span class="name">{d.name}</span>
               <span class="meta">{d.runs}</span>
               <span class="meta">{d.formats}</span>
-              <span class="go">
-                Download
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14" />
-                </svg>
-              </span>
-            </a>
+              {d.soon ? (
+                <span class="go">Coming soon</span>
+              ) : (
+                <span class="go">
+                  Download
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14" />
+                  </svg>
+                </span>
+              )}
+            </Card>
           );
         })
       }
@@ -87,6 +93,9 @@ const order: Platform[] = ["windows", "mac", "linux"];
   .platform:global(.is-mine) { border-color: var(--accent-line); background: linear-gradient(180deg, #1b1f18 0%, #15171b 100%); }
   .platform:global(.is-mine) .mine { display: inline-flex; }
   .platform:global(.is-mine) .go, .platform:hover .go { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
+  /* Coming soon: nothing to click, so the card stays put and its label stays quiet. */
+  .platform.soon:hover { border-color: var(--line); transform: none; }
+  .platform.soon .go { color: var(--text-3); background: var(--sunken); border-color: var(--line); }
 
   .needs { list-style: none; margin: 28px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
   .needs li { color: var(--text-3); font-size: 14px; line-height: 1.55; padding: 0 4px; }

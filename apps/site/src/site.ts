@@ -22,10 +22,12 @@ export type Download = {
   /** The package formats offered. */
   formats: string;
   href: string;
+  /** Not built yet: the site says "coming soon" instead of linking it, and never offers it as the visitor's own. */
+  soon?: boolean;
 };
 
 export const downloads: Record<Platform, Download> = {
   windows: { name: "Windows", runs: "Windows 10 and 11, x64", formats: "Installer (.exe)", href: `${site.releases}/download/Qrabbit-Setup-x64.exe` },
-  mac: { name: "macOS", runs: "Apple silicon and Intel", formats: "Disk image (.dmg)", href: site.releases },
-  linux: { name: "Linux", runs: "x64", formats: "AppImage and .deb", href: site.releases },
+  mac: { name: "macOS", runs: "Apple silicon and Intel", formats: "Disk image (.dmg)", href: site.releases, soon: true },
+  linux: { name: "Linux", runs: "x64", formats: "AppImage and .deb", href: site.releases, soon: true },
 };
