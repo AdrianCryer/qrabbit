@@ -15,7 +15,23 @@ permissions:
   contents: write
 
 jobs:
+  # The draft release is made first, once. electron-builder uploads its artifacts in parallel and each upload
+  # looks the draft up or creates it, which made two drafts on the first release; a draft that already exists is
+  # found by every upload and every platform.
+  draft:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1 || gh release create "$TAG" --repo "$REPO" --draft --title "${TAG#v}" --notes ""
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+
   build:
+    needs: draft
+    # A manual run has no tag and skips the draft; the build still runs, and publishes nothing.
+    if: always() && (needs.draft.result == 'success' || needs.draft.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
@@ -36,7 +52,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - name: Build and publish
-        run: pnpm --filter @qrabbit/desktop run dist --publish always
+        run: pnpm --filter @qrabbit/desktop run dist --publish ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # The cloud this build talks to (apps/desktop/.env.example): repository variables, never the source.
