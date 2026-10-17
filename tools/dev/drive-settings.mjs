@@ -5,6 +5,7 @@
 // Usage: node tools/dev/drive-settings.mjs <work-dir>
 // Build first: pnpm --filter @qrabbit/desktop build
 import { _electron as electron } from "playwright-core";
+import { appLaunch } from "./launch.mjs";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,7 +28,7 @@ writeFileSync(join(notes, "text.md"), "<!-- page 1 -->\n# Notes\n\nA short note 
 writeFileSync(join(notes, "source.json"), JSON.stringify({ id: "notes", kind: "markdown", title: "Notes", file: "source.md", pages: 1, added: "2026-09-20T10:00:00Z", hasText: true }, null, 2));
 writeFileSync(join(collection, "qrabbit.json"), JSON.stringify({ id: `col_settings_${runId.replace(/[^a-z0-9]/gi, "").toLowerCase()}`, name: "Settings check", created: "2026-09-20T09:00:00Z", settings: {} }, null, 2));
 
-const electronBin = join(appDir, "node_modules", "electron", "dist", process.platform === "win32" ? "electron.exe" : "electron");
+const { executablePath, args: appArgs } = appLaunch(appDir);
 const log = (...a) => console.log(`[drive-settings] ${a.join(" ")}`);
 async function waitFor(page, fn, { timeout = 60_000, interval = 300, label = "condition", arg = undefined } = {}) {
   const t0 = Date.now();
@@ -45,7 +46,7 @@ const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 let app;
 try {
-  app = await electron.launch({ executablePath: electronBin, args: [appDir, `--user-data-dir=${userData}`], timeout: 60_000, env });
+  app = await electron.launch({ executablePath, args: [...appArgs, `--user-data-dir=${userData}`], timeout: 60_000, env });
   const page = await app.firstWindow();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));

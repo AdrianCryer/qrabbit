@@ -1,0 +1,66 @@
+# Packaging for the desktop app. `pnpm desktop:pack` builds the app unpacked under dist/ for a local check,
+# `pnpm desktop:dist` builds the installers, and the release workflow (.github/workflows/release.yml) runs the
+# latter with `--publish always`, so each platform's artifacts land on one draft GitHub Release for the tag.
+#
+# Every platform builds on its own machine: the agent adapters pull in their vendor binaries (Codex, the Claude
+# Code CLI) as platform-specific optional packages at install time, so a build can only carry the host's.
+appId: dev.qrabbit.app
+productName: Qrabbit
+# The package is @qrabbit/desktop for pnpm's sake, but a one-click installer names its folder after the package
+# name, and Electron names the app's data folder after it too. The build carries plain names instead, so the app
+# installs to Programs\Qrabbit and keeps its data in AppData\Roaming\Qrabbit, apart from the dev build's.
+extraMetadata:
+  name: Qrabbit
+  productName: Qrabbit
+directories:
+  buildResources: resources
+  output: dist
+
+# The agent adapters are separate Node programs the app spawns (src/main/agent.ts), and Node cannot read files
+# inside an asar archive, so the app ships as plain files.
+asar: false
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+
+# Artifact names carry no version, so the site can link each platform's current build through
+# github.com/AdrianCryer/qrabbit/releases/latest/download/<name> and never change.
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.ico
+  artifactName: ${productName}-Setup-${arch}.${ext}
+  # On Windows the adapters run on a console Node (src/main/runtime.ts looks for resources/node/node.exe);
+  # scripts/fetch-node.mjs downloads it to vendor/node/ before each build.
+  extraResources:
+    - from: vendor/node
+      to: node
+      filter: ["node.exe", "LICENSE"]
+nsis:
+  # One click: installs for the current user under AppData, no wizard. Reader data stays on uninstall.
+  oneClick: true
+  perMachine: false
+  deleteAppDataOnUninstall: false
+
+# Not yet built: see the workflow for what each platform still needs (a macOS runner, signing, notarization).
+mac:
+  target:
+    - target: dmg
+      arch: [arm64]
+    - target: zip
+      arch: [arm64]
+  category: public.app-category.education
+  artifactName: ${productName}-${arch}.${ext}
+linux:
+  target: [AppImage, deb]
+  category: Education
+  artifactName: ${productName}-${arch}.${ext}
+
+publish:
+  provider: github
+  owner: AdrianCryer
+  repo: qrabbit
+  releaseType: draft

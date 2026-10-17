@@ -4,6 +4,7 @@
 //   work-dir receives a test collection folder and a shots/ folder.
 // Build first: pnpm --filter @qrabbit/desktop build
 import { _electron as electron } from "playwright-core";
+import { appLaunch } from "./launch.mjs";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,7 +33,7 @@ writeFileSync(
   JSON.stringify({ id: "intrinsic-dimension", kind: "pdf", title: "Intrinsic Dimension of Learned Representations", file: "source.pdf", added: new Date().toISOString(), hasText: false }, null, 2),
 );
 
-const electronBin = join(appDir, "node_modules", "electron", "dist", process.platform === "win32" ? "electron.exe" : "electron");
+const { executablePath, args: appArgs } = appLaunch(appDir);
 const log = (...a) => console.log(`[drive] ${a.join(" ")}`);
 // The renderer's CSP forbids eval, which Playwright's waitForFunction relies on; poll with evaluate instead.
 async function waitFor(page, fn, { timeout = 30_000, interval = 300, label = "condition", arg = undefined } = {}) {
@@ -65,7 +66,7 @@ const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 let app;
 try {
-  app = await electron.launch({ executablePath: electronBin, args: [appDir, `--user-data-dir=${userData}`], timeout: 60_000, env });
+  app = await electron.launch({ executablePath, args: [...appArgs, `--user-data-dir=${userData}`], timeout: 60_000, env });
   log("collection:", collection);
   const page = await app.firstWindow();
   page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") consoleErrors.push(`${m.type()}: ${m.text()}`); });

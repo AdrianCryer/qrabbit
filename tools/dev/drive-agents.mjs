@@ -8,9 +8,10 @@
 // Usage: node tools/dev/drive-agents.mjs <work-dir>
 // Build first: pnpm --filter @qrabbit/desktop build
 import { _electron as electron } from "playwright-core";
+import { appLaunch } from "./launch.mjs";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -31,7 +32,7 @@ writeFileSync(join(notes, "text.md"), "<!-- page 1 -->\n# Notes\n\nGradient desc
 writeFileSync(join(notes, "source.json"), JSON.stringify({ id: "notes", kind: "markdown", title: "Notes", file: "source.md", pages: 1, added: "2026-10-01T10:00:00Z", hasText: true }, null, 2));
 writeFileSync(join(collection, "qrabbit.json"), JSON.stringify({ id: `col_agents_${runId.replace(/[^a-z0-9]/gi, "").toLowerCase()}`, name: "Agents check", created: "2026-10-01T09:00:00Z", settings: {} }, null, 2));
 
-const electronBin = join(appDir, "node_modules", "electron", "dist", process.platform === "win32" ? "electron.exe" : "electron");
+const { executablePath, args: appArgs } = appLaunch(appDir);
 const log = (...a) => console.log(`[drive-agents] ${a.join(" ")}`);
 async function waitFor(page, fn, { timeout = 60_000, interval = 300, label = "condition", arg = undefined } = {}) {
   const t0 = Date.now();
@@ -62,7 +63,7 @@ function codexWindows() {
 /** The executables running a script whose command line mentions `needle` (Windows), e.g. which program hosts an adapter. */
 function hostsOf(needle) {
   if (process.platform !== "win32") return [];
-  const out = execFileSync("powershell.exe", ["-NoProfile", "-Command", `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${needle}*' -and $_.Name -ne 'powershell.exe' } | ForEach-Object { $_.Name }; exit 0`], { encoding: "utf8", windowsHide: true });
+  const out = execFileSync("powershell.exe", ["-NoProfile", "-Command", `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${needle}*' -and $_.Name -ne 'powershell.exe' } | ForEach-Object { $_.ExecutablePath }; exit 0`], { encoding: "utf8", windowsHide: true });
   return out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
 }
 
@@ -72,7 +73,7 @@ delete env.ELECTRON_RUN_AS_NODE;
 const before = codexWindows();
 let app;
 try {
-  app = await electron.launch({ executablePath: electronBin, args: [appDir, `--user-data-dir=${userData}`], timeout: 60_000, env });
+  app = await electron.launch({ executablePath, args: [...appArgs, `--user-data-dir=${userData}`], timeout: 60_000, env });
   const page = await app.firstWindow();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -103,7 +104,12 @@ try {
     const adapterHosts = hostsOf("codex-acp");
     const launcherHosts = hostsOf("codex.js");
     log("codex-acp runs on:", adapterHosts.join(", ") || "(not found)", "· codex.js runs on:", launcherHosts.join(", ") || "(not found)");
-    expect(adapterHosts.length > 0 && adapterHosts.every((n) => n.toLowerCase() === "node.exe"), "the Codex adapter runs on a console Node, not Electron");
+    expect(adapterHosts.length > 0 && adapterHosts.every((p) => basename(p).toLowerCase() === "node.exe"), "the Codex adapter runs on a console Node, not Electron");
+    // A packaged build carries its own Node (resources/node) and must prefer it to whatever is on PATH.
+    if (process.env.QRABBIT_APP) {
+      const own = join(dirname(process.env.QRABBIT_APP), "resources", "node").toLowerCase();
+      expect(adapterHosts.every((p) => p.toLowerCase().startsWith(own)), "the packaged build's own Node hosts the adapter");
+    }
   }
 
   await page.click(".hdr .agent");

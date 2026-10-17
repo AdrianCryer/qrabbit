@@ -3,6 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "description": "Qrabbit desktop app: read, highlight, explore in branches, keep what you learned.",
+  "author": "Adrian Cryer",
+  "repository": { "type": "git", "url": "https://github.com/AdrianCryer/qrabbit.git", "directory": "apps/desktop" },
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev --watch",
@@ -10,7 +12,9 @@
     "preview": "electron-vite preview",
     "start": "electron-vite preview",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
-    "test": "vitest run --dir src/renderer/src"
+    "test": "vitest run --dir src/renderer/src",
+    "pack": "node scripts/fetch-node.mjs && electron-vite build && electron-builder --dir",
+    "dist": "node scripts/fetch-node.mjs && electron-vite build && electron-builder"
   },
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "0.81.2",
@@ -33,6 +37,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^5.0.0",
     "electron": "^44.4.0",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "katex": "^0.16.22",
     "pdfjs-dist": "^6.3.0",

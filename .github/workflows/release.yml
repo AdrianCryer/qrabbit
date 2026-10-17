@@ -1,0 +1,44 @@
+name: Release
+
+# A pushed tag v<version> builds the installers, each platform on its own runner, and uploads them to one draft
+# release for that tag; edit the notes on github.com and publish. `pnpm release <version>` makes the tag
+# (tools/dev/release.mjs). The packaging itself is apps/desktop/electron-builder.yml.
+#
+# Each platform must build on its own runner: the agent adapters pull in their vendor binaries (Codex, the Claude
+# Code CLI) as platform-specific optional packages at install time.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+          # Next: `- os: macos-14` (Apple silicon) and `- os: ubuntu-22.04`, once each build has been checked
+          # locally. macOS also wants signing and notarization secrets before anyone but a tester can open it:
+          # CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID.
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Build and publish
+        run: pnpm --filter @qrabbit/desktop run dist --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The cloud this build talks to (apps/desktop/.env.example): repository variables, never the source.
+          QRABBIT_CLOUD_URL: ${{ vars.QRABBIT_CLOUD_URL }}
+          QRABBIT_CLOUD_PUBLISHABLE_KEY: ${{ vars.QRABBIT_CLOUD_PUBLISHABLE_KEY }}

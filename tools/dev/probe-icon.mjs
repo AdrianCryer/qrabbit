@@ -1,17 +1,18 @@
 // Launches the built app in a separate profile and saves the icon Windows attached to its window
 // (what the title bar and taskbar show) as a PNG. Usage: node tools/dev/probe-icon.mjs <out.png>
 import { _electron as electron } from "playwright-core";
+import { appLaunch } from "./launch.mjs";
 import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 
 const appDir = resolve("apps/desktop");
 const out = resolve(process.argv[2] ?? "window-icon.png");
-const electronBin = join(appDir, "node_modules", "electron", "dist", "electron.exe");
+const { executablePath, args: appArgs } = appLaunch(appDir);
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 const userData = join(process.env.TEMP ?? ".", "qrabbit-probe-icon-profile");
 
-const app = await electron.launch({ executablePath: electronBin, args: [appDir, `--user-data-dir=${userData}`], env, timeout: 60_000 });
+const app = await electron.launch({ executablePath, args: [...appArgs, `--user-data-dir=${userData}`], env, timeout: 60_000 });
 await app.firstWindow();
 // The window's own HWND, once it is shown, rather than .NET's guess at a "main window".
 const win = await app.evaluate(async ({ BrowserWindow }) => {

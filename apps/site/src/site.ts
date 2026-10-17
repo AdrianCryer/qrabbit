@@ -7,7 +7,7 @@ export const site = {
   title: "Qrabbit: read difficult material with AI",
   description:
     "Highlight a passage, explore it with AI, branch off inside any answer and go as deep as you need. Qrabbit keeps your way back, and runs on the agent subscription you already pay for.",
-  /** The download buttons point here until each platform has its own asset URL below. */
+  /** The releases page; a platform's button links its installer by name under here once it is built. */
   releases: "https://github.com/AdrianCryer/qrabbit/releases/latest",
   /** Qrabbit Cloud's monthly price in US dollars. */
   cloudPrice: 5,
@@ -25,7 +25,7 @@ export type Download = {
 };
 
 export const downloads: Record<Platform, Download> = {
-  windows: { name: "Windows", runs: "Windows 10 and 11, x64", formats: "Installer (.exe)", href: site.releases },
+  windows: { name: "Windows", runs: "Windows 10 and 11, x64", formats: "Installer (.exe)", href: `${site.releases}/download/Qrabbit-Setup-x64.exe` },
   mac: { name: "macOS", runs: "Apple silicon and Intel", formats: "Disk image (.dmg)", href: site.releases },
   linux: { name: "Linux", runs: "x64", formats: "AppImage and .deb", href: site.releases },
 };

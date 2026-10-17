@@ -1,6 +1,7 @@
 {
   "name": "qrabbit",
   "private": true,
+  "packageManager": "pnpm@8.6.9",
   "version": "0.0.0",
   "description": "Read difficult material with AI: highlight, explore in branches, keep what you learned.",
   "scripts": {
@@ -11,6 +12,9 @@
     "desktop:build": "pnpm --filter @qrabbit/desktop run build",
     "desktop:dev": "pnpm --filter @qrabbit/desktop run dev",
     "desktop:drive": "node tools/dev/drive-desktop.mjs",
+    "desktop:pack": "pnpm --filter @qrabbit/desktop run pack",
+    "desktop:dist": "pnpm --filter @qrabbit/desktop run dist",
+    "release": "node tools/dev/release.mjs",
     "site:dev": "pnpm --filter @qrabbit/site run dev",
     "site:build": "pnpm --filter @qrabbit/site run build",
     "cloud:start": "pnpm --filter @qrabbit/cloud run start",

@@ -10,8 +10,9 @@ Thumbs.db
 # spike output
 tools/spike-acp/out/
 
-# electron-vite build output
+# electron-vite build output, and the Node that scripts/fetch-node.mjs downloads for Windows builds
 apps/desktop/out/
+apps/desktop/vendor/
 
 # Astro generated types and the promo site video (too large for git; see apps/site/README.md)
 .astro/

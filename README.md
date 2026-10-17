@@ -47,7 +47,9 @@ Sign-in happens in the agent's own flow, started from the header menu: Claude Co
 
 ## Running it
 
-Qrabbit is early and not yet packaged. You need Node 22 or later, pnpm, and a Claude Code or ChatGPT (Codex) sign-in on the machine. Both agents' CLIs come with the install; nothing else needs installing. On Windows the agents run on that Node rather than on Electron's: a hidden console Node passes a windowless console down to everything the agents start, where Electron, a GUI program, would leave each console program to open a window of its own.
+Qrabbit is early. Windows installers are on [GitHub Releases](https://github.com/AdrianCryer/qrabbit/releases/latest); macOS and Linux are not built yet. The installer is unsigned for now, so Windows asks before running it. You need a Claude Code or ChatGPT (Codex) sign-in on the machine; both agents' CLIs come with the install, and so does the Node they run on, so nothing else needs installing.
+
+To run it from source you need Node 22 or later and pnpm. On Windows the agents run on that Node rather than on Electron's: a hidden console Node passes a windowless console down to everything the agents start, where Electron, a GUI program, would leave each console program to open a window of its own.
 
 ```bash
 pnpm install
@@ -62,6 +64,9 @@ Other commands:
 pnpm typecheck                         # every package
 pnpm test                              # vitest where a package has tests
 pnpm desktop:build                     # build the app into apps/desktop/out
+pnpm desktop:pack                      # package it unpacked into apps/desktop/dist, for a local check
+pnpm desktop:dist                      # build the installer into apps/desktop/dist
+pnpm release <version>                 # set the app's version, commit and tag it (see Releases)
 pnpm desktop:drive <work-dir>          # scripted run with screenshots (see .claude/skills/run-desktop)
 node tools/dev/drive-agents.mjs <dir>  # switch to Codex and back, checking sign-in, Settings and windows
 pnpm spike:acp                         # the original ACP spike against Claude Code
@@ -69,6 +74,14 @@ pnpm site:dev                          # the promo site (apps/site), at localhos
 pnpm cloud:start                       # the local Supabase stack behind Qrabbit Cloud (needs Docker)
 pnpm cloud:test                        # end-to-end sync tests against that stack
 ```
+
+## Releases
+
+A release is a tag. `pnpm release 0.2.0` sets the desktop app's version, commits and tags `v0.2.0`; `git push --follow-tags` then runs the release workflow (`.github/workflows/release.yml`), which packages the app on each platform's own runner and uploads the artifacts to a draft GitHub Release for the tag. Write the notes on github.com and publish it. Builds cannot cross platforms: the agent adapters pull in their vendor binaries (Codex, the Claude Code CLI) as platform-specific packages at install time. Artifact names carry no version, so the site links each platform's current build through `releases/latest/download/<name>`.
+
+The packaging is `apps/desktop/electron-builder.yml`. The app ships as plain files rather than an asar archive, because the adapters are separate Node programs and Node cannot read inside an archive. A Windows build also ships an official Node for them, which `apps/desktop/scripts/fetch-node.mjs` downloads and checks against nodejs.org's checksums. The cloud a build talks to comes from its environment: `QRABBIT_CLOUD_URL` and `QRABBIT_CLOUD_PUBLISHABLE_KEY`, as repository variables in Actions or `apps/desktop/.env.production.local` locally (see `.env.example`).
+
+To check a build without an installer, `pnpm desktop:pack` and point the drivers at it: `QRABBIT_APP=apps/desktop/dist/win-unpacked/Qrabbit.exe node tools/dev/drive-agents.mjs <dir>` starts both agents from the packaged layout and checks that the bundled Node hosts them. Builds are unsigned for now, and macOS and Linux are configured but not yet built or checked.
 
 ## Repository
 
