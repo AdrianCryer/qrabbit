@@ -47,9 +47,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const expect = (cond, msg) => { if (!cond) throw new Error(`check failed: ${msg}`); log("ok:", msg); };
 const state = (page) => page.evaluate(() => {
   const s = window.__qrabbitStore.getState();
-  return { agentId: s.agentId, agent: s.agent, toasts: s.toasts.map((t) => t.text) };
+  return { agentId: s.agentId, agent: s.agent, installs: s.installs, toasts: s.toasts.map((t) => t.text) };
 });
 const prefs = () => JSON.parse(readFileSync(join(userData, "preferences.json"), "utf8"));
+// A packaged build, or a dev build asked to behave like one, downloads each agent on its first pick: minutes, once.
+const FIRST_RUN = !!(process.env.QRABBIT_APP || process.env.QRABBIT_AGENTS_MANAGED);
+const DOWNLOAD_MS = FIRST_RUN ? 600_000 : 0;
 /**
  * Processes that could host a console window, with a visible top-level window and its title. A console that
  * popped up for Codex's binary shows here, in conhost or, on Windows 11, as a Windows Terminal window or tab.
@@ -61,6 +64,13 @@ function codexWindows() {
   return out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
 }
 /** The executables running a script whose command line mentions `needle` (Windows), e.g. which program hosts an adapter. */
+/** The command lines of the processes whose command line mentions `needle`. */
+function commandLinesOf(needle) {
+  if (process.platform !== "win32") return [];
+  const out = execFileSync("powershell.exe", ["-NoProfile", "-Command", `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${needle}*' -and $_.Name -ne 'powershell.exe' } | ForEach-Object { $_.CommandLine }; exit 0`], { encoding: "utf8", windowsHide: true });
+  return out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+}
+
 function hostsOf(needle) {
   if (process.platform !== "win32") return [];
   const out = execFileSync("powershell.exe", ["-NoProfile", "-Command", `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*${needle}*' -and $_.Name -ne 'powershell.exe' } | ForEach-Object { $_.ExecutablePath }; exit 0`], { encoding: "utf8", windowsHide: true });
@@ -74,6 +84,8 @@ const before = codexWindows();
 let app;
 try {
   app = await electron.launch({ executablePath, args: [...appArgs, `--user-data-dir=${userData}`], timeout: 60_000, env });
+  // DRIVE_APP_LOG=1 shows the main process's own output, where `[agent]` lines and a failed download's npm log land.
+  if (process.env.DRIVE_APP_LOG) for (const name of ["stdout", "stderr"]) app.process()[name]?.on("data", (d) => { const s = d.toString().trim(); if (s) console.log(`[app] ${s}`); });
   const page = await app.firstWindow();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -84,16 +96,19 @@ try {
   await page.evaluate(() => window.__qrabbitStore.getState().chooseAgent("claude-code"));
   await page.evaluate((p) => window.__qrabbitStore.getState().openCollection(p), collection);
   await page.waitForSelector(".sheet.article", { timeout: 30_000 });
-  await waitFor(page, () => { const a = window.__qrabbitStore.getState().agent; return a?.id === "claude-code" && a.connected; }, { label: "Claude Code to connect" });
+  await waitFor(page, () => { const a = window.__qrabbitStore.getState().agent; return a?.id === "claude-code" && a.connected; }, { timeout: 30_000 + DOWNLOAD_MS, label: "Claude Code to connect" });
   let s = await state(page);
   log("claude status:", JSON.stringify(s.agent));
+  log("claude install:", JSON.stringify(s.installs["claude-code"]));
   await page.evaluate(() => window.__qrabbitStore.getState().updateAgentDefaults({ effort: "low" }));
 
   // Switch to Codex.
   await page.evaluate(() => window.__qrabbitStore.getState().chooseAgent("codex"));
-  await waitFor(page, () => { const a = window.__qrabbitStore.getState().agent; return a?.id === "codex" && a.connected && !!a.auth; }, { timeout: 90_000, label: "Codex to connect and report its account" });
+  await waitFor(page, () => { const a = window.__qrabbitStore.getState().agent; return a?.id === "codex" && a.connected && !!a.auth; }, { timeout: 90_000 + DOWNLOAD_MS, label: "Codex to connect and report its account" });
   s = await state(page);
   log("codex status:", JSON.stringify(s.agent));
+  log("codex install:", JSON.stringify(s.installs.codex));
+  if (FIRST_RUN) expect(s.installs.codex?.state === "ready" && !s.installs.codex.bundled, "Codex was downloaded into the data folder");
   expect(prefs().agent === "codex", "preferences.json remembers Codex");
   expect(/codex/i.test(s.agent.agent?.name ?? ""), `the adapter is Codex's: ${s.agent.agent?.name} ${s.agent.agent?.version}`);
   expect(JSON.stringify(s.agent.authMethods.map((m) => m.id)) === '["chat-gpt"]', "the only sign-in offered is ChatGPT (no API key)");
@@ -105,6 +120,7 @@ try {
     const launcherHosts = hostsOf("codex.js");
     log("codex-acp runs on:", adapterHosts.join(", ") || "(not found)", "· codex.js runs on:", launcherHosts.join(", ") || "(not found)");
     expect(adapterHosts.length > 0 && adapterHosts.every((p) => basename(p).toLowerCase() === "node.exe"), "the Codex adapter runs on a console Node, not Electron");
+    if (FIRST_RUN) expect(commandLinesOf("codex-acp").some((c) => /[\\/]agents[\\/]codex[\\/]/.test(c)), "the adapter runs from the download, not from the app");
     // A packaged build carries its own Node (resources/node) and must prefer it to whatever is on PATH.
     if (process.env.QRABBIT_APP) {
       const own = join(dirname(process.env.QRABBIT_APP), "resources", "node").toLowerCase();

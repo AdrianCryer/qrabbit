@@ -72,6 +72,8 @@ try {
   page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") consoleErrors.push(`${m.type()}: ${m.text()}`); });
   page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
   await page.waitForSelector(".hdr", { timeout: 30_000 });
+  // A fresh profile asks which agent to read with; answer as a reader would.
+  await page.evaluate(() => window.__qrabbitStore.getState().chooseAgent("claude-code"));
   await page.setViewportSize({ width: 1400, height: 900 }).catch(() => {});
   await sleep(500);
   await shot(page, "01-home");

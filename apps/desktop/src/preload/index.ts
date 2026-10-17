@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
-import type { AgentEvent, AgentStatus, CloudAccount, CloudChanged, CloudSyncState, PermissionRequest, QrabbitApi } from "@qrabbit/shared";
+import type { AgentEvent, AgentInstall, AgentStatus, CloudAccount, CloudChanged, CloudSyncState, PermissionRequest, QrabbitApi } from "@qrabbit/shared";
 
 const invoke = <T>(channel: string, ...args: unknown[]): Promise<T> => ipcRenderer.invoke(channel, ...args) as Promise<T>;
 
@@ -64,6 +64,9 @@ const api: QrabbitApi = {
   agent: {
     current: () => invoke("agent:current"),
     choose: (id) => invoke("agent:choose", id),
+    setup: () => invoke("agent:setup"),
+    install: (id) => invoke("agent:install", id),
+    uninstall: (id) => invoke("agent:uninstall", id),
     status: (collection) => invoke("agent:status", collection),
     connect: (collection) => invoke("agent:connect", collection),
     session: (collection, threadId) => invoke("agent:session", collection, threadId),
@@ -77,6 +80,7 @@ const api: QrabbitApi = {
     onEvent: (cb) => subscribe<[string, AgentEvent]>("agent:event", cb),
     onPermission: (cb) => subscribe<[PermissionRequest]>("agent:permission", cb),
     onStatus: (cb) => subscribe<[string, AgentStatus]>("agent:status", cb),
+    onInstall: (cb) => subscribe<[AgentInstall]>("agent:install", cb),
   },
   cloud: {
     account: () => invoke("cloud:account"),

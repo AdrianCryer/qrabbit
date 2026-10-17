@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { agentDefaults, agentDefaultsPatch, type CollectionManifest } from "./index.js";
+import { AGENTS, agentDefaults, agentDefaultsPatch, type CollectionManifest } from "./index.js";
 
 /** What `updateSettings` does with a patch: a shallow merge, written as JSON. */
 const apply = (settings: CollectionManifest["settings"], patch: CollectionManifest["settings"]) => JSON.parse(JSON.stringify({ ...settings, ...patch }));
@@ -28,5 +29,13 @@ describe("agent defaults", () => {
     const settings = { agents: { codex: { model: "gpt-5.5", effort: "high" } } };
     const next = apply(settings, agentDefaultsPatch(settings, "codex", { model: undefined }));
     expect(agentDefaults(next, "codex")).toEqual({ effort: "high" });
+  });
+});
+
+describe("agent adapters", () => {
+  it("pin the versions the desktop app develops against", () => {
+    // The registry's pins are what a packaged build downloads; development runs the same versions from devDependencies.
+    const pkg = JSON.parse(readFileSync(new URL("../../../apps/desktop/package.json", import.meta.url), "utf8")) as { devDependencies: Record<string, string> };
+    for (const a of AGENTS) expect(pkg.devDependencies[`@agentclientprotocol/${a.adapter.pkg}`]).toBe(a.adapter.version);
   });
 });

@@ -33,7 +33,8 @@ import {
 } from "@qrabbit/workspace";
 import { forgetRecent, recentCollections, touchRecent } from "./recent";
 import { AgentHost, type AgentEmitter } from "./agent";
-import { chooseAgent, chosenAgent } from "./prefs";
+import { ensureInstalled, install as installAgent, installs as agentInstalls, onInstall, pruneAgents, uninstall as uninstallAgent } from "./agent-install";
+import { agentChosen, chooseAgent, chosenAgent } from "./prefs";
 import { CloudHost } from "./cloud";
 
 /** Main only touches collections this process opened; the renderer cannot point it at arbitrary folders. */
@@ -240,15 +241,35 @@ export function registerIpc(): void {
   });
 
   // ----- agent -----
+  onInstall((install) => broadcast("agent:install", install));
+  try {
+    pruneAgents();
+  } catch (err) {
+    console.warn("[agent] could not prune old downloads:", err);
+  }
   ipcMain.handle("agent:current", () => chosenAgent());
+  ipcMain.handle("agent:setup", () => ({ chosen: agentChosen(), installs: agentInstalls() }));
   ipcMain.handle("agent:choose", async (_e, id: unknown) => {
     if (!isAgentId(id)) throw new Error(`Unknown agent: ${String(id)}`);
-    if (id === chosenAgent()) return;
+    const before = chosenAgent();
     chooseAgent(id);
+    // The download starts with the choice rather than with the first collection that needs the agent; how it
+    // goes is reported through the install state.
+    void ensureInstalled(id).catch(() => undefined);
+    if (id === before) return;
     // Sessions belong to the old agent's process; threads carry their history to the new one on its first turn.
     const old = [...hosts.values()];
     hosts.clear();
     await Promise.all(old.map((h) => h.dispose()));
+  });
+  ipcMain.handle("agent:install", (_e, id: unknown) => {
+    if (!isAgentId(id)) throw new Error(`Unknown agent: ${String(id)}`);
+    return installAgent(id);
+  });
+  ipcMain.handle("agent:uninstall", (_e, id: unknown) => {
+    if (!isAgentId(id)) throw new Error(`Unknown agent: ${String(id)}`);
+    if (id === chosenAgent()) throw new Error("That is the agent in use; choose another first");
+    return uninstallAgent(id);
   });
   ipcMain.handle("agent:status", (_e, collection: string) => host(collection).status);
   ipcMain.handle("agent:connect", (_e, collection: string) => host(collection).connect());

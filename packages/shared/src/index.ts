@@ -213,6 +213,10 @@ export type AgentInfo = {
   signIn: AgentSignIn[];
   /** Where the agent keeps its own default model, for Settings. */
   ownDefault: string;
+  /** The vendor's ACP adapter on npm, `@agentclientprotocol/<pkg>`, pinned; it brings the vendor's CLI with it. */
+  adapter: { pkg: string; version: string };
+  /** Roughly what the adapter and CLI weigh to download, for a reader deciding on an agent. */
+  download: string;
 };
 
 export const AGENTS: readonly AgentInfo[] = [
@@ -225,6 +229,8 @@ export const AGENTS: readonly AgentInfo[] = [
       { id: "console-login", name: "Anthropic Console", description: "API usage billing", via: "terminal" },
     ],
     ownDefault: "its /model choice in ~/.claude/settings.json, or ANTHROPIC_MODEL",
+    adapter: { pkg: "claude-agent-acp", version: "0.81.2" },
+    download: "about 90 MB",
   },
   {
     id: "codex",
@@ -232,6 +238,8 @@ export const AGENTS: readonly AgentInfo[] = [
     plan: "ChatGPT subscription",
     signIn: [{ id: "chat-gpt", name: "ChatGPT subscription", description: "Sign in with your ChatGPT plan in the browser", via: "browser" }],
     ownDefault: "the model in ~/.codex/config.toml",
+    adapter: { pkg: "codex-acp", version: "2.1.1" },
+    download: "about 150 MB",
   },
 ];
 
@@ -286,6 +294,22 @@ export type AgentStatus = {
   /** The sign-in methods to offer: the registry's, narrowed to those the running adapter advertises. */
   authMethods: AgentSignIn[];
   error?: string;
+};
+
+/**
+ * An agent's download on this computer: its adapter package, with the vendor's CLI inside, installed under the
+ * app's data folder the first time the agent is picked. Nothing of it is in the app's own install.
+ */
+export type AgentInstall = {
+  id: AgentId;
+  /** The adapter version this build wants; what is on disk is that version or nothing. */
+  version: string;
+  state: "missing" | "installing" | "ready" | "error";
+  /** Bytes on disk: the download so far while it runs, the whole install once it is ready. */
+  bytes: number;
+  error?: string;
+  /** The adapter sits next to the app itself (a development build), so there is nothing to download. */
+  bundled?: boolean;
 };
 
 export type ConfigOption = {
@@ -436,6 +460,12 @@ export type QrabbitApi = {
     current(): Promise<AgentId>;
     /** Switch agent: every open collection's agent process stops, and the next call starts the chosen one. */
     choose(id: AgentId): Promise<void>;
+    /** Whether a reader has chosen an agent on this computer yet, and where each agent's download stands. */
+    setup(): Promise<{ chosen: boolean; installs: AgentInstall[] }>;
+    /** Download the agent's adapter and CLI, or try again after a failure; resolves once it is ready. */
+    install(id: AgentId): Promise<AgentInstall>;
+    /** Delete an agent's download. Not for the agent in use. */
+    uninstall(id: AgentId): Promise<AgentInstall>;
     status(collectionPath: string): Promise<AgentStatus>;
     connect(collectionPath: string): Promise<AgentStatus>;
     /** Ensure a session exists for the thread and return its config options. */
@@ -454,6 +484,7 @@ export type QrabbitApi = {
     onEvent(cb: (threadId: string, event: AgentEvent) => void): () => void;
     onPermission(cb: (request: PermissionRequest) => void): () => void;
     onStatus(cb: (collectionPath: string, status: AgentStatus) => void): () => void;
+    onInstall(cb: (install: AgentInstall) => void): () => void;
   };
   cloud: {
     account(): Promise<CloudAccount>;

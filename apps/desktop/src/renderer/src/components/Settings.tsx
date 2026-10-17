@@ -53,7 +53,8 @@ function AgentPanel() {
   const known = useStore((s) => s.knownOptions);
   const optionsLoading = useStore((s) => s.optionsLoading);
   const optionsError = useStore((s) => s.optionsError);
-  const { updateAgentDefaults, loginAgent, connectAgent, chooseAgent, refreshOptions } = useStore.getState();
+  const installs = useStore((s) => s.installs);
+  const { updateAgentDefaults, loginAgent, connectAgent, chooseAgent, refreshOptions, installAgent, uninstallAgent } = useStore.getState();
 
   const info = agentInfo(agentId);
   const defaults = collection ? agentDefaults(collection.manifest.settings, agentId) : {};
@@ -94,6 +95,38 @@ function AgentPanel() {
             ))}
           </div>
         )}
+      </section>
+      <section>
+        <h3>Downloads</h3>
+        <p className="dsub">An agent's adapter and its vendor's CLI download the first time it is picked, into Qrabbit's data folder, and follow Qrabbit's updates. Qrabbit itself stays small.</p>
+        <ul className="machines">
+          {AGENTS.map((a) => {
+            const inst = installs[a.id];
+            const line = !inst || inst.state === "missing"
+              ? `Not downloaded · ${a.download}`
+              : inst.bundled
+                ? "Comes with this development build"
+                : inst.state === "installing"
+                  ? `Downloading · ${fmtStorage(inst.bytes)} so far`
+                  : inst.state === "error"
+                    ? `Could not download: ${inst.error}`
+                    : `Downloaded · ${fmtStorage(inst.bytes)} · adapter ${inst.version}`;
+            return (
+              <li key={a.id}>
+                <Icon name="terminal" />
+                <span className="name">{a.title}</span>
+                {a.id === agentId && <span className="this">in use</span>}
+                <span className="m" title={line}>{line}</span>
+                {(!inst || inst.state === "missing" || inst.state === "error") && (
+                  <button className="btn" onClick={() => void installAgent(a.id)}><Icon name="refresh" />{inst?.state === "error" ? "Try again" : "Download"}</button>
+                )}
+                {inst?.state === "ready" && !inst.bundled && a.id !== agentId && (
+                  <button className="btn quiet" title="Delete the download; it comes back when the agent is picked again" onClick={() => void uninstallAgent(a.id)}>Remove</button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       </section>
       {collection && (
         <section>

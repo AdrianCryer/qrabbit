@@ -8,6 +8,7 @@ import { ReadingList } from "./components/ReadingList";
 import { TextReader } from "./components/TextReader";
 import { ThreadPanel } from "./components/ThreadPanel";
 import { Toasts } from "./components/Toasts";
+import { AgentChooser } from "./components/AgentChooser";
 import { Settings } from "./components/Settings";
 import { UrlDialog } from "./components/UrlDialog";
 import { FolderDialog } from "./components/FolderDialog";
@@ -136,7 +137,7 @@ export function App() {
     const onKey = (e: KeyboardEvent) => {
       const s = useStore.getState();
       if (matches(e, "Mod+,")) { e.preventDefault(); s.setSettingsOpen(!s.settingsOpen); return; }
-      if (s.settingsOpen || s.folderScan) return;
+      if (s.settingsOpen || s.folderScan || s.agentChosen === false) return;
       if (matches(e, "Mod+O")) { e.preventDefault(); void s.openCollectionDialog(); return; }
       if (matches(e, "Mod+Shift+H")) { e.preventDefault(); s.goHome(); return; }
       if (s.screen !== "reader") return;
@@ -169,6 +170,7 @@ export function App() {
         </main>
       )}
       <Settings />
+      <AgentChooser />
       <UrlDialog />
       <FolderDialog />
       <Toasts />

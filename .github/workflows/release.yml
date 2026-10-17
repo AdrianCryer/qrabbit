@@ -4,8 +4,8 @@ name: Release
 # release for that tag; edit the notes on github.com and publish. `pnpm release <version>` makes the tag
 # (tools/dev/release.mjs). The packaging itself is apps/desktop/electron-builder.yml.
 #
-# Each platform must build on its own runner: the agent adapters pull in their vendor binaries (Codex, the Claude
-# Code CLI) as platform-specific optional packages at install time.
+# Each platform builds on its own runner, as Electron packaging does. The agents are not in the build: their
+# adapters and CLIs download on first use (apps/desktop/src/main/agent-install.ts).
 on:
   push:
     tags: ["v*"]

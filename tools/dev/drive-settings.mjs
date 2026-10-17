@@ -51,6 +51,8 @@ try {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.waitForSelector(".hdr", { timeout: 30_000 });
+  // A packaged build, or a dev build asked to behave like one, downloads the agent on its first pick: minutes, once.
+  const DOWNLOAD_MS = process.env.QRABBIT_APP || process.env.QRABBIT_AGENTS_MANAGED ? 600_000 : 0;
   await page.setViewportSize({ width: 1400, height: 900 }).catch(() => {});
   // The agent choice persists in the user-data folder; this check is about Claude Code's options.
   await page.evaluate(() => window.__qrabbitStore.getState().chooseAgent("claude-code"));
@@ -60,7 +62,7 @@ try {
   // Settings straight away, before any thread: the lists must fill from a probe session.
   await page.keyboard.press("Control+,");
   await page.waitForSelector("#settings-model", { timeout: 10_000 });
-  await waitFor(page, () => document.querySelectorAll("#settings-model option").length > 1, { timeout: 90_000, label: "the model list to fill" });
+  await waitFor(page, () => document.querySelectorAll("#settings-model option").length > 1, { timeout: 90_000 + DOWNLOAD_MS, label: "the model list to fill" });
   await sleep(300);
   await shot(page, "01-settings-models");
   const models = await page.$$eval("#settings-model option", (os) => os.map((o) => ({ value: o.value, text: o.textContent })));
@@ -85,7 +87,7 @@ try {
 
   const thread = await page.evaluate((p) => window.qrabbit.threads.create(p, { title: "Default check" }), collection);
   await page.evaluate((id) => window.__qrabbitStore.getState().openThread(id), thread.id);
-  await waitFor(page, (id) => !!window.__qrabbitStore.getState().configOptions[id], { arg: thread.id, timeout: 90_000, label: "the thread's session" });
+  await waitFor(page, (id) => !!window.__qrabbitStore.getState().configOptions[id], { arg: thread.id, timeout: 90_000 + DOWNLOAD_MS, label: "the thread's session" });
   const current = await page.evaluate((id) => window.__qrabbitStore.getState().configOptions[id].find((o) => o.id === "model")?.currentValue, thread.id);
   expect(current === pick.value, `the new thread's session runs the collection default: ${current}`);
   await sleep(300);

@@ -2,8 +2,8 @@
 # `pnpm desktop:dist` builds the installers, and the release workflow (.github/workflows/release.yml) runs the
 # latter with `--publish always`, so each platform's artifacts land on one draft GitHub Release for the tag.
 #
-# Every platform builds on its own machine: the agent adapters pull in their vendor binaries (Codex, the Claude
-# Code CLI) as platform-specific optional packages at install time, so a build can only carry the host's.
+# Each platform builds on its own machine, as Electron packaging does. The agents are not in the build: their
+# adapters and CLIs download on first use (src/main/agent-install.ts).
 appId: dev.qrabbit.app
 productName: Qrabbit
 # The package is @qrabbit/desktop for pnpm's sake, but a one-click installer names its folder after the package
@@ -28,6 +28,12 @@ files:
   - resources/icon.ico
   - resources/icon.png
 
+# A packaged build carries its own Node: scripts/fetch-node.mjs puts it in vendor/node with npm beside it. The
+# adapters run on it (src/main/runtime.ts) and its npm downloads them (src/main/agent-install.ts).
+extraResources:
+  - from: vendor/node
+    to: node
+
 # Artifact names carry no version, so the site can link each platform's current build through
 # github.com/AdrianCryer/qrabbit/releases/latest/download/<name> and never change.
 
@@ -37,12 +43,6 @@ win:
       arch: [x64]
   icon: resources/icon.ico
   artifactName: ${productName}-Setup-${arch}.${ext}
-  # On Windows the adapters run on a console Node (src/main/runtime.ts looks for resources/node/node.exe);
-  # scripts/fetch-node.mjs downloads it to vendor/node/ before each build.
-  extraResources:
-    - from: vendor/node
-      to: node
-      filter: ["node.exe", "LICENSE"]
 nsis:
   # One click: installs for the current user under AppData, no wizard. Reader data stays on uninstall.
   oneClick: true

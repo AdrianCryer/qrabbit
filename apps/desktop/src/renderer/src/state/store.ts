@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { agentDefaultsPatch, agentInfo, DEFAULT_AGENT, type AgentDefaults, type AgentId } from "@qrabbit/shared";
+import { agentDefaultsPatch, agentInfo, DEFAULT_AGENT, type AgentDefaults, type AgentId, type AgentInstall } from "@qrabbit/shared";
 import type {
   AgentEvent,
   AgentStatus,
@@ -77,6 +77,10 @@ type State = {
   /** The agent this computer uses; switching it restarts the agent process. */
   agentId: AgentId;
   agent: AgentStatus | null;
+  /** Whether a reader has chosen an agent on this computer yet: false shows the chooser, null until known. */
+  agentChosen: boolean | null;
+  /** Where each agent's download stands on this computer. */
+  installs: Partial<Record<AgentId, AgentInstall>>;
   turns: Record<string, TurnState>;
   configOptions: Record<string, ConfigOption[]>;
   /** The last config options any session reported; Settings uses them to offer model and effort choices. */
@@ -158,6 +162,12 @@ type Actions = {
   /** Switch this computer's agent. Open threads continue: the new agent gets their history on its first turn. */
   chooseAgent(id: AgentId): Promise<void>;
   loginAgent(methodId: string): Promise<void>;
+  /** Download an agent's adapter and CLI, or try again after a failure. */
+  installAgent(id: AgentId): Promise<void>;
+  /** Delete an agent's download; not the agent in use. */
+  uninstallAgent(id: AgentId): Promise<void>;
+  /** Put the first-run chooser away for now; it asks again next launch until an agent is chosen. */
+  dismissChooser(): void;
   savePosition(sourceId: string, pos: ReaderPosition): void;
   toast(text: string, action?: Toast["action"]): void;
   dismissToast(id: number): void;
@@ -216,6 +226,8 @@ export const useStore = create<State & Actions>((set, get) => ({
   toasts: [],
   agentId: DEFAULT_AGENT,
   agent: null,
+  agentChosen: null,
+  installs: {},
   turns: {},
   configOptions: {},
   knownOptions: [],
@@ -232,8 +244,9 @@ export const useStore = create<State & Actions>((set, get) => ({
   cloudCollections: [],
 
   async init() {
-    const [platform, home, recent, agentId] = await Promise.all([api.app.platform(), api.app.home(), api.collections.recent(), api.agent.current()]);
-    set({ platform, home, recent, agentId });
+    const [platform, home, recent, agentId, setup] = await Promise.all([api.app.platform(), api.app.home(), api.collections.recent(), api.agent.current(), api.agent.setup()]);
+    // A choice or an install event that arrived while this was in flight is newer than the answer; keep it.
+    set((s) => ({ platform, home, recent, agentId, agentChosen: s.agentChosen ?? setup.chosen, installs: { ...Object.fromEntries(setup.installs.map((i) => [i.id, i])), ...s.installs } }));
     if (subscribed) return;
     subscribed = true;
     void get().refreshCloud();
@@ -250,6 +263,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     } catch {
       /* ignore */
     }
+    api.agent.onInstall((install) => set((s) => ({ installs: { ...s.installs, [install.id]: install } })));
     api.agent.onStatus((collectionPath, status) => {
       // A process stopped by a switch may still report; only the chosen agent speaks for the collection.
       if (get().collection?.info.path !== collectionPath || status.id !== get().agentId) return;
@@ -742,12 +756,17 @@ export const useStore = create<State & Actions>((set, get) => ({
   },
 
   async chooseAgent(id) {
-    if (id === get().agentId) return;
-    if (Object.values(get().turns).some((t) => t.running)) {
+    const same = id === get().agentId;
+    if (same && get().agentChosen) return;
+    if (!same && Object.values(get().turns).some((t) => t.running)) {
       get().toast("An answer is still coming. Stop it or let it finish, then switch agents.");
       return;
     }
     await api.agent.choose(id);
+    set({ agentChosen: true });
+    const info = agentInfo(id);
+    if (get().installs[id]?.state !== "ready") get().toast(`${info.title} is downloading (${info.download}). Read on meanwhile; the header shows when it is ready.`);
+    if (same) return;
     set({ agentId: id, agent: null, configOptions: {}, knownOptions: [], optionsError: null });
     const c = get().collection;
     if (!c) return;
@@ -771,6 +790,29 @@ export const useStore = create<State & Actions>((set, get) => ({
     } catch (err) {
       get().toast(`Could not start sign-in: ${errText(err)}`);
     }
+  },
+
+  async installAgent(id) {
+    try {
+      await api.agent.install(id);
+    } catch (err) {
+      get().toast(`Could not download ${agentInfo(id).title}: ${errText(err)}`);
+      return;
+    }
+    // The agent in use was waiting on this download.
+    if (id === get().agentId && get().collection && !get().agent?.connected) void get().connectAgent();
+  },
+
+  async uninstallAgent(id) {
+    try {
+      await api.agent.uninstall(id);
+    } catch (err) {
+      get().toast(`Could not remove ${agentInfo(id).title}: ${errText(err)}`);
+    }
+  },
+
+  dismissChooser() {
+    set({ agentChosen: true });
   },
 
   savePosition(sourceId, pos) {

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { app } from "electron";
 import * as acp from "@agentclientprotocol/sdk";
@@ -18,6 +18,7 @@ import {
 import { agentDefaults, agentInfo, type AgentEvent, type AgentId, type AgentSignIn, type AgentStatus, type Anchor, type ConfigOption, type PermissionRequest, type Thread } from "@qrabbit/shared";
 import { appendMessage, createThread, listThreads, openCollection, readThread, updateThread } from "@qrabbit/workspace";
 import { branchContextBlock, branchIntroBlocks, buildPromptBlocks, handoffPrompt, historyBlock, parseSummary, PREAMBLE, SUMMARY_PROMPT } from "./context";
+import { adapterEntry, ensureInstalled } from "./agent-install";
 import { adapterRuntime } from "./runtime";
 import { dirtyBranches } from "./tree";
 
@@ -35,12 +36,11 @@ const PROBE_ID = "__settings__";
 /** The ACP config categories behind the thread's `model` and `effort` fields. */
 const CATEGORY = { model: "model", effort: "thought_level" } as const;
 
-/** Each agent's ACP adapter: an npm package whose `dist/index.js` is the server, bundling the vendor's unmodified CLI. */
-const ADAPTERS: Record<AgentId, { pkg: string; env?: Record<string, string> }> = {
-  "claude-code": { pkg: "claude-agent-acp" },
+/** What each adapter is started with, beyond the runtime's own environment. */
+const ADAPTER_ENV: Partial<Record<AgentId, Record<string, string>>> = {
   // Read-only makes Codex ask before every file change, so the §5.6 policy decides: notes/ is allowed, the rest is
   // the reader's call. Its own default lets it write anywhere in the collection unasked.
-  codex: { pkg: "codex-acp", env: { INITIAL_AGENT_MODE: "read-only" } },
+  codex: { INITIAL_AGENT_MODE: "read-only" },
 };
 
 /** Claude Code's terminal sign-in arguments, mirrored so login works even before initialize reported them. */
@@ -49,22 +49,17 @@ const TERMINAL_ARGS: Record<string, string[]> = {
   "console-login": ["--cli", "auth", "login", "--console"],
 };
 
-function adapterEntry(agent: AgentId): string {
-  const { pkg } = ADAPTERS[agent];
-  try {
-    return require.resolve(`@agentclientprotocol/${pkg}/dist/index.js`);
-  } catch {
-    return join(app.getAppPath(), "node_modules", "@agentclientprotocol", pkg, "dist", "index.js");
-  }
-}
-
-/** The adapters are Node programs: run on a console Node on Windows, else on Electron's own (see runtime.ts). */
+/**
+ * The adapters are Node programs: run on a console Node on Windows, else on Electron's own (see runtime.ts). Each
+ * is an npm package downloaded on first use (agent-install.ts), so an agent's first launch can wait minutes.
+ */
 export async function agentLaunch(agent: AgentId, collection: string): Promise<AgentLaunch> {
+  await ensureInstalled(agent);
   const runtime = await adapterRuntime();
   return {
     command: runtime.command,
     args: [adapterEntry(agent)],
-    env: { ...runtime.env, ...ADAPTERS[agent].env },
+    env: { ...runtime.env, ...ADAPTER_ENV[agent] },
     cwd: collection,
   };
 }
@@ -549,8 +544,4 @@ function titleFromQuote(quote: string, max = 60): string {
   const cut = one.slice(0, max);
   const at = cut.lastIndexOf(" ");
   return (at > 30 ? cut.slice(0, at) : cut) + "…";
-}
-
-export function adapterExists(agent: AgentId): boolean {
-  return existsSync(adapterEntry(agent));
 }

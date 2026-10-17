@@ -39,10 +39,11 @@ export function Header() {
 
   const agentId = useStore((s) => s.agentId);
   const agent = useStore((s) => s.agent);
+  const installs = useStore((s) => s.installs);
   const menu = useStore((s) => s.menu);
   const cloud = useStore((s) => s.cloud);
   const cloudSync = useStore((s) => s.cloudSync);
-  const { connectAgent, loginAgent, chooseAgent, setMenu, setSettingsOpen, setUrlDialogOpen, enableCloud, disableCloud, removeCloudCollection, syncNow } = useStore.getState();
+  const { connectAgent, loginAgent, chooseAgent, installAgent, setMenu, setSettingsOpen, setUrlDialogOpen, enableCloud, disableCloud, removeCloudCollection, syncNow } = useStore.getState();
   // Removing a collection from the cloud asks once, inside the menu; the question goes away with the menu.
   const [confirmRemove, setConfirmRemove] = useState(false);
   useEffect(() => {
@@ -64,7 +65,9 @@ export function Header() {
   const orphaned = threads.filter((t) => t.anchor?.source && !collection?.sources.some((s) => s.id === t.anchor?.source));
   const signedIn = !!agent?.connected && !!agent.auth && agent.auth.kind !== "none";
   const info = agentInfo(agentId);
-  const agentLabel = !agent ? "Agent" : agent.error ? "Agent failed" : !agent.connected ? "Connecting…" : authLabel(agent.auth) ?? info.title;
+  const install = installs[agentId];
+  const downloading = install?.state === "installing";
+  const agentLabel = downloading ? `Downloading ${info.title}…` : !agent ? "Agent" : agent.error ? "Agent failed" : !agent.connected ? "Connecting…" : authLabel(agent.auth) ?? info.title;
   const loginMethods = agent?.authMethods.length ? agent.authMethods : info.signIn;
   const threadItem = (t: (typeof threads)[number], close: () => void) => (
     <button key={t.id} className={`mi ${t.id === threadId ? "cur" : ""}`} role="menuitem" onClick={() => { close(); void openThread(t.id); }}>
@@ -376,7 +379,7 @@ export function Header() {
               title={agent?.error ?? "Agent status and sign-in"}
               label={
                 <span className="agent">
-                  <span className={`dot ${signedIn ? "on" : ""}`} />
+                  <span className={`dot ${signedIn ? "on" : downloading ? "busy" : ""}`} />
                   <span>{agentLabel}</span>
                 </span>
               }
@@ -385,14 +388,24 @@ export function Header() {
                 <>
                   <div className="mh">{info.title}{agent?.agent?.version ? ` · ${agent.agent.version}` : ""}</div>
                   <div className="mempty">
-                    {agent?.error
-                      ? agent.error
-                      : agent?.connected
-                        ? agent.auth
-                          ? billingLine(agent.auth)
-                          : "Connected. The account is reported when the first message is sent."
-                        : "Not connected."}
+                    {downloading
+                      ? `Downloading ${info.title}, ${info.download}: ${fmtStorage(install?.bytes ?? 0)} so far.`
+                      : install?.state === "error"
+                        ? `Could not download ${info.title}: ${install.error}`
+                        : agent?.error
+                          ? agent.error
+                          : agent?.connected
+                            ? agent.auth
+                              ? billingLine(agent.auth)
+                              : "Connected. The account is reported when the first message is sent."
+                            : "Not connected."}
                   </div>
+                  {install?.state === "error" && (
+                    <button className="mi" role="menuitem" onClick={() => { close(); void installAgent(agentId); }}>
+                      <Icon name="refresh" />
+                      <span className="txt"><span className="t">Download again</span></span>
+                    </button>
+                  )}
                   <div className="msep" />
                   {loginMethods.map((m) => (
                     <button key={m.id} className="mi" role="menuitem" onClick={() => { close(); void loginAgent(m.id); }}>
@@ -414,7 +427,7 @@ export function Header() {
                       <Icon name="terminal" />
                       <span className="txt">
                         <span className="t">{a.title}</span>
-                        <span className="m">{a.plan}</span>
+                        <span className="m">{a.plan}{installs[a.id]?.state === "ready" ? "" : ` · ${a.download} download`}</span>
                       </span>
                     </button>
                   ))}

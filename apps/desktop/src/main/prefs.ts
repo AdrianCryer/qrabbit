@@ -20,6 +20,11 @@ export function chosenAgent(): AgentId {
   return isAgentId(id) ? id : DEFAULT_AGENT;
 }
 
+/** Whether a reader has chosen an agent on this computer yet; until then the app asks. */
+export function agentChosen(): boolean {
+  return isAgentId(read().agent);
+}
+
 export function chooseAgent(id: AgentId): void {
   writeJson(file(), { ...read(), agent: id });
 }
