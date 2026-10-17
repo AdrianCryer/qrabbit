@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Renders the logo animation: a line of Alice's Adventures in Wonderland with "rabbit-hole"
-// highlighted in the accent, the highlight folding into the app's lime tile, the Q written onto it,
-// then a fall through the Q's counter, where a smaller Q waits inside every Q, each a quarter turn
-// round from the last, landing on the tile again as it opens into the wordmark. Nothing but the
-// app's theme: its near-black surfaces, its text greys and the one lime accent.
+// highlighted in the accent, the highlight folding into the app's lime tile, the icon's rabbit-Q drawn
+// onto it (the ear first, round the bowl, then the tail), then a fall through the Q's counter, where
+// a smaller rabbit-Q waits inside every one, each a quarter turn round from the last, landing on the
+// tile again as it opens into the wordmark. Nothing but the app's theme: its near-black surfaces, its
+// text greys and the one lime accent.
 //
 // Every frame is a pure function of time: the page drawn by logoPage() shows moment t on request and
 // Electron captures it offscreen, as record-demo.mjs frames its takes. Each video frame averages a
@@ -37,6 +38,19 @@ const SHUTTER = 0.5;
 /** The MP4 ends here, on the lockup; the WebP carries on through a fade to the background so its loop is seamless. */
 const END = 8.2;
 const OUTRO = 0.6;
+
+/**
+ * The app icon (apps/desktop/resources/icon.svg): a tile 233.3
+ * across with corners of 51.3, and the rabbit-Q in the export's own coordinates, placed by the
+ * transforms the export nests it in. Drawn here in 512 units, the tile filling 0 to 512.
+ */
+const ICON = { size: 233.3, radius: 51.326 };
+const GLYPH = `scale(${512 / ICON.size}) translate(-133.326 -119.746) translate(-787.827 -804.853) matrix(1.03233 0 0 1.03233 -33.8347 -39.6771)`;
+/** The rabbit, with its eye and the Q's counter as holes: filled even-odd. */
+const BODY = "M1035.77,995.514C1004.68,1013.21 995.037,1020.04 995.037,1020.04C995.037,1020.04 961.31,1039.48 966.207,1057.23C971.103,1074.98 993.303,1074.39 1006.34,1074.72C1007.22,1075.35 970.471,1108.63 1069.38,1108.63C1090.6,1108.63 1110.44,1084.36 1110.44,1056C1110.44,1029.49 1086.38,1009.59 1059.87,1009.59C1053.99,1009.59 1047.54,1012.64 1042.33,1015.48C1036.93,1018.43 1032.52,1018.18 1032.52,1018.18C1032.52,1018.18 1036.34,1019.33 1062.14,1000.31C1081.19,986.265 1082.14,985.11 1082.14,985.11C1082.14,985.11 1062.64,980.219 1035.77,995.514ZM1056.04,1030.6C1072.12,1030.6 1085.18,1043.66 1085.18,1059.74C1085.18,1075.83 1072.12,1088.89 1056.04,1088.89C1039.95,1088.89 1026.89,1075.83 1026.89,1059.74C1026.89,1043.66 1039.95,1030.6 1056.04,1030.6ZM995.131,1040.61C998.532,1040.61 1001.29,1043.37 1001.29,1046.77C1001.29,1050.17 998.532,1052.93 995.131,1052.93C991.729,1052.93 988.967,1050.17 988.967,1046.77C988.967,1043.37 991.729,1040.61 995.131,1040.61Z";
+/** The Q's tail, a rounded bar laid across the bowl; it grows from x, its inner end inside the counter. */
+const TAIL = { transform: "matrix(0.575849 0.575849 -0.707107 0.707107 1251.4 -260.016)", x: 996.351, y: 1063.13, width: 54.569, height: 21.68, rx: 6.649, ry: 5.42 };
+const INK = "#111315";
 
 if (process.versions.electron) {
   const { app, BrowserWindow, nativeImage } = await import("electron");
@@ -172,18 +186,20 @@ function logoPage() {
   <div id="passage" class="passage"></div>
   <svg id="world" class="layer" width="${W}" height="${H}">
     <defs>
-      <!-- The Q exactly as make-icon.mjs draws it, in the icon's 512 units. -->
-      <text id="qglyph" x="256" y="278" text-anchor="middle" dominant-baseline="central"
-        font-family="Inter, 'Segoe UI', system-ui, Arial, sans-serif" font-weight="700" font-size="340" fill="#101407">Q</text>
-      <!-- Writes the Q: a sector sweeping round the ring, then a band drawn out along the tail. -->
+      <!-- The icon's rabbit-Q in its 512 units: the body, then the tail. -->
+      <path id="qbody" transform="${GLYPH}" fill-rule="evenodd" d="${BODY}"/>
+      <g id="qglyph"><use href="#qbody"/><rect transform="${GLYPH} ${TAIL.transform}" x="${TAIL.x}" y="${TAIL.y}" width="${TAIL.width}" height="${TAIL.height}" rx="${TAIL.rx}" ry="${TAIL.ry}"/></g>
+      <!-- Draws the body: a sector sweeping round the counter from the ear. The tail is drawn out after it. -->
       <mask id="qmask" maskUnits="userSpaceOnUse" x="-200" y="-200" width="912" height="912">
         <path id="qsector" fill="#fff"/>
-        <rect id="qtail" fill="#fff" x="100" y="-25" width="0" height="115" transform="translate(255.5 299.5) rotate(45)"/>
       </mask>
     </defs>
     <rect id="tile" fill="#c9f24d"/>
-    <use id="q0" href="#qglyph"/>
-    <g id="kids"></g>
+    <g id="q0" fill="${INK}">
+      <use id="q0body" href="#qbody"/>
+      <rect id="q0tail" transform="${GLYPH} ${TAIL.transform}" x="${TAIL.x}" y="${TAIL.y}" width="0" height="${TAIL.height}" rx="${TAIL.rx}" ry="${TAIL.ry}"/>
+    </g>
+    <g id="kids" fill="${INK}"></g>
   </svg>
   <div id="hi"><div id="passage2" class="passage"></div></div>
   <svg id="ibeam" width="20" height="66" viewBox="0 0 20 66">
@@ -203,13 +219,16 @@ function logoPage() {
 <script>
 const W = ${W}, H = ${H}, O = { x: W / 2, y: H / 2 };
 const END = ${END}, OUTRO = ${OUTRO};
-// The icon in its own 512 units (make-icon.mjs): the tile's centre and corner radius, and the centre
-// of the Q's counter, measured from icon.png (the counter spans x 196-315, y 223-376; the ring's
-// inner radius is 60 to 78, its outer 115 to 123).
-const TILE_C = { x: 256, y: 256 }, RX = 112 / 512, C = { x: 255.5, y: 299.5 };
-const COUNTER = 60, RING = 123;
-/** Each Q's counter holds the next Q at this size, turned this far; the fall goes this many deep. */
-const NEST = 4, TURN = Math.PI / 2, DEPTH = 4;
+// The icon in 512 units: the tile's centre and corner radius, and the point every Q nests round. The
+// tail reaches into the counter, so that is not the counter's own centre (297, 285) but the centre of
+// the largest circle inside it clear of the glyph, of radius 51.4; the glyph reaches 196 from it.
+// Both measured from a 2048 px render of the glyph.
+const TILE_C = { x: 256, y: 256 }, RX = ${ICON.radius / ICON.size}, C = { x: 288.2, y: 272.7 };
+const COUNTER = 51.4, REACH = 196;
+/** Each Q's counter holds the next Q at this size (its reach 39 of the 51.4 clear), turned this far; the fall goes this many deep. */
+const NEST = 5, TURN = Math.PI / 2, DEPTH = 4;
+/** Where the sweep that draws the body sets off: just clockwise of the ear's tip, so the ear comes first. */
+const START = -1.1;
 /** The tile's size while it is written and fallen into, and in the lockup beside the wordmark. */
 const T = 320, T_LOCK = 204, GAP = 60, TAG_GAP = 70;
 const PASSAGE = "In another moment down went Alice after it, never once considering how in the world she was to get out again. The [rabbit-hole] went straight on like a tunnel for some way, and then dipped suddenly down\\u2026";
@@ -378,7 +397,7 @@ window.draw = async (t) => {
     return { sig, phi, m: "matrix(" + [cs, sn, -sn, cs, Pc.x - (cs * C.x - sn * C.y), Pc.y - (sn * C.x + cs * C.y)].map((v) => v.toFixed(5)).join(" ") + ")" };
   };
   // A Q can be skipped once its counter is wider than the frame, or while it is smaller than a pixel.
-  const inView = (lv) => COUNTER * lv.sig < reach && RING * lv.sig > 0.4;
+  const inView = (lv) => COUNTER * lv.sig < reach && REACH * lv.sig > 0.4;
   // On landing the Qs already fallen through rush outward, past the landed tile's corners, rather
   // than fading: a dark ring faded over the lime would be a colour the theme does not have.
   const parents = 1 + 2.5 * inOut(seg(t, AT.parentsOut));
@@ -391,19 +410,19 @@ window.draw = async (t) => {
     attrs(tile, { display: "inline", x: 256 - w / 2, y: 256 - h / 2, width: w, height: h, rx: (bar.r * knocked) / s0, transform: l0.m });
   }
 
-  // The tile's own Q, written with the mask and then drawn plainly.
+  // The tile's own Q: the body drawn with the mask, the tail drawn out from inside the counter, then both plainly.
   const q0 = $("q0"), g0 = t >= LANDED ? l0 : level(0, parents), ring = inOut(seg(t, AT.ring)), tail = out(seg(t, AT.tail));
   if (t < AT.ring[0] || !inView(g0)) q0.setAttribute("display", "none");
   else {
     attrs(q0, { display: "inline", transform: g0.m });
-    if (tail >= 1) q0.removeAttribute("mask");
+    $("q0tail").setAttribute("width", ${TAIL.width} * tail);
+    if (ring >= 1) $("q0body").removeAttribute("mask");
     else {
-      q0.setAttribute("mask", "url(#qmask)");
-      const R = 140, a0 = -Math.PI / 2, a1 = a0 - 2 * Math.PI * ring;
-      $("qsector").setAttribute("d", ring >= 1 ? "M-200 -200H712V712H-200Z" : ring <= 0 ? "" :
-        "M" + C.x + " " + C.y + "L" + (C.x + R * Math.cos(a0)) + " " + (C.y + R * Math.sin(a0)) +
+      $("q0body").setAttribute("mask", "url(#qmask)");
+      const R = REACH + 20, a1 = START - 2 * Math.PI * ring;
+      $("qsector").setAttribute("d", ring <= 0 ? "" :
+        "M" + C.x + " " + C.y + "L" + (C.x + R * Math.cos(START)) + " " + (C.y + R * Math.sin(START)) +
         "A" + R + " " + R + " 0 " + (ring > 0.5 ? 1 : 0) + " 0 " + (C.x + R * Math.cos(a1)).toFixed(3) + " " + (C.y + R * Math.sin(a1)).toFixed(3) + "Z");
-      $("qtail").setAttribute("width", 115 * tail);
     }
   }
 
@@ -426,7 +445,7 @@ window.draw = async (t) => {
     const cy = Pc.y + lv.sig * (Math.sin(lv.phi) * vx + Math.cos(lv.phi) * vy);
     const f = Math.pow(24, 1 - inOut(seg(t, AT.land)));
     veil.style.display = "block";
-    veil.style.clipPath = "path(evenodd, 'M0 0H" + W + "V" + H + "H0Z " + rrect(cx, cy, 512 * lv.sig * f, 512 * lv.sig * f, 112 * lv.sig * f, lv.phi) + "')";
+    veil.style.clipPath = "path(evenodd, 'M0 0H" + W + "V" + H + "H0Z " + rrect(cx, cy, 512 * lv.sig * f, 512 * lv.sig * f, RX * 512 * lv.sig * f, lv.phi) + "')";
   } else veil.style.display = "none";
 
   // The accent's glow behind the tile: up as the Q is written, gone for the fall, back with a flash on landing.

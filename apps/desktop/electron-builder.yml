@@ -23,6 +23,10 @@ files:
   - out/**
   - package.json
   - "!**/*.map"
+  # The window and dock icon, which the main process loads from resources/ beside out/ (src/main/index.ts).
+  # Build resources are left out of the app unless named, and without these the window has no icon of its own.
+  - resources/icon.ico
+  - resources/icon.png
 
 # Artifact names carry no version, so the site can link each platform's current build through
 # github.com/AdrianCryer/qrabbit/releases/latest/download/<name> and never change.

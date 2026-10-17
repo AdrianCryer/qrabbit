@@ -1,11 +1,7 @@
----
-import Rabbit from "./Rabbit.astro";
----
-
 <header class="nav" data-nav>
   <div class="wrap bar">
     <a href="#top" class="brand" aria-label="Qrabbit, back to top">
-      <Rabbit pose="mark" class="logo" />
+      <img class="logo" src="/mark.svg" alt="" width="26" height="26" />
       <span>Qrabbit</span>
     </a>
     <nav aria-label="Sections">
@@ -41,7 +37,7 @@ import Rabbit from "./Rabbit.astro";
   }
   .bar { height: 64px; display: flex; align-items: center; gap: 28px; }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 17px; letter-spacing: -0.01em; }
-  .brand :global(.logo) { width: 26px; height: auto; margin-top: -8px; }
+  .brand .logo { flex: none; }
   nav { display: flex; gap: 4px; margin-left: auto; }
   nav a { padding: 8px 12px; border-radius: 9px; color: var(--text-2); font-size: 14.5px; font-weight: 500; transition: color 0.2s, background 0.2s; }
   nav a:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }

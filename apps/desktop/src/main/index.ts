@@ -66,8 +66,10 @@ function createWindow(): BrowserWindow {
   return win;
 }
 
-// Group the app's windows under their own taskbar entry rather than Electron's.
-app.setAppUserModelId("dev.qrabbit.app");
+// Group the app's windows under their own taskbar entry rather than Electron's. Windows draws a taskbar button
+// with the icon of the Start menu shortcut that shares its id, and the installer's shortcut carries the packaged
+// build's, so a dev build under that id would show whatever icon the installed copy was packed with.
+app.setAppUserModelId(app.isPackaged ? "dev.qrabbit.app" : "dev.qrabbit.app.dev");
 
 void app.whenReady().then(() => {
   if (process.platform === "darwin") app.dock?.setIcon(iconPng);

@@ -57,7 +57,7 @@ const small = narrow?.shot && (await optimise(narrow.shot));
   {
     crop && (
       <div class="bar" aria-hidden="true">
-        <span class="q">Q</span>
+        <img class="q" src="/mark.svg" alt="" width="20" height="20" />
         {path.length === 0 && <span class="brand">Qrabbit</span>}
         {path.map((c, i) => (
           <Fragment>
@@ -192,7 +192,7 @@ const small = narrow?.shot && (await optimise(narrow.shot));
     white-space: nowrap;
     min-width: 0;
   }
-  .q { width: 20px; height: 20px; border-radius: 5px; background: var(--accent); color: var(--accent-fg); display: grid; place-items: center; font-size: 13px; font-weight: 750; flex: none; margin-right: 4px; }
+  .q { flex: none; margin-right: 4px; }
   .crumb { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .sep { color: var(--text-3); }
   .brand { font-weight: 600; }

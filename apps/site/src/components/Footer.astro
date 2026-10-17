@@ -1,13 +1,11 @@
 ---
-import Rabbit from "./Rabbit.astro";
-
 const year = new Date().getFullYear();
 ---
 
 <footer>
   <div class="wrap row">
     <a href="#top" class="brand">
-      <Rabbit pose="mark" class="logo" />
+      <img class="logo" src="/mark.svg" alt="" width="22" height="22" />
       <span>Qrabbit</span>
     </a>
     <p class="tag">Read difficult material with AI.</p>
@@ -29,7 +27,7 @@ const year = new Date().getFullYear();
   footer { border-top: 1px solid var(--line); padding: 36px 0 40px; }
   .row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
   .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; }
-  .brand :global(.logo) { width: 22px; height: auto; margin-top: -6px; }
+  .brand .logo { flex: none; }
   .tag { color: var(--text-3); font-size: 14px; }
   nav { margin-left: auto; display: flex; gap: 20px; flex-wrap: wrap; }
   nav a { color: var(--text-2); font-size: 14px; transition: color 0.2s; }

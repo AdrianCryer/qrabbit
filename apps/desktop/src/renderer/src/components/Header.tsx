@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { AGENTS, agentInfo, authLabel, billingLine, type CloudAccount, type CloudSyncState } from "@qrabbit/shared";
 import { useStore } from "../state/store";
 import { displayPath } from "../lib/paths";
-// The same file the window and taskbar icon are rendered from, so the mark matches everywhere.
-import logo from "../../../../resources/icon.svg";
+// The icon with its glyph cut out, so the header shows through it; make-icon.mjs writes it beside icon.svg.
+import logo from "../../../../resources/mark.svg";
 import { ago, fmtStorage, relTime } from "../lib/time";
 import { Dropdown } from "./Dropdown";
 import { Icon } from "./Icons";
