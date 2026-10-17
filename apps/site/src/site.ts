@@ -28,10 +28,22 @@ export type Download = {
   href: string;
   /** Not built yet: the site says "coming soon" instead of linking it, and never offers it as the visitor's own. */
   soon?: boolean;
+  /**
+   * A build that exists but isn't signed, so the OS warns before it opens. Linked directly under "coming soon"
+   * for anyone willing to get past that; the card itself stays unlinked.
+   */
+  unsigned?: { href: string; runs: string };
 };
 
 export const downloads: Record<Platform, Download> = {
   windows: { name: "Windows", runs: "Windows 10 and 11, x64", formats: "Installer (.exe)", href: `${site.releases}/download/Qrabbit-Setup-x64.exe` },
-  mac: { name: "macOS", runs: "Apple silicon and Intel", formats: "Disk image (.dmg)", href: site.releases, soon: true },
+  mac: {
+    name: "macOS",
+    runs: "Apple silicon and Intel",
+    formats: "Disk image (.dmg)",
+    href: site.releases,
+    soon: true,
+    unsigned: { href: `${site.releases}/download/Qrabbit-arm64.dmg`, runs: "Apple silicon" },
+  },
   linux: { name: "Linux", runs: "x64", formats: "AppImage and .deb", href: site.releases, soon: true },
 };

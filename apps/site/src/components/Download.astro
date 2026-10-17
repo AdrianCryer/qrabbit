@@ -46,6 +46,14 @@ const order: Platform[] = ["windows", "mac", "linux"];
                   </svg>
                 </span>
               )}
+              {d.unsigned && (
+                <a class="unsigned" href={d.unsigned.href} title="Not signed or notarized yet, so macOS will warn before it opens.">
+                  Unsigned build for {d.unsigned.runs}
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14" />
+                  </svg>
+                </a>
+              )}
             </Card>
           );
         })
@@ -78,6 +86,8 @@ const order: Platform[] = ["windows", "mac", "linux"];
     position: relative;
     display: grid;
     justify-items: start;
+    /* Rows stack from the top rather than stretching to the tallest card, so the buttons stay on one line. */
+    align-content: start;
     gap: 4px;
     padding: 26px 24px 22px;
     border-radius: var(--r-lg);
@@ -103,6 +113,10 @@ const order: Platform[] = ["windows", "mac", "linux"];
   /* Coming soon: nothing to click, so the card stays put and its label stays quiet. */
   .platform.soon:hover { border-color: var(--line); transform: none; }
   .platform.soon .go { color: var(--text-3); background: var(--sunken); border-color: var(--line); }
+  /* The unsigned build is a plain link under the label, so the card still reads as not out yet. */
+  .unsigned { margin-top: 12px; display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 500; color: var(--text-3); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; transition: color 0.2s, text-decoration-color 0.2s; }
+  .unsigned:hover { color: var(--text); text-decoration-color: var(--text-3); }
+  .unsigned svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
   .needs { list-style: none; margin: 28px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
   .needs li { color: var(--text-3); font-size: 14px; line-height: 1.55; padding: 0 4px; }
