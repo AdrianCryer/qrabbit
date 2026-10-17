@@ -37,9 +37,10 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-          # Next: `- os: macos-14` (Apple silicon) and `- os: ubuntu-22.04`, once each build has been checked
-          # locally. macOS also wants signing and notarization secrets before anyone but a tester can open it:
-          # CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID.
+          # Apple silicon. Unsigned until the signing and notarization secrets exist (CSC_LINK, CSC_KEY_PASSWORD,
+          # APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID), so macOS 15 blocks it for anyone but a tester.
+          - os: macos-14
+          # Next: `- os: ubuntu-22.04`, once the build has been checked.
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -58,3 +59,17 @@ jobs:
           # The cloud this build talks to (apps/desktop/.env.example): repository variables, never the source.
           QRABBIT_CLOUD_URL: ${{ vars.QRABBIT_CLOUD_URL }}
           QRABBIT_CLOUD_PUBLISHABLE_KEY: ${{ vars.QRABBIT_CLOUD_PUBLISHABLE_KEY }}
+          # No certificate yet: build unsigned rather than search the runner's keychain for one.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      # A manual run publishes nothing; its builds are kept as artifacts for a look.
+      - if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: qrabbit-${{ matrix.os }}
+          path: |
+            apps/desktop/dist/*.exe
+            apps/desktop/dist/*.dmg
+            apps/desktop/dist/*.zip
+            apps/desktop/dist/*.AppImage
+            apps/desktop/dist/*.deb
+          if-no-files-found: error
