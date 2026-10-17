@@ -11,6 +11,7 @@ export function Home() {
   const home = useStore((s) => s.home);
   const cloud = useStore((s) => s.cloud);
   const cloudCollections = useStore((s) => s.cloudCollections);
+  const cloudDownload = useStore((s) => s.cloudDownload);
   const { openCollection, openCollectionDialog, downloadCollection } = useStore.getState();
   const latest = recent[0];
   // Collections the account keeps in the cloud that have no folder here yet.
@@ -70,16 +71,26 @@ export function Home() {
               <h2>In the cloud, not on this computer</h2>
             </div>
             <div className="colls">
-              {elsewhere.map((c) => (
-                <button key={c.id} className="coll cloudonly" onClick={() => void downloadCollection(c.id)} title="Download into a folder on this computer">
-                  <span className="ico"><Icon name="cloud" /></span>
-                  <span className="txt">
-                    <span className="t">{c.name}</span>
-                    <span className="m">Download to a folder here; it then stays in step with the cloud</span>
-                  </span>
-                  <span className="meta">{ago(c.updatedAt)}</span>
-                </button>
-              ))}
+              {elsewhere.map((c) => {
+                const busy = cloudDownload === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    className="coll cloudonly"
+                    onClick={() => void downloadCollection(c.id)}
+                    disabled={cloudDownload !== null && !busy}
+                    aria-busy={busy}
+                    title="Download into a folder on this computer"
+                  >
+                    <span className="ico">{busy ? <span className="spin"><Icon name="spin" /></span> : <Icon name="cloud" />}</span>
+                    <span className="txt">
+                      <span className="t">{c.name}</span>
+                      <span className="m">{busy ? "Downloading…" : "Download to a folder here; it then stays in step with the cloud"}</span>
+                    </span>
+                    <span className="meta">{ago(c.updatedAt)}</span>
+                  </button>
+                );
+              })}
             </div>
           </>
         )}

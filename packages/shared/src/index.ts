@@ -504,8 +504,10 @@ export type QrabbitApi = {
     remove(collectionId: string): Promise<void>;
     syncNow(collectionPath: string): Promise<CloudSyncState>;
     syncState(collectionPath: string): Promise<CloudSyncState | null>;
-    /** Pick an empty folder and bring a cloud collection down into it; null when the dialog was cancelled. */
-    download(collectionId: string): Promise<CollectionSnapshot | null>;
+    /** Pick an empty folder for a download; null when the dialog was cancelled. */
+    downloadDialog(): Promise<string | null>;
+    /** Bring a cloud collection down into a folder `downloadDialog` returned, and open it. */
+    download(collectionId: string, dir: string): Promise<CollectionSnapshot>;
     onAccount(cb: (account: CloudAccount) => void): () => void;
     onSyncState(cb: (collectionPath: string, state: CloudSyncState) => void): () => void;
     onChanged(cb: (collectionPath: string, changed: CloudChanged) => void): () => void;

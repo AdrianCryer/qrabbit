@@ -103,6 +103,8 @@ type State = {
   cloudSync: CloudSyncState | null;
   /** The account's collections, for the home screen. */
   cloudCollections: CloudCollectionInfo[];
+  /** The cloud collection on its way into a folder here, by id; null while none is. */
+  cloudDownload: string | null;
 };
 
 export type MenuId = State["menu"];
@@ -242,6 +244,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   cloud: null,
   cloudSync: null,
   cloudCollections: [],
+  cloudDownload: null,
 
   async init() {
     const [platform, home, recent, agentId, setup] = await Promise.all([api.app.platform(), api.app.home(), api.collections.recent(), api.agent.current(), api.agent.setup()]);
@@ -1000,13 +1003,23 @@ export const useStore = create<State & Actions>((set, get) => ({
   },
 
   async downloadCollection(id) {
+    if (get().cloudDownload) return;
+    const dir = await api.cloud.downloadDialog();
+    if (!dir) return;
+    const name = get().cloudCollections.find((c) => c.id === id)?.name ?? "The collection";
+    set({ cloudDownload: id });
+    let snap: CollectionSnapshot | null = null;
     try {
-      const snap = await api.cloud.download(id);
-      if (!snap) return;
+      snap = await api.cloud.download(id, dir);
       await get().openCollection(snap.info.path);
       get().toast(`${snap.info.name} is on this computer now and stays in step with the cloud`);
     } catch (err) {
-      get().toast(`Could not download the collection: ${errText(err)}`);
+      get().toast(snap ? `${snap.info.name} is on this computer now but did not open: ${errText(err)}` : `Could not download ${name}: ${errText(err)}`);
+      // Main may have the folder in its recent list even so; the home screen shows what is there.
+      void api.collections.recent().then((recent) => set({ recent }));
+    } finally {
+      set({ cloudDownload: null });
+      void get().refreshCloud();
     }
   },
 

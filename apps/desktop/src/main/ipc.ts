@@ -58,6 +58,8 @@ function assertChosen(collection: string, path: string): string {
   for (const root of chosen.get(collection) ?? []) if (full === root || full.startsWith(root + sep)) return full;
   throw new Error(`Not a file the user chose: ${basename(path)}`);
 }
+/** Folders the user picked in the download dialog, each good for one download; the renderer cannot name its own. */
+const downloadTargets = new Set<string>();
 /** Folders a scripted run may scan without the dialog: `QRABBIT_TRUST_FOLDERS`, separated like PATH. Development builds only. */
 const trustedFolders = app.isPackaged
   ? []
@@ -305,7 +307,7 @@ export function registerIpc(): void {
   ipcMain.handle("cloud:remove", (_e, collectionId: string) => cloudHost().remove(String(collectionId)));
   ipcMain.handle("cloud:syncNow", (_e, collection: string) => cloudHost().syncNow(guard(collection)));
   ipcMain.handle("cloud:syncState", (_e, collection: string) => cloudHost().syncState(guard(collection)));
-  ipcMain.handle("cloud:download", async (e, collectionId: string): Promise<CollectionSnapshot | null> => {
+  ipcMain.handle("cloud:downloadDialog", async (e): Promise<string | null> => {
     const win = windowOf(e);
     const r = await dialog.showOpenDialog(win!, {
       title: "Choose an empty folder for the collection",
@@ -314,8 +316,15 @@ export function registerIpc(): void {
     });
     const dir = r.filePaths[0];
     if (r.canceled || !dir) return null;
-    await cloudHost().download(String(collectionId), dir);
-    return snapshot(dir);
+    const target = resolve(dir);
+    downloadTargets.add(target);
+    return target;
+  });
+  ipcMain.handle("cloud:download", async (_e, collectionId: string, dir: string): Promise<CollectionSnapshot> => {
+    const target = resolve(String(dir ?? ""));
+    if (!downloadTargets.delete(target)) throw new Error("Not a folder the user chose");
+    await cloudHost().download(String(collectionId), target);
+    return snapshot(target);
   });
 
   // ----- app -----

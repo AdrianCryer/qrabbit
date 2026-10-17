@@ -566,6 +566,9 @@ body.dragging { cursor: grabbing; user-select: none; }
 .machines li .btn.danger { margin-left: 0; }
 .coll .meta svg.i { width: 13px; height: 13px; vertical-align: -2px; margin-right: 6px; color: var(--text-3); }
 .coll.cloudonly .ico { color: var(--text-3); }
+.coll .ico .spin { display: inline-flex; color: var(--accent); }
+.coll .ico .spin svg { animation: spin 1.1s linear infinite; }
+.coll[aria-busy="true"] { pointer-events: none; }
 
 /* ---------- folder picker ---------- */
 .dialog.folder { width: min(100%, 620px); grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; }
