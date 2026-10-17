@@ -96,5 +96,9 @@ packages/cloud-api/  the sync protocol (which paths sync, changes, commits, quot
 packages/cloud-sync/ keeps a collection folder in step with the cloud: scan, pull, merge by file format, push
 tools/dev/           sample PDF generator, Playwright driver, icon, screenshot staging and probe tools
 tools/spike-acp/     step 0: drives the Claude Code ACP adapter from a script
-planning/            the plan (plan-v2.md), the cloud design (plan-cloud.md), design notes and the clickable prototype
+planning/            the plan (plan-v2.md) and the cloud design (plan-cloud.md); earlier notes and prototypes are in the git history
 ```
+
+## License
+
+Apache-2.0; see [LICENSE](LICENSE). The Qrabbit name and logo are not covered by it.

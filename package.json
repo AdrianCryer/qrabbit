@@ -1,6 +1,7 @@
 {
   "name": "qrabbit",
   "private": true,
+  "license": "Apache-2.0",
   "packageManager": "pnpm@8.6.9",
   "version": "0.0.0",
   "description": "Read difficult material with AI: highlight, explore in branches, keep what you learned.",

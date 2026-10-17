@@ -4,6 +4,7 @@
   "private": true,
   "description": "Qrabbit desktop app: read, highlight, explore in branches, keep what you learned.",
   "author": "Adrian Cryer",
+  "license": "Apache-2.0",
   "repository": { "type": "git", "url": "https://github.com/AdrianCryer/qrabbit.git", "directory": "apps/desktop" },
   "main": "./out/main/index.js",
   "scripts": {
