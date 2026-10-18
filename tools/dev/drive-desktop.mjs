@@ -87,6 +87,33 @@ try {
   await shot(page, "02-reader");
   log("text.md written:", existsSync(join(srcDir, "text.md")));
 
+  // Real mouse drags that start on blank paper. Without the reader's selection guard (pdf/selection-guard.ts)
+  // Chromium anchors such a press at the end of the text layer, and a drag back onto the line takes the rest of
+  // the page with it; a selection built with addRange never exercises this.
+  const lineEnd = await page.evaluate(() => {
+    const s = [...document.querySelectorAll(".page[data-page='1'] .textLayer span")].find((x) => x.textContent.includes("closest points to each sample."));
+    const r = s.getBoundingClientRect();
+    return { left: r.left, right: r.right, cy: (r.top + r.bottom) / 2 };
+  });
+  const mouseDrag = async (from, to) => {
+    await page.evaluate(() => window.getSelection().removeAllRanges());
+    await page.mouse.move(from[0], from[1]);
+    await page.mouse.down();
+    await page.mouse.move(to[0], to[1], { steps: 4 });
+    await page.mouse.up();
+    await page.waitForSelector(".seltool", { timeout: 5_000 });
+    return page.evaluate(() => window.getSelection().toString());
+  };
+  const lineText = "closest points to each sample.";
+  const pastEnd = await mouseDrag([lineEnd.right + 20, lineEnd.cy], [lineEnd.right - 40, lineEnd.cy]);
+  if (!pastEnd || pastEnd.length > 12 || !lineText.endsWith(pastEnd)) throw new Error(`a drag from past the line's end selected ${JSON.stringify(pastEnd.slice(0, 60))}`);
+  log("ok: a drag from past a line's end selected", JSON.stringify(pastEnd));
+  const fromMargin = await mouseDrag([lineEnd.left - 30, lineEnd.cy], [lineEnd.left + 60, lineEnd.cy]);
+  if (!fromMargin || fromMargin.length > 12 || !lineText.startsWith(fromMargin)) throw new Error(`a drag from the left margin selected ${JSON.stringify(fromMargin.slice(0, 60))}`);
+  log("ok: a drag from the left margin selected", JSON.stringify(fromMargin));
+  await page.evaluate(() => window.getSelection().removeAllRanges());
+  await waitFor(page, () => !document.querySelector(".seltool"), { label: "the toolbar to go with the selection" });
+
   // select three lines of the first page by building a DOM range over text-layer spans
   const selected = await page.evaluate(() => {
     const spans = [...document.querySelectorAll(".page[data-page='1'] .textLayer span")];

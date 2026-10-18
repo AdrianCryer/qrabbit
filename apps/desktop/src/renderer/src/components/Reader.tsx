@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { ensureWorker, pdfjs, type PDFDocumentProxy, type TextItem } from "../pdf/pdfjs";
 import { buildTextMd, guessTitle, pageTextFromItems } from "../pdf/text";
 import { anchorToRange, layerText, rectsForRange, selectionToAnchor, type PageContext } from "../pdf/anchoring";
+import { lowerEndOfContent, raiseEndOfContent } from "../pdf/selection-guard";
 import { isTyping, matches } from "../lib/shortcuts";
 import { Icon } from "./Icons";
 
@@ -207,27 +208,41 @@ export function Reader(props: Props) {
     return () => root.removeEventListener("wheel", onWheel);
   }, [zoomBy]);
 
-  // ----- selection guard (what PDF.js's viewer does): while a selection touches a text layer, the
-  // layer's end-of-content block covers the page so dragging over blank paper cannot extend the
-  // selection to everything after it -----
+  // ----- selection guard, see pdf/selection-guard.ts -----
+  // Each layer raises its end-of-content block on mousedown (PageView). It stays up while the pointer is
+  // down, through the collapsed selection that follows the press, and comes down when the pointer does.
   useEffect(() => {
+    const layers = () => Array.from(scrollRef.current?.querySelectorAll<HTMLElement>(".textLayer") ?? []);
+    const lowerAll = () => { for (const l of layers()) lowerEndOfContent(l); };
+    let pointerDown = false;
+    const onPointerDown = () => { pointerDown = true; };
+    const onPointerUp = () => { pointerDown = false; lowerAll(); };
     const onChange = () => {
       const s = window.getSelection();
-      const layers = Array.from(scrollRef.current?.querySelectorAll<HTMLElement>(".textLayer") ?? []);
-      if (!s || s.rangeCount === 0 || s.isCollapsed) {
-        for (const l of layers) l.classList.remove("selecting");
-        setSel(null);
-        return;
-      }
+      if (!s || s.rangeCount === 0) { lowerAll(); setSel(null); return; }
+      if (s.isCollapsed) setSel(null);
+      // A drag that crosses onto another page raises that page's block too.
+      const all = layers();
       const active = new Set<HTMLElement>();
       for (let i = 0; i < s.rangeCount; i++) {
         const r = s.getRangeAt(i);
-        for (const l of layers) if (!active.has(l) && r.intersectsNode(l)) active.add(l);
+        for (const l of all) if (!active.has(l) && r.intersectsNode(l)) active.add(l);
       }
-      for (const l of layers) l.classList.toggle("selecting", active.has(l));
+      for (const l of all) {
+        if (!active.has(l)) lowerEndOfContent(l);
+        else if (pointerDown) l.classList.add("selecting");
+      }
     };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("blur", onPointerUp);
     document.addEventListener("selectionchange", onChange);
-    return () => document.removeEventListener("selectionchange", onChange);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("blur", onPointerUp);
+      document.removeEventListener("selectionchange", onChange);
+    };
   }, []);
 
   // ----- lazy rendering -----
@@ -527,7 +542,7 @@ const PageView = forwardRef<HTMLDivElement, PageProps>(function PageView(
           </button>
         );
       })}
-      <div className="textLayer" ref={textRef} />
+      <div className="textLayer" ref={textRef} onMouseDown={(e) => raiseEndOfContent(e.currentTarget, e.target, e.clientX, e.clientY)} />
     </div>
   );
 });
