@@ -32,7 +32,7 @@ packages/cloud-api/    protocol types, the path rules (shared with SQL), the cli
 | Table | Holds | Written by |
 |---|---|---|
 | `profiles` | one per auth user: plan, `quota_bytes` (5 GiB default) | trigger on `auth.users` |
-| `devices` | the machines an account syncs from, for "changed by" | the client (own rows) |
+| `devices` | the machines an account syncs from, for "changed by"; each remembers the session it last checked in with, so removing one signs that machine out | the client (own rows: register, check in, rename); `remove_device` |
 | `collections` | `(user_id, id)` with `rev`, the manifest's `col_…` id so a folder is the same collection on every machine | the client (own rows, `name` only); `rev` by `commit_changes` |
 | `files` | the latest state per path: `sha256`, `size`, `deleted`, `rev`, `device_id` | `commit_changes` only |
 | `blobs` | content per account by SHA-256: `size`, `state` (pending, stored, deleting), `refs`, `unreferenced_at` | `reserve_blobs`, `commit_changes`, triggers, the collector |

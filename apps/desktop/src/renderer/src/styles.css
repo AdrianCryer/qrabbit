@@ -563,7 +563,10 @@ body.dragging { cursor: grabbing; user-select: none; }
 .machines li .this { color: var(--accent); font-size: 11px; flex: none; }
 .machines li .m { color: var(--text-3); margin-left: auto; font-size: 11.5px; white-space: nowrap; flex: none; }
 .machines li .btn { padding: 4px 8px; font-size: 12px; flex: none; }
+.machines li .btn.icon { padding: 4px 5px; }
 .machines li .btn.danger { margin-left: 0; }
+.machines li input.rename { flex: 1; min-width: 0; font: inherit; font-weight: 500; color: var(--text); background: var(--sunken); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 3px 6px; }
+.machines li input.rename:focus-visible { outline: none; border-color: color-mix(in srgb, var(--accent) 65%, transparent); }
 .coll .meta svg.i { width: 13px; height: 13px; vertical-align: -2px; margin-right: 6px; color: var(--text-3); }
 .coll.cloudonly .ico { color: var(--text-3); }
 .coll .ico .spin { display: inline-flex; color: var(--accent); }

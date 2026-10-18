@@ -70,6 +70,7 @@ export type Database = {
           platform: string;
           created_at: string;
           last_seen_at: string;
+          session_id: string | null;
         };
         Insert: {
           id?: string;
@@ -78,6 +79,7 @@ export type Database = {
           platform: string;
           created_at?: string;
           last_seen_at?: string;
+          session_id?: string | null;
         };
         Update: {
           id?: string;
@@ -86,6 +88,7 @@ export type Database = {
           platform?: string;
           created_at?: string;
           last_seen_at?: string;
+          session_id?: string | null;
         };
         Relationships: [];
       };
@@ -161,6 +164,7 @@ export type Database = {
       is_valid_sync_path: { Args: { p: string }; Returns: boolean };
       list_changes: { Args: { p_collection: string; p_since?: number; p_cursor_rev?: number; p_cursor_path?: string; p_limit?: number }; Returns: Json };
       me: { Args: Record<PropertyKey, never>; Returns: Json };
+      remove_device: { Args: { p_id: string }; Returns: undefined };
       reserve_blobs: { Args: { p_items: Json }; Returns: Json };
     };
     Enums: { [_ in never]: never };

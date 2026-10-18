@@ -354,6 +354,8 @@ export type CloudAccount = {
   deviceId?: string;
   /** Why the account could not be read just now (offline, expired); the session itself may still be there. */
   error?: string;
+  /** Shown with the sign-in form while signed out: this computer was signed out or removed from another one. Gone at the next sign-in. */
+  notice?: string;
 };
 
 export type CloudDevice = { id: string; name: string; platform: string; createdAt: string; lastSeenAt: string; current: boolean };
@@ -494,6 +496,10 @@ export type QrabbitApi = {
     /** `local` signs this machine out; `others` every other machine. */
     signOut(scope: "local" | "others"): Promise<CloudAccount>;
     devices(): Promise<CloudDevice[]>;
+    /** Call a computer something other than its hostname. Resolves to the list afterwards. */
+    renameDevice(id: string, name: string): Promise<CloudDevice[]>;
+    /** Take another computer out of the account: it is signed out and has to sign in again. Resolves to the list afterwards. */
+    removeDevice(id: string): Promise<CloudDevice[]>;
     /** The account's collections, matched to folders this machine knows. */
     collections(): Promise<CloudCollectionInfo[]>;
     /** Start keeping an open collection in the cloud, from this folder. */

@@ -1,4 +1,4 @@
-import { createClient, type AuthError, type PostgrestError, type Session, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type AuthChangeEvent, type AuthError, type PostgrestError, type Session, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "./database.types.js";
 import {
   CloudError,
@@ -77,9 +77,12 @@ export class CloudClient {
     return data.session;
   }
 
-  /** Fires on sign-in, refresh and sign-out. Returns the unsubscribe. */
-  onAuthChange(cb: (session: Session | null) => void): () => void {
-    const { data } = this.supabase.auth.onAuthStateChange((_event, session) => cb(session));
+  /**
+   * Fires on sign-in, refresh and sign-out. `SIGNED_OUT` with no `signOut` call from here means the session was
+   * ended elsewhere: this machine was signed out or removed from another one. Returns the unsubscribe.
+   */
+  onAuthChange(cb: (session: Session | null, event: AuthChangeEvent) => void): () => void {
+    const { data } = this.supabase.auth.onAuthStateChange((event, session) => cb(session, event));
     return () => data.subscription.unsubscribe();
   }
 
@@ -117,13 +120,29 @@ export class CloudClient {
     return data.map(toDevice);
   }
 
+  /** This machine checking in: `lastSeenAt` moves, and the device takes the current sign-in as its session. */
   async touchDevice(id: string): Promise<void> {
     const { error } = await this.supabase.from("devices").update({ last_seen_at: new Date().toISOString() }).eq("id", id);
     if (error) throw fromPostgrest(error);
   }
 
+  /** Call a device something other than its hostname; any machine of the account may. */
+  async renameDevice(id: string, name: string): Promise<Device> {
+    const trimmed = name.trim();
+    if (!trimmed || [...trimmed].length > 80) throw new CloudError("bad_request", "A computer's name is between 1 and 80 characters");
+    const { data, error } = await this.supabase.from("devices").update({ name: trimmed }).eq("id", id).select();
+    if (error) throw fromPostgrest(error);
+    if (!data[0]) throw new CloudError("device_not_found", describe("device_not_found", undefined, ""), { status: 404 });
+    return toDevice(data[0]);
+  }
+
+  /**
+   * Take a device out of the account and end the session it signed in with. The machine's token keeps working
+   * until it expires (an hour at most) and cannot be refreshed; it is signed out then, or at its next push, and
+   * comes back as a new device when it signs in again.
+   */
   async removeDevice(id: string): Promise<void> {
-    const { error } = await this.supabase.from("devices").delete().eq("id", id);
+    const { error } = await this.supabase.rpc("remove_device", { p_id: id });
     if (error) throw fromPostgrest(error);
   }
 
@@ -227,7 +246,7 @@ const toDevice = (r: DeviceRow): Device => ({ id: r.id, name: r.name, platform: 
 const toCollection = (r: CollectionRow): CloudCollection => ({ id: r.id, name: r.name, rev: Number(r.rev), createdAt: r.created_at, updatedAt: r.updated_at });
 
 // ---------- errors ----------
-const KNOWN_CODES: ReadonlySet<string> = new Set<CloudErrorCode>(["unauthenticated", "bad_request", "invalid_path", "collection_not_found", "blobs_missing", "quota_exceeded"]);
+const KNOWN_CODES: ReadonlySet<string> = new Set<CloudErrorCode>(["unauthenticated", "bad_request", "invalid_path", "collection_not_found", "device_not_found", "blobs_missing", "quota_exceeded"]);
 
 const looksLikeNetwork = (message: string) => /fetch failed|network|ECONN|ENOTFOUND|EAI_AGAIN|Failed to fetch/i.test(message);
 
@@ -237,6 +256,10 @@ function describe(code: CloudErrorCode, details: unknown, fallback: string): str
       return "Sign in to Qrabbit Cloud first";
     case "collection_not_found":
       return "This collection is not in the cloud";
+    case "device_not_found":
+      return "This computer is no longer in the account";
+    case "device_removed":
+      return "This computer was removed from the account; sign in again to keep syncing";
     case "quota_exceeded": {
       const d = details as { usedBytes?: number; quotaBytes?: number } | undefined;
       return d?.usedBytes !== undefined && d.quotaBytes !== undefined ? `The cloud is full: ${gb(d.usedBytes)} of ${gb(d.quotaBytes)} used` : "The cloud is full";
@@ -270,7 +293,10 @@ export function fromPostgrest(e: PostgrestError): CloudError {
     }
   }
   let code: CloudErrorCode = "unknown";
-  if (KNOWN_CODES.has(e.message)) code = e.message as CloudErrorCode;
+  // `commit_changes` was given a device the account does not have. A registered device only goes by being removed,
+  // so this is the removed machine pushing: it must sign in again.
+  if (e.message === "bad_request" && e.details === "unknown device") code = "device_removed";
+  else if (KNOWN_CODES.has(e.message)) code = e.message as CloudErrorCode;
   else if (e.code === "PGRST301" || e.code === "42501" || status === 401) code = "unauthenticated";
   else if (looksLikeNetwork(e.message)) code = "network";
   const fallback = code === "unknown" && typeof e.details === "string" && e.details ? `${e.message}: ${e.details}` : e.message;

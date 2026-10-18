@@ -10,6 +10,7 @@ Every account gets 5 GiB. The app talks to it through [`@qrabbit/cloud-api`](../
 supabase/
   config.toml                       local stack and hosted project alike: ten-minute codes, both sign-in emails carry the code, 50 MiB per object
   migrations/20260928000000_cloud.sql  tables, row-level security, the sync functions, the blobs bucket and its policies
+  migrations/20261018000000_devices.sql  devices remember their sign-in session; `remove_device` ends it with the device
   functions/blob-gc/                edge function that removes content nothing references any more (service role only)
   templates/code.html               the sign-in email
 src/
@@ -24,9 +25,10 @@ src/
 - Content is stored once per account by SHA-256 in the private `blobs` bucket as `<user id>/<sha256>`. The same PDF in two collections is one upload and counts once.
 - A client pulls `list_changes(collection, since)`, downloads what it lacks, then reserves room (`reserve_blobs`), uploads, and calls `commit_changes(collection, base, changes)`. Anything the cloud changed after `base` on the same path comes back as a conflict; the client merges (it knows the file formats) and commits again.
 - `collections.rev` is on the Realtime publication, so an open app learns of another machine's commit within a second or two.
+- A device is one machine's sign-in, registered on first sight and remembering the auth session it last checked in with. Any machine can rename or remove the account's devices. `remove_device` ends that session too: the machine is signed out at its next push or when its token expires (an hour at most), and comes back as a new device when it signs in again.
 - Usage is what is referenced, plus reservations and recently unreferenced content for an hour. Content nothing references for seven days is removed by the collector.
 
-Only the functions write the tables; clients read them under row-level security. Errors come back as `PTxyz` SQL states, which PostgREST turns into HTTP status `xyz` with the code as the message: `quota_exceeded` (413), `blobs_missing` (422), `invalid_path` and `bad_request` (400), `collection_not_found` (404), `unauthenticated` (401).
+Only the functions write the tables; clients read them under row-level security. Errors come back as `PTxyz` SQL states, which PostgREST turns into HTTP status `xyz` with the code as the message: `quota_exceeded` (413), `blobs_missing` (422), `invalid_path` and `bad_request` (400), `collection_not_found` and `device_not_found` (404), `unauthenticated` (401).
 
 ## Running it locally
 

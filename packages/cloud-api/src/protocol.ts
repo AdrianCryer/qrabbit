@@ -31,6 +31,10 @@ export type Me = {
 
 export type DevicePlatform = "win32" | "darwin" | "linux" | "other";
 
+/**
+ * One machine's sign-in. Any machine of the account can rename or remove the others; removing one ends the session
+ * it signed in with, so it is signed out and comes back as a new device when it signs in again.
+ */
 export type Device = {
   id: string;
   name: string;
@@ -106,6 +110,10 @@ export type CloudErrorCode =
   | "bad_request"
   | "invalid_path"
   | "collection_not_found"
+  /** Not one of the account's devices: removed, or never there. */
+  | "device_not_found"
+  /** A push named a device the account no longer has: this machine was removed from the account and must sign in again. */
+  | "device_removed"
   | "blobs_missing"
   | "quota_exceeded"
   | "storage"

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CloudClient, CloudError, DEFAULT_QUOTA_BYTES, PATH_FIXTURES, sha256Hex, type FileChange } from "@qrabbit/cloud-api";
 import { admin, bytes, localStack, newUser, sameUser, sleep, type Stack, type TestUser } from "./stack.js";
@@ -352,6 +353,58 @@ describe.skipIf(!stack)("Qrabbit Cloud", () => {
     expect(denied.status).toBe(403);
     const unsigned = await fetch(`${s.url}/functions/v1/blob-gc`, { method: "POST" });
     expect(unsigned.status).toBe(403);
+  });
+
+  it("renames and removes devices, and a removed machine has to sign in again", async () => {
+    const laptop = user.client;
+    const desk = await sameUser(s, user);
+    const a = admin(s);
+    const sessionOf = async (c: CloudClient) => (JSON.parse(Buffer.from((await c.session())!.access_token.split(".")[1]!, "base64url").toString()) as { session_id: string }).session_id;
+    const sessionIds = async () => Object.fromEntries(((await a.from("devices").select("id, session_id").eq("user_id", user.id)).data ?? []).map((d) => [d.id, d.session_id]));
+
+    // A device remembers the session it registered with.
+    const mine = await laptop.registerDevice("Laptop", "win32");
+    const theirs = await desk.registerDevice("Desk", "darwin");
+    expect((await sessionIds())[theirs.id]).toBe(await sessionOf(desk));
+
+    // Any machine may rename any device. The name is checked, and a rename leaves the session alone.
+    expect((await laptop.renameDevice(theirs.id, "  Study Mac  ")).name).toBe("Study Mac");
+    expect((await desk.devices()).find((d) => d.id === theirs.id)?.name).toBe("Study Mac");
+    await expectCloudError(laptop.renameDevice(theirs.id, "   "), "bad_request");
+    await expectCloudError(laptop.renameDevice(theirs.id, "x".repeat(81)), "bad_request");
+    await expectCloudError(laptop.renameDevice(randomUUID(), "Ghost"), "device_not_found");
+    expect((await sessionIds())[theirs.id]).toBe(await sessionOf(desk));
+
+    // Checking in from a new sign-in moves the device to that session.
+    const deskAgain = await sameUser(s, user);
+    await deskAgain.touchDevice(theirs.id);
+    expect((await sessionIds())[theirs.id]).toBe(await sessionOf(deskAgain));
+
+    // Rows cannot be deleted directly, only removed; and only the account's own.
+    expect((await desk.supabase.from("devices").delete().eq("id", mine.id)).error).not.toBeNull();
+    expect((await laptop.devices()).some((d) => d.id === mine.id)).toBe(true);
+    await expectCloudError(laptop.removeDevice(randomUUID()), "device_not_found");
+    const other = await newUser(s, "other");
+    await expectCloudError(other.client.removeDevice(theirs.id), "device_not_found");
+    expect((await laptop.devices()).some((d) => d.id === theirs.id)).toBe(true);
+
+    // Removing the desk ends the session it last checked in with: the token it holds still works until it expires,
+    // but it cannot be refreshed, and a push in the meantime names a device the account no longer has.
+    await laptop.removeDevice(theirs.id);
+    expect((await laptop.devices()).map((d) => d.id)).not.toContain(theirs.id);
+    const refreshed = await deskAgain.supabase.auth.refreshSession();
+    expect(refreshed.error).not.toBeNull();
+    expect(refreshed.data.session).toBeNull();
+    await laptop.putCollection("col_devices", "Devices");
+    const sha = await upload(desk, text("from the removed desk"));
+    const err = await expectCloudError(desk.commit("col_devices", { base: 0, deviceId: theirs.id, changes: [{ path: "notes.md", sha256: sha }] }), "device_removed");
+    expect(err.message).toMatch(/removed from the account/);
+    // The laptop's own sign-in is untouched.
+    expect((await laptop.supabase.auth.refreshSession()).error).toBeNull();
+
+    await other.client.signOut();
+    await deskAgain.signOut();
+    await desk.signOut();
   });
 
   it("signs in with an emailed code", { skip: !stack?.mailUrl }, async () => {

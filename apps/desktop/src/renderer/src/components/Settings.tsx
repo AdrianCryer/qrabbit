@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AGENTS, agentDefaults, agentInfo, billingLine, isAgentId, type CloudDevice } from "@qrabbit/shared";
 import { useStore, type SettingsTab } from "../state/store";
 import { api } from "../lib/api";
@@ -172,12 +172,14 @@ function AgentPanel() {
   );
 }
 
+const platformName = (p: string) => (p === "win32" ? "Windows" : p === "darwin" ? "macOS" : p === "linux" ? "Linux" : p);
+
 /** Sign in with an emailed code; then the account: room used, computers, collections in the cloud. */
 function CloudPanel() {
   const cloud = useStore((s) => s.cloud);
   const cloudCollections = useStore((s) => s.cloudCollections);
   const home = useStore((s) => s.home);
-  const { cloudRequestCode, cloudVerifyCode, cloudSignOut, refreshCloud, removeCloudCollection } = useStore.getState();
+  const { cloudRequestCode, cloudVerifyCode, cloudSignOut, refreshCloud, removeCloudCollection, toast } = useStore.getState();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
@@ -186,6 +188,9 @@ function CloudPanel() {
   const [devices, setDevices] = useState<CloudDevice[]>([]);
   // "Remove" asks once by turning into "Really remove" for a few seconds.
   const [removing, setRemoving] = useState<string | null>(null);
+  // A computer is renamed in place: Enter or clicking away keeps the name, Escape drops it.
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const dropRename = useRef(false);
   const signedIn = !!cloud?.signedIn;
 
   useEffect(() => {
@@ -225,10 +230,39 @@ function CloudPanel() {
     }
   };
 
+  const startRename = (d: CloudDevice) => {
+    dropRename.current = false;
+    setRenaming({ id: d.id, name: d.name });
+  };
+
+  const finishRename = async () => {
+    const r = renaming;
+    setRenaming(null);
+    if (!r || dropRename.current) return;
+    const was = devices.find((d) => d.id === r.id);
+    const name = r.name.trim();
+    if (!name || name === was?.name) return;
+    try {
+      setDevices(await api.cloud.renameDevice(r.id, name));
+    } catch (err) {
+      toast(`Could not rename ${was?.name ?? "the computer"}: ${errText(err)}`);
+    }
+  };
+
+  const removeDevice = async (d: CloudDevice) => {
+    setRemoving(null);
+    try {
+      setDevices(await api.cloud.removeDevice(d.id));
+      toast(`${d.name} was removed and signed out`);
+    } catch (err) {
+      toast(`Could not remove ${d.name}: ${errText(err)}`);
+    }
+  };
+
   if (!signedIn) {
     return (
       <section>
-        <p className="dsub">Keep collections in step across your computers, with a copy of every file. Sign in with your email: a code arrives by email, and there is no password.</p>
+        <p className="dsub">{cloud.notice ?? "Keep collections in step across your computers, with a copy of every file. Sign in with your email: a code arrives by email, and there is no password."}</p>
         <form className="drow" onSubmit={(e) => void submit(e)}>
           <label className="field">
             <span>Email</span>
@@ -272,9 +306,39 @@ function CloudPanel() {
           {devices.map((d) => (
             <li key={d.id}>
               <Icon name="monitor" />
-              <span className="name">{d.name}</span>
-              {d.current && <span className="this">this computer</span>}
-              <span className="m">{d.platform === "win32" ? "Windows" : d.platform === "darwin" ? "macOS" : d.platform === "linux" ? "Linux" : d.platform} · seen {ago(d.lastSeenAt)}</span>
+              {renaming?.id === d.id ? (
+                <input
+                  className="rename"
+                  value={renaming.name}
+                  autoFocus
+                  maxLength={80}
+                  aria-label={`Name of ${d.name}`}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onChange={(e) => setRenaming({ id: d.id, name: e.target.value })}
+                  onBlur={() => void finishRename()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.currentTarget.blur();
+                    else if (e.key === "Escape") {
+                      // Drops the rename only; the dialog stays open.
+                      e.stopPropagation();
+                      dropRename.current = true;
+                      setRenaming(null);
+                    }
+                  }}
+                />
+              ) : (
+                <>
+                  <span className="name">{d.name}</span>
+                  {d.current && <span className="this">this computer</span>}
+                  <span className="m">{platformName(d.platform)} · seen {ago(d.lastSeenAt)}</span>
+                  {d.current ? null : removing === d.id ? (
+                    <button className="btn danger" onClick={() => void removeDevice(d)}>Really remove</button>
+                  ) : (
+                    <button className="btn quiet" title="Take it out of the account; it is signed out and has to sign in again" onClick={() => setRemoving(d.id)}>Remove</button>
+                  )}
+                  <button className="btn quiet icon" title="Rename" aria-label={`Rename ${d.name}`} onClick={() => startRename(d)}><Icon name="pen" /></button>
+                </>
+              )}
             </li>
           ))}
         </ul>
@@ -380,7 +444,11 @@ export function Settings() {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.stopPropagation(); setSettingsOpen(false); }
+      if (e.key !== "Escape") return;
+      // A computer's name being edited in place takes Escape first, to drop the edit; the dialog stays.
+      if (e.target instanceof HTMLInputElement && e.target.classList.contains("rename")) return;
+      e.stopPropagation();
+      setSettingsOpen(false);
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);

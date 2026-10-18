@@ -301,6 +301,8 @@ export function registerIpc(): void {
   ipcMain.handle("cloud:verifyCode", (_e, email: string, code: string) => cloudHost().verifyCode(String(email ?? ""), String(code ?? "")));
   ipcMain.handle("cloud:signOut", (_e, scope: "local" | "others") => cloudHost().signOut(scope === "others" ? "others" : "local"));
   ipcMain.handle("cloud:devices", () => cloudHost().devices());
+  ipcMain.handle("cloud:renameDevice", (_e, id: string, name: string) => cloudHost().renameDevice(String(id ?? ""), String(name ?? "")));
+  ipcMain.handle("cloud:removeDevice", (_e, id: string) => cloudHost().removeDevice(String(id ?? "")));
   ipcMain.handle("cloud:collections", () => cloudHost().collections());
   ipcMain.handle("cloud:enable", (_e, collection: string) => cloudHost().enable(guard(collection)));
   ipcMain.handle("cloud:disable", (_e, collection: string) => cloudHost().disable(guard(collection)));

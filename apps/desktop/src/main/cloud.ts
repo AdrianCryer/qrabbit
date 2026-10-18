@@ -11,6 +11,8 @@ type CloudEndpoint = { url: string; publishableKey: string };
 
 const DEBOUNCE_MS = 2000;
 const PERIODIC_MS = 5 * 60_000;
+const SIGNED_OUT_ELSEWHERE = "This computer was signed out from another computer. Sign in again to keep syncing.";
+const REMOVED_ELSEWHERE = "This computer was removed from the account on another computer. Sign in again to keep syncing.";
 
 const endpoint = (url: string | undefined, publishableKey: string | undefined): CloudEndpoint | null => (url && publishableKey ? { url, publishableKey } : null);
 
@@ -64,6 +66,10 @@ class SessionFile implements SessionStore {
     delete this.load()[key];
     this.save();
   }
+  /** Whether a session was kept from the last run. */
+  hasSession(): boolean {
+    return Object.keys(this.load()).length > 0;
+  }
 }
 
 export type CloudEmitter = {
@@ -85,6 +91,12 @@ export class CloudHost {
   /** The device lookup for the signed-in account, shared by concurrent callers so a sign-in registers one device. */
   private device: { userId: string; id: Promise<string> } | null = null;
   private last: CloudAccount = { available: false, signedIn: false };
+  /** Set while this machine signs itself out, so the auth event that follows is not read as a sign-out from elsewhere. */
+  private signingOut = false;
+  /** A session was kept from the last run; if it goes before any sign-in here, it was ended from another computer. */
+  private hadSession: boolean;
+  /** For the sign-in form, once this machine was signed out or removed from another computer; gone at the next sign-in. */
+  private notice: string | undefined;
 
   constructor(
     private readonly emit: CloudEmitter,
@@ -92,9 +104,25 @@ export class CloudHost {
     private readonly recent: () => CollectionInfo[],
   ) {
     const endpoint = cloudEndpoint();
-    this.client = endpoint ? new CloudClient({ ...endpoint, sessionStore: new SessionFile() }) : null;
-    this.client?.onAuthChange((session) => {
-      if (!session) {
+    if (!endpoint) {
+      this.client = null;
+      this.hadSession = false;
+      return;
+    }
+    const sessions = new SessionFile();
+    this.hadSession = sessions.hasSession();
+    this.client = new CloudClient({ ...endpoint, sessionStore: sessions });
+    this.client.onAuthChange((session, event) => {
+      if (session) {
+        this.hadSession = false;
+        this.notice = undefined;
+      } else {
+        // The session went without a sign-out from here: the account was signed out, or this computer removed, from
+        // another one. (A session that merely cannot be refreshed while offline is kept, and raises no such event.)
+        if (event === "SIGNED_OUT" && !this.signingOut && (this.last.signedIn || this.hadSession)) {
+          this.hadSession = false;
+          this.notice ??= SIGNED_OUT_ELSEWHERE;
+        }
         this.stopAll();
         this.deviceId = null;
         this.device = null;
@@ -107,15 +135,19 @@ export class CloudHost {
   async account(): Promise<CloudAccount> {
     if (!this.client) return this.set({ available: false, signedIn: false });
     const session = await this.client.session().catch(() => null);
-    if (!session) return this.set({ available: true, signedIn: false });
+    if (!session) return this.signedOut();
     try {
       const me = await this.client.me();
       const deviceId = await this.ensureDevice(me.id);
       return this.set({ available: true, signedIn: true, email: me.email ?? session.user.email, usedBytes: me.usedBytes, quotaBytes: me.quotaBytes, deviceId });
     } catch (err) {
-      if (err instanceof CloudError && err.code === "unauthenticated") return this.set({ available: true, signedIn: false });
+      if (err instanceof CloudError && err.code === "unauthenticated") return this.signedOut();
       return this.set({ ...this.last, available: true, signedIn: true, email: session.user.email, error: err instanceof Error ? err.message : String(err) });
     }
+  }
+
+  private signedOut(): CloudAccount {
+    return this.set({ available: true, signedIn: false, ...(this.notice ? { notice: this.notice } : {}) });
   }
 
   private set(account: CloudAccount): CloudAccount {
@@ -171,6 +203,7 @@ export class CloudHost {
   async verifyCode(email: string, code: string): Promise<CloudAccount> {
     if (!this.client) throw new Error("Qrabbit Cloud is not available in this build");
     await this.client.verifyCode(email, code);
+    this.notice = undefined;
     const account = await this.account();
     for (const path of this.openPaths) void this.startRunner(path);
     return account;
@@ -178,15 +211,57 @@ export class CloudHost {
 
   async signOut(scope: "local" | "others"): Promise<CloudAccount> {
     if (!this.client) return this.account();
-    if (scope === "local") this.stopAll();
-    await this.client.signOut(scope);
+    if (scope === "local") {
+      this.notice = undefined;
+      await this.signOutHere();
+    } else await this.client.signOut("others");
     return this.account();
+  }
+
+  /** Drops this machine's session. The auth event it raises is expected, not a sign-out from elsewhere. */
+  private async signOutHere(): Promise<void> {
+    if (!this.client) return;
+    this.stopAll();
+    this.signingOut = true;
+    try {
+      await this.client.signOut("local");
+    } finally {
+      this.signingOut = false;
+    }
+  }
+
+  /**
+   * A push named a device the account no longer has: this computer was removed from another one. Its session is
+   * already over, so it signs out here as well, and the sign-in form says why.
+   */
+  private removedElsewhere(err: unknown): boolean {
+    if (!(err instanceof CloudError && err.code === "device_removed")) return false;
+    this.notice = REMOVED_ELSEWHERE;
+    void this.signOutHere().catch(() => {});
+    return true;
   }
 
   async devices(): Promise<CloudDevice[]> {
     if (!this.client) return [];
     const list = await this.client.devices();
     return list.map((d) => ({ id: d.id, name: d.name, platform: d.platform, createdAt: d.createdAt, lastSeenAt: d.lastSeenAt, current: d.id === this.deviceId }));
+  }
+
+  async renameDevice(id: string, name: string): Promise<CloudDevice[]> {
+    if (!this.client) return [];
+    await this.client.renameDevice(id, name);
+    return this.devices();
+  }
+
+  /**
+   * Takes another computer out of the account. Its sign-in ends with it: it is signed out at its next push or within
+   * the hour, and comes back as a new device when it signs in again. This computer leaves by signing out.
+   */
+  async removeDevice(id: string): Promise<CloudDevice[]> {
+    if (!this.client) return [];
+    if (id === this.deviceId) throw new Error("To take this computer out of the account, sign out");
+    await this.client.removeDevice(id);
+    return this.devices();
   }
 
   async collections(): Promise<CloudCollectionInfo[]> {
@@ -232,7 +307,12 @@ export class CloudHost {
   async syncNow(path: string): Promise<CloudSyncState> {
     const runner = this.runners.get(path) ?? (await this.startRunner(path));
     if (!runner) throw new Error("Sign in to Qrabbit Cloud first");
-    await runner.sync.requestSync();
+    try {
+      await runner.sync.requestSync();
+    } catch (err) {
+      this.removedElsewhere(err);
+      throw err;
+    }
     return runner.sync.state;
   }
 
@@ -316,7 +396,9 @@ export class CloudHost {
       .then((report) => {
         if (report.pulled || report.pushed || report.deleted || report.removed) void this.account().catch(() => {});
       })
-      .catch((err) => console.warn(`[cloud] ${basename(path)}: ${String((err as Error)?.message ?? err)}`));
+      .catch((err) => {
+        if (!this.removedElsewhere(err)) console.warn(`[cloud] ${basename(path)}: ${String((err as Error)?.message ?? err)}`);
+      });
   }
 
   private stopRunner(path: string): void {
