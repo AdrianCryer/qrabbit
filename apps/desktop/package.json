@@ -1,6 +1,6 @@
 {
   "name": "@qrabbit/desktop",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Qrabbit desktop app: read, highlight, explore in branches, keep what you learned.",
   "author": "Adrian Cryer",
