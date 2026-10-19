@@ -28,6 +28,7 @@ const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : un
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <script is:inline>document.documentElement.classList.add("js");</script>
+    <slot name="head" />
   </head>
   <body>
     <slot />

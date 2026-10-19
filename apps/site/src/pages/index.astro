@@ -1,5 +1,6 @@
 ---
 import Agents from "../components/Agents.astro";
+import AppSchema from "../components/AppSchema.astro";
 import Burrow from "../components/Burrow.astro";
 import Collections from "../components/Collections.astro";
 import Compare from "../components/Compare.astro";
@@ -17,6 +18,7 @@ import { belowHeader, shots } from "../shots";
 ---
 
 <Base>
+  <AppSchema slot="head" />
   <Nav />
   <main>
     <Hero />

@@ -1,0 +1,28 @@
+---
+import { downloads, site } from "../site";
+
+// The app described for search engines: schema.org SoftwareApplication, as JSON-LD. It states only what the
+// page does, so a platform still "coming soon" isn't listed, and the Cloud plan, which can't be bought yet,
+// isn't offered. There are no ratings or reviews, which Google's software-app rich result requires: this helps
+// search engines understand the page without making it eligible for that result.
+const data = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: site.name,
+  description: site.description,
+  applicationCategory: "EducationalApplication",
+  operatingSystem: Object.values(downloads)
+    .filter((d) => !d.soon)
+    .map((d) => d.name)
+    .join(", "),
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  isAccessibleForFree: true,
+  license: "https://www.apache.org/licenses/LICENSE-2.0",
+  downloadUrl: site.releases,
+  ...(Astro.site && { url: new URL("/", Astro.site).href, image: new URL("/og.png", Astro.site).href }),
+};
+// JSON.stringify leaves "<" as is, and a "</script>" inside any string would close the tag early.
+const json = JSON.stringify(data).replace(/</g, "\\u003c");
+---
+
+<script is:inline type="application/ld+json" set:html={json} />
