@@ -59,6 +59,11 @@ svg.i { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-widt
 .hdr button, .hdr .menu { -webkit-app-region: no-drag; }
 .app[data-platform="win32"] .hdr { padding-right: 146px; }
 .app[data-platform="darwin"] .hdr { padding-left: 84px; }
+/* Linux puts the window buttons on whichever side the desktop asks for; the overlay reports the space between them. */
+.app[data-platform="linux"] .hdr {
+  padding-left: calc(12px + env(titlebar-area-x, 0px));
+  padding-right: calc(6px + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+}
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 500; margin-right: 6px; flex: none; }
 .brand .q { width: 20px; height: 20px; display: block; flex: none; }
 .hsep { color: var(--text-3); flex: none; padding: 0 2px; }

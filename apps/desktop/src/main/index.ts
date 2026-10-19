@@ -18,8 +18,10 @@ function createWindow(): BrowserWindow {
     icon,
     show: false,
     backgroundColor: "#121417",
+    // The header is the title bar. macOS keeps its traffic lights in it; Windows and Linux draw their window buttons
+    // over its far end, and the renderer leaves room for them (styles.css, `.hdr`).
     titleBarStyle: "hidden",
-    ...(process.platform === "win32"
+    ...(process.platform !== "darwin"
       ? { titleBarOverlay: { color: "#121417", symbolColor: "#a3a8b0", height: 44 } }
       : {}),
     trafficLightPosition: { x: 14, y: 14 },

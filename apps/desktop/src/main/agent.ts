@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { app } from "electron";
@@ -20,6 +19,7 @@ import { appendMessage, createThread, listThreads, openCollection, readThread, u
 import { branchContextBlock, branchIntroBlocks, buildPromptBlocks, handoffPrompt, historyBlock, parseSummary, PREAMBLE, SUMMARY_PROMPT } from "./context";
 import { adapterEntry, ensureInstalled } from "./agent-install";
 import { adapterRuntime } from "./runtime";
+import { runInTerminal } from "./terminal";
 import { dirtyBranches } from "./tree";
 
 export type AgentEmitter = {
@@ -520,21 +520,7 @@ export class AgentHost {
     if (!args) throw new Error(`No terminal command for "${method.name}"`);
     const cmd = terminalLoginCommand(await agentLaunch(this.agentId, this.collection), { id: method.id, name: method.name, type: "terminal", args });
     if (!cmd) return;
-    const dir = join(app.getPath("userData"), "login");
-    mkdirSync(dir, { recursive: true });
-    const quote = (s: string) => `"${s.replace(/"/g, '\\"')}"`;
-    if (process.platform === "win32") {
-      const script = join(dir, "sign-in.cmd");
-      const envLines = Object.entries(cmd.env ?? {}).map(([k, v]) => `set ${k}=${v}`).join("\r\n");
-      writeFileSync(script, `@echo off\r\ntitle Qrabbit sign-in\r\n${envLines}\r\n${quote(cmd.command)} ${cmd.args.map(quote).join(" ")}\r\necho.\r\necho Done. You can close this window and return to Qrabbit.\r\npause\r\n`);
-      spawn("cmd.exe", ["/c", "start", "Qrabbit sign-in", script], { detached: true, stdio: "ignore", windowsHide: false }).unref();
-    } else {
-      const script = join(dir, "sign-in.command");
-      const envLines = Object.entries(cmd.env ?? {}).map(([k, v]) => `export ${k}=${quote(v)}`).join("\n");
-      writeFileSync(script, `#!/bin/bash\n${envLines}\n${quote(cmd.command)} ${cmd.args.map(quote).join(" ")}\necho\necho "Done. You can close this window and return to Qrabbit."\nread -r\n`, { mode: 0o755 });
-      const opener = process.platform === "darwin" ? ["open", ["-a", "Terminal", script]] : ["x-terminal-emulator", ["-e", `bash ${quote(script)}`]];
-      spawn(opener[0] as string, opener[1] as string[], { detached: true, stdio: "ignore" }).unref();
-    }
+    await runInTerminal(join(app.getPath("userData"), "login"), cmd);
   }
 }
 

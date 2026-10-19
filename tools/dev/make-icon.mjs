@@ -2,8 +2,11 @@
 // vector rather than shrinking one large bitmap, and writes every copy the repo ships:
 //   apps/desktop/resources/icon.svg        the source, which a bare rerun reads
 //   apps/desktop/resources/icon.png        1024 px: the macOS dock and the Linux window, and what
-//                                          electron-builder makes the macOS .icns and Linux icons from
+//                                          electron-builder makes the macOS .icns from
 //   apps/desktop/resources/icon.ico        16 to 256 px: the Windows window, taskbar, executable and installer
+//   apps/desktop/resources/icons/          16 to 512 px, one PNG per size: the Linux packages' icon set. The
+//                                          freedesktop icon theme looks no further than 512, so a .deb
+//                                          carrying only the 1024 px PNG would show a generic icon
 //   apps/site/public/favicon.svg           the site's tab icon
 //   apps/site/public/favicon.ico           16, 32 and 48 px, for browsers that skip SVG favicons
 //   apps/site/public/apple-touch-icon.png  180 px, for home screens
@@ -14,7 +17,7 @@
 // Usage: node tools/dev/make-icon.mjs [icon.svg] [mark.svg]   (without any, it renders the current icon.svg again)
 // Each SVG needs a square viewBox; its width and height do not matter, so an editor's "100%" is fine.
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,6 +31,8 @@ const TOUCH_SIZE = 180;
 /** What the Windows shell asks for: small icons at 100 to 250% scale, large ones, and Explorer's views. */
 const ICO_SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256];
 const FAVICON_SIZES = [16, 32, 48];
+/** The app sizes in the hicolor icon theme that menus, docks and launchers ask for. */
+const LINUX_SIZES = [16, 24, 32, 48, 64, 128, 256, 512];
 
 if (!process.versions.electron) {
   // Re-run this file as an Electron app so it can rasterise the SVG with Chromium.
@@ -141,7 +146,7 @@ app.whenReady().then(async () => {
   const [[, svg], [, mark] = []] = svgs;
 
   const png = new Map();
-  for (const size of new Set([PNG_SIZE, TOUCH_SIZE, ...ICO_SIZES, ...FAVICON_SIZES])) {
+  for (const size of new Set([PNG_SIZE, TOUCH_SIZE, ...ICO_SIZES, ...FAVICON_SIZES, ...LINUX_SIZES])) {
     const dataUrl = await run(rasterise, svg, size);
     png.set(size, Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64"));
   }
@@ -151,11 +156,13 @@ app.whenReady().then(async () => {
     [join(desktopDir, "icon.svg"), svg],
     [join(desktopDir, "icon.png"), png.get(PNG_SIZE)],
     [join(desktopDir, "icon.ico"), ico(at(ICO_SIZES))],
+    ...LINUX_SIZES.map((size) => [join(desktopDir, "icons", `${size}x${size}.png`), png.get(size)]),
     [join(siteDir, "favicon.svg"), svg],
     [join(siteDir, "favicon.ico"), ico(at(FAVICON_SIZES))],
     [join(siteDir, "apple-touch-icon.png"), png.get(TOUCH_SIZE)],
     ...(mark ? [[join(desktopDir, "mark.svg"), mark], [join(siteDir, "mark.svg"), mark]] : []),
   ];
+  mkdirSync(join(desktopDir, "icons"), { recursive: true });
   for (const [path, data] of outputs) writeFileSync(path, data);
   console.log(`make-icon: rendered ${svgs.map(([path]) => shown(path)).join(" and ")} to\n${outputs.map(([path]) => `  ${shown(path)}`).join("\n")}`);
   app.exit(0);

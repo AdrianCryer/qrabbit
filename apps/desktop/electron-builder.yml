@@ -12,6 +12,9 @@ productName: Qrabbit
 extraMetadata:
   name: Qrabbit
   productName: Qrabbit
+  # Linux: Electron takes the window's Wayland app id from this, and linux.syncDesktopName names the installed
+  # .desktop file after it, so the desktop matches the running window to its menu entry and icon.
+  desktopName: qrabbit.desktop
 directories:
   buildResources: resources
   output: dist
@@ -58,9 +61,17 @@ mac:
       arch: [arm64]
   category: public.app-category.education
   artifactName: ${productName}-${arch}.${ext}
+# Linux has no signing gate. The .deb is the one to offer on Debian and Ubuntu: its install script sets up
+# Chromium's sandbox (an AppArmor profile on Ubuntu 24.04 and later, whose rules stop an AppImage from using it).
+# ${arch} reads x86_64 in the AppImage's name and amd64 in the .deb's. A .deb must name a maintainer; the address
+# forwards to the developer. The icon set stops at 512 px, the largest the freedesktop icon theme looks up
+# (tools/dev/make-icon.mjs renders it).
 linux:
   target: [AppImage, deb]
   category: Education
+  icon: icons
+  syncDesktopName: true
+  maintainer: Qrabbit <hello@qrabbit.cloud>
   artifactName: ${productName}-${arch}.${ext}
 
 publish:

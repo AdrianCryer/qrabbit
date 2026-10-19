@@ -40,7 +40,8 @@ jobs:
           # Apple silicon. Unsigned until the signing and notarization secrets exist (CSC_LINK, CSC_KEY_PASSWORD,
           # APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID), so macOS 15 blocks it for anyone but a tester.
           - os: macos-14
-          # Next: `- os: ubuntu-22.04`, once the build has been checked.
+          # AppImage and .deb, x64. Linux has no signing gate.
+          - os: ubuntu-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
