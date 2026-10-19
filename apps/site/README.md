@@ -8,7 +8,7 @@ pnpm site:build    # dist/
 pnpm --filter @qrabbit/site run typecheck
 ```
 
-The social preview and canonical link are absolute URLs on the site's origin, which the build takes from the custom domain in `wrangler.jsonc`; set `SITE_URL` to build for another origin.
+The social preview, the canonical link and `sitemap.xml` (written at build time with every page built, and linked from a generated `robots.txt`) are absolute URLs on the site's origin, which the build takes from the custom domain in `wrangler.jsonc`; set `SITE_URL` to build for another origin.
 
 ## What to edit
 
