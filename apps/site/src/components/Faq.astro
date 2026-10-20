@@ -1,14 +1,27 @@
 ---
 import { site } from "../site";
 
+// Questions are worded the way people search for them, and the ones searched most come first.
 const faqs = [
   {
-    q: "Do I need an API key?",
-    a: "No. Qrabbit drives Claude Code or Codex through the Agent Client Protocol, and each signs in with your own Claude or ChatGPT plan in its own flow. Qrabbit never sees a credential.",
+    q: "What can I read with it?",
+    a: "PDFs, research papers and arXiv preprints included, Markdown and text files, and web pages, which are saved as clean Markdown so they read like papers and work offline.",
+  },
+  {
+    q: "Can I use my Claude or ChatGPT subscription instead of an API key?",
+    a: "Yes, and you don't need an API key. Qrabbit drives Claude Code or Codex through the Agent Client Protocol, and each signs in with your own Claude or ChatGPT plan in its own flow, so every turn comes out of that plan. Qrabbit never sees a credential.",
   },
   {
     q: "Which subscriptions work?",
     a: "Today, any Claude plan that includes Claude Code (or an Anthropic Console account), and any ChatGPT plan that includes Codex. GitHub Copilot, Gemini through Antigravity, other ACP agents and local models are planned.",
+  },
+  {
+    q: "How is it different from NotebookLM or ChatPDF?",
+    a: "They're online services: you upload your documents and ask about them in a chat. Qrabbit is a desktop app. Your sources stay in a folder on your disk, each question starts from the passage you highlight and stays attached to it, you can branch inside any answer, and the AI is the Claude or ChatGPT plan you already pay for.",
+  },
+  {
+    q: "Is Qrabbit open source?",
+    a: "Yes, under Apache-2.0. The code is on GitHub, and you can build the app from it yourself.",
   },
   {
     q: "Where is my work stored?",
@@ -21,10 +34,6 @@ const faqs = [
   {
     q: "What does Qrabbit Cloud add?",
     a: `Sync and backup of your collections for $${site.cloudPrice} a month, when it launches. The app itself stays free, and your files stay on your disk either way.`,
-  },
-  {
-    q: "What can I read with it?",
-    a: "PDFs, Markdown and text files, and web pages, which are saved as clean Markdown so they read like papers and work offline.",
   },
 ];
 ---

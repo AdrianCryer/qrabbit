@@ -8,9 +8,14 @@ export const site = {
   name: "Qrabbit",
   /** The source. Qrabbit is open source under Apache-2.0, and the site says so wherever it links here. */
   repo,
-  title: "Qrabbit: read difficult material with AI",
+  /**
+   * What search results and link previews show. They lead with what people search for (PDFs, papers, Claude,
+   * ChatGPT), since nobody searches for the name yet; Google cuts titles past about 60 characters and
+   * descriptions past about 155.
+   */
+  title: "Read PDFs and papers with Claude or ChatGPT · Qrabbit",
   description:
-    "Highlight a passage, explore it with AI, branch off inside any answer and go as deep as you need. Qrabbit keeps your way back, and runs on the agent subscription you already pay for.",
+    "A free, open-source reader for PDFs, papers and web pages. Highlight a passage, ask Claude or ChatGPT about it, and branch off without losing your place.",
   /** The releases page; a platform's button links its installer by name under here once it is built. */
   releases: `${repo}/releases/latest`,
   /** Qrabbit Cloud's monthly price in US dollars. */

@@ -4,7 +4,10 @@ import "@fontsource-variable/jetbrains-mono";
 import "../styles/global.css";
 import { site } from "../site";
 
-const og = Astro.site ? new URL("/og.png", Astro.site).href : "/og.png";
+const og = Astro.site ? new URL("/og.jpg", Astro.site).href : "/og.jpg";
+// What public/og.jpg shows (tools/dev/make-og-image.mjs renders it): describe it again when that changes.
+const ogAlt =
+  "The Qrabbit wordmark and the headline “Finally understand every idea. Without getting lost.” beside a Qrabbit window showing a thread and its branches, with the white rabbit peeking over it.";
 const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined;
 ---
 
@@ -21,12 +24,16 @@ const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : un
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     {canonical && <link rel="canonical" href={canonical} />}
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    {canonical && <meta property="og:url" content={canonical} />}
     <meta property="og:title" content={site.title} />
     <meta property="og:description" content={site.description} />
     <meta property="og:image" content={og} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={ogAlt} />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image:alt" content={ogAlt} />
     <script is:inline>document.documentElement.classList.add("js");</script>
     <slot name="head" />
   </head>

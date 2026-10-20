@@ -1,12 +1,23 @@
 ---
+import { getImage } from "astro:assets";
+// The desktop app's version, so a release can't leave it stale: the site rebuilds when this file changes
+// (its build watch paths, in the README).
+import { version } from "../../../desktop/package.json";
+import { shots } from "../shots";
 import { downloads, site } from "../site";
 
 // The app described for search engines: schema.org SoftwareApplication, as JSON-LD. It states only what the
 // page does, so a platform still "coming soon" isn't listed, and the Cloud plan, which can't be bought yet,
 // isn't offered. There are no ratings or reviews, which Google's software-app rich result requires: this helps
 // search engines understand the page without making it eligible for that result.
-const data = {
-  "@context": "https://schema.org",
+//
+// On the site's origin it also describes the site and the project behind it (WebSite and Organization), which
+// tie the name to this domain and the GitHub repo: other things are called Qrabbit too.
+const home = Astro.site && new URL("/", Astro.site).href;
+const org = home && { "@id": `${home}#organization` };
+const screenshot = await getImage({ src: shots.highlight.img, width: 1600 });
+
+const app = {
   "@type": "SoftwareApplication",
   name: site.name,
   description: site.description,
@@ -15,12 +26,41 @@ const data = {
     .filter((d) => !d.soon)
     .map((d) => d.name)
     .join(", "),
+  softwareVersion: version,
+  featureList: [
+    "Highlight a passage in a PDF, paper or web page and explore it with AI",
+    "Branch off inside any answer, with an outline that keeps every branch in order",
+    "Runs on a Claude or ChatGPT subscription through Claude Code or Codex, with no API key",
+    "Web pages saved as clean Markdown, with maths and code intact",
+    "Collections kept as plain folders of Markdown, JSON and PDFs, ready for Obsidian or git",
+    "Comments and bookmarks of your own that the agent never sees",
+  ],
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   isAccessibleForFree: true,
   license: "https://www.apache.org/licenses/LICENSE-2.0",
   downloadUrl: site.releases,
-  ...(Astro.site && { url: new URL("/", Astro.site).href, image: new URL("/og.png", Astro.site).href }),
+  ...(home && {
+    url: home,
+    image: new URL("/og.jpg", home).href,
+    screenshot: new URL(screenshot.src, home).href,
+    publisher: org,
+  }),
 };
+const graph = home
+  ? [
+      app,
+      { "@type": "WebSite", "@id": `${home}#website`, url: home, name: site.name, inLanguage: "en", publisher: org },
+      {
+        "@type": "Organization",
+        ...org,
+        name: site.name,
+        url: home,
+        logo: new URL("/apple-touch-icon.png", home).href,
+        sameAs: [site.repo],
+      },
+    ]
+  : [app];
+const data = { "@context": "https://schema.org", "@graph": graph };
 // JSON.stringify leaves "<" as is, and a "</script>" inside any string would close the tag early.
 const json = JSON.stringify(data).replace(/</g, "\\u003c");
 ---

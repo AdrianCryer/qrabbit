@@ -1,24 +1,27 @@
 #!/usr/bin/env node
-// Renders the promo site's social preview, apps/site/public/og.png (1200x630), from the built site's own
+// Renders the promo site's social preview, apps/site/public/og.jpg (1200x630), from the built site's own
 // pieces: the wordmark from the nav, the hero's headline, the rabbit that peeks over the hero window, and
 // the Qrabbit window from the lists section, on the theme's background (see stage-page.mjs).
 //
 // Usage: pnpm site:build && node tools/dev/make-og-image.mjs, then pnpm site:build again to ship it.
 //   The window inside comes from make-site-shots.mjs; when the app changes, rerun that first.
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { tmpdir } from "node:os";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "..", "..");
 const siteDist = join(repo, "apps", "site", "dist");
-const out = join(repo, "apps", "site", "public", "og.png");
+const out = join(repo, "apps", "site", "public", "og.jpg");
+// Electron captures the frame here, and this script, back in Node, encodes it to `out`.
+const capture = join(tmpdir(), "qrabbit-og-capture.png");
 const electronBin = join(repo, "apps", "desktop", "node_modules", "electron", "dist", process.platform === "win32" ? "electron.exe" : "electron");
 
 const SIZE = { width: 1200, height: 630 };
-const SUBTITLE = "Read difficult material with AI, on the subscription you already have.";
+const SUBTITLE = "Read PDFs and papers with AI, on the subscription you already have.";
 // The window's place in the frame; the rabbit sits on its top edge, as it does in the hero.
 const WIN = { left: 560, top: 330, width: 680 };
 const RABBIT = { width: 78, left: 990 };
@@ -34,7 +37,15 @@ if (process.versions.electron) {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   const r = spawnSync(electronBin, [fileURLToPath(import.meta.url)], { stdio: "inherit", env });
-  process.exit(r.status ?? 1);
+  if (r.status !== 0) process.exit(r.status ?? 1);
+  // A JPEG at a quality where nothing visibly changes, with full colour resolution so the lime headline keeps
+  // clean edges, is about a quarter the size of the PNG (110 KB against 480 KB). Recompressing the PNG losslessly
+  // barely helps, and a palette PNG dithers the glow.
+  const { default: sharp } = await import("sharp");
+  const jpeg = await sharp(readFileSync(capture)).jpeg({ quality: 92, mozjpeg: true, chromaSubsampling: "4:4:4" }).toBuffer();
+  rmSync(capture);
+  writeFileSync(out, jpeg);
+  console.log(`[og-image] wrote apps/site/public/og.jpg (${SIZE.width}x${SIZE.height}, ${Math.round(jpeg.length / 1024)} KB)`);
 }
 
 /** Serves the built site on a free local port, as a static host would. */
@@ -107,9 +118,7 @@ async function render() {
   await new Promise((r) => setTimeout(r, 400));
 
   const { data } = await cdp.sendCommand("Page.captureScreenshot", { format: "png", clip: { x: 0, y: 0, ...SIZE, scale: 1 } });
-  const png = Buffer.from(data, "base64");
-  writeFileSync(out, png);
-  console.log(`[og-image] wrote apps/site/public/og.png (${png.readUInt32BE(16)}x${png.readUInt32BE(20)}, ${Math.round(png.length / 1024)} KB)`);
+  writeFileSync(capture, Buffer.from(data, "base64"));
   server.close();
   app.exit(0);
 }

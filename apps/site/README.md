@@ -8,14 +8,14 @@ pnpm site:build    # dist/
 pnpm --filter @qrabbit/site run typecheck
 ```
 
-The social preview, the canonical link and `sitemap.xml` (written at build time with every page built, and linked from a generated `robots.txt`) are absolute URLs on the site's origin, which the build takes from the custom domain in `wrangler.jsonc`; set `SITE_URL` to build for another origin.
+The social preview, the canonical link and `sitemap.xml` (written at build time with every page built, and linked from a generated `robots.txt`) are absolute URLs on the site's origin, which the build takes from the custom domain in `wrangler.jsonc`; set `SITE_URL` to build for another origin. The structured data for search engines (`src/components/AppSchema.astro`) takes the app's version from `apps/desktop/package.json`, so a release rebuilds the site (see the build watch paths).
 
 ## What to edit
 
 - **Release details** live in `src/site.ts`: the download link for each platform (Windows links its installer's fixed asset name under the latest GitHub Release; macOS and Linux point at the releases page until they are built), the formats shown, and the Cloud price.
 - **App screenshots**: the highlighting comparison is imported straight from `docs/screenshots/raw/`, the capture behind the README image, so rerunning `tools/dev/make-showcase.mjs` updates it too. The thread, the home screen and the reading list are captured by `node tools/dev/make-site-shots.mjs` (after `pnpm desktop:build`) into `src/assets/`, at about the width the site draws them and again at a phone's width: at the README's 1280 their text comes out too small. Each capture's layout width is recorded in `src/shots.ts`, and crops are given in that layout. Astro turns them all into responsive WebP at build time.
 - **The demo video** is left out of git. Put `demo.mp4` from `tools/dev/record-demo.mjs` (and optionally a `demo-poster.jpg`) in `public/` and a "See it move" section appears after the rabbit hole.
-- **`public/og.png`** is the 1200×630 social preview, rendered from the site's own components by `node tools/dev/make-og-image.mjs` after `pnpm site:build` (build again to ship it).
+- **`public/og.jpg`** is the 1200×630 social preview, rendered from the site's own components by `node tools/dev/make-og-image.mjs` after `pnpm site:build` (build again to ship it).
 - **The README's images** (`docs/screenshots/highlight.png`, `lists.png`, `collections.png`) are this site's sections, rendered by `node tools/dev/make-readme-images.mjs` after `pnpm site:build`. Change the comparisons here and render them again, rather than editing the images.
 
 ## Deploying
@@ -29,7 +29,7 @@ The Worker's build settings, in the dashboard under Settings → Build:
 | Root directory | `apps/site` |
 | Build command | `pnpm install --frozen-lockfile --filter @qrabbit/site && pnpm build` |
 | Deploy command | `npx wrangler deploy` |
-| Build watch paths | `apps/site/**`, `docs/screenshots/raw/**`, `pnpm-lock.yaml` |
+| Build watch paths | `apps/site/**`, `docs/screenshots/raw/**`, `apps/desktop/package.json`, `pnpm-lock.yaml` |
 
 Production answers only on the custom domains (`workers_dev` is off); a push to any other branch builds too and gets a preview URL (`preview_urls`).
 

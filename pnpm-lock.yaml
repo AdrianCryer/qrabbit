@@ -279,6 +279,9 @@ importers:
       playwright-core:
         specifier: ^1.50.0
         version: 1.50.0
+      sharp:
+        specifier: ^0.35.5
+        version: 0.35.5
 
   tools/spike-acp:
     dependencies:
