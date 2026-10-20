@@ -47,5 +47,9 @@ function sitemap() {
 export default defineConfig({
   site: process.env.SITE_URL ?? deployedOrigin(),
   devToolbar: { enabled: false },
+  // The CSS goes inside each page rather than in files the page must fetch before it can draw anything: on a
+  // slow phone connection that's a round trip saved before the first paint, and the whole site's CSS is ~10 KB
+  // compressed. Pages are revalidated on every visit anyway, so nothing is lost to caching.
+  build: { inlineStylesheets: "always" },
   integrations: [sitemap()],
 });

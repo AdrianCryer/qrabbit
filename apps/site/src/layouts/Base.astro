@@ -2,13 +2,25 @@
 import "@fontsource-variable/inter";
 import "@fontsource-variable/jetbrains-mono";
 import "../styles/global.css";
+// The Latin half of the UI font, which nearly all the text is set in. Asked for alongside the stylesheet rather
+// than once the stylesheet has been read, it arrives sooner, so text is shaped in a fallback font for less time.
+import inter from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
 import { site } from "../site";
+
+interface Props {
+  /** The page's own title and description; the home page's (site.ts) when left out. */
+  title?: string;
+  description?: string;
+  /** False for a page search engines should leave out, such as the 404 page: no canonical link, and noindex. */
+  index?: boolean;
+}
+const { title = site.title, description = site.description, index = true } = Astro.props;
 
 const og = Astro.site ? new URL("/og.jpg", Astro.site).href : "/og.jpg";
 // What public/og.jpg shows (tools/dev/make-og-image.mjs renders it): describe it again when that changes.
 const ogAlt =
   "The Qrabbit wordmark and the headline “Finally understand every idea. Without getting lost.” beside a Qrabbit window showing a thread and its branches, with the white rabbit peeking over it.";
-const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined;
+const canonical = index && Astro.site ? new URL(Astro.url.pathname, Astro.site).href : undefined;
 ---
 
 <!doctype html>
@@ -16,9 +28,11 @@ const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : un
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{site.title}</title>
-    <meta name="description" content={site.description} />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    {!index && <meta name="robots" content="noindex" />}
     <meta name="theme-color" content="#121417" />
+    <link rel="preload" href={inter} as="font" type="font/woff2" crossorigin />
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -26,15 +40,20 @@ const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : un
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content={site.name} />
     {canonical && <meta property="og:url" content={canonical} />}
-    <meta property="og:title" content={site.title} />
-    <meta property="og:description" content={site.description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
     <meta property="og:image" content={og} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content={ogAlt} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image:alt" content={ogAlt} />
-    <script is:inline>document.documentElement.classList.add("js");</script>
+    <script is:inline>
+      document.documentElement.classList.add("js");
+      // Arriving at a section (a link ending in #...): lay every section out from the start, so the browser
+      // lands on it exactly rather than by guessed heights (global.css).
+      if (location.hash) document.documentElement.classList.add("laid-out");
+    </script>
     <slot name="head" />
   </head>
   <body>
@@ -53,6 +72,17 @@ const canonical = Astro.site ? new URL(Astro.url.pathname, Astro.site).href : un
         { rootMargin: "0px 0px -8% 0px", threshold: 0.12 },
       );
       document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+
+      // Sections far down the page aren't laid out yet (content-visibility in global.css), and a smooth
+      // scroll to one would aim by their guessed heights and land wherever they turn out to end. So the
+      // first in-page link lays them all out for real, here, before the browser starts scrolling.
+      addEventListener(
+        "click",
+        (e) => {
+          if ((e.target as Element | null)?.closest?.('a[href^="#"]')) document.documentElement.classList.add("laid-out");
+        },
+        { capture: true },
+      );
     </script>
   </body>
 </html>

@@ -7,7 +7,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "qrabbit-site",
   "compatibility_date": "2026-10-17",
-  "assets": { "directory": "./dist" },
+  "assets": { "directory": "./dist", "not_found_handling": "404-page" },
   "workers_dev": false,
   "preview_urls": true,
   "routes": [

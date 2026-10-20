@@ -31,7 +31,7 @@ The Worker's build settings, in the dashboard under Settings → Build:
 | Deploy command | `npx wrangler deploy` |
 | Build watch paths | `apps/site/**`, `docs/screenshots/raw/**`, `apps/desktop/package.json`, `pnpm-lock.yaml` |
 
-Production answers only on the custom domains (`workers_dev` is off); a push to any other branch builds too and gets a preview URL (`preview_urls`).
+Production answers only on the custom domains (`workers_dev` is off); a push to any other branch builds too and gets a preview URL (`preview_urls`). An address that isn't a page gets `src/pages/404.astro` with a 404 status (`not_found_handling`), and `public/_headers` lets browsers keep the hashed files in `/_astro/` for a year.
 
 Build variables:
 

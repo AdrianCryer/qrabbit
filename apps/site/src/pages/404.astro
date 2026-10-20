@@ -1,0 +1,44 @@
+---
+/**
+ * Served for any address that isn't a page, with a 404 status (`not_found_handling` in wrangler.jsonc). The
+ * rabbit from the closing scene hops into its burrow; the way out is the home page. No header or footer: their
+ * links are to sections of the home page.
+ */
+import Rabbit from "../components/Rabbit.astro";
+import Base from "../layouts/Base.astro";
+import { site } from "../site";
+---
+
+<Base title={`Page not found · ${site.name}`} description="There's no page at this address." index={false}>
+  <main class="lost">
+    <a href="/" class="brand">
+      <img class="logo" src="/mark.svg" alt="" width="26" height="26" />
+      <span>Qrabbit</span>
+    </a>
+    <div class="scene reveal">
+      <Rabbit pose="hole" title="The white rabbit hops into its burrow and peeks back out" />
+    </div>
+    <h1 class="h2">This page went down a rabbit hole. <em>It never came back up.</em></h1>
+    <p class="lede">The address may be mistyped, or the page has moved.</p>
+    <a class="btn primary" href="/">Go to the home page</a>
+  </main>
+</Base>
+
+<style>
+  .lost {
+    min-height: 100svh;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 24px;
+    padding: 48px var(--gutter);
+    text-align: center;
+    background: radial-gradient(ellipse 55% 45% at 50% 100%, rgba(201, 242, 77, 0.08), transparent 70%);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 17px; letter-spacing: -0.01em; margin-bottom: 8px; }
+  .scene { width: min(360px, 80%); }
+  .scene :global(svg) { width: 100%; height: auto; }
+  .h2 { max-width: 16ch; }
+  .lede { max-width: 40ch; }
+  .btn { margin-top: 8px; }
+</style>

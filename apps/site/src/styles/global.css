@@ -10,7 +10,8 @@
   --line-strong: rgba(255, 255, 255, 0.15);
   --text: #e9ebee;
   --text-2: #a3a8b0;
-  --text-3: #6e747d;
+  /* Lighter than the app's #6e747d, which is under the 4.5:1 that small text needs on every surface here. */
+  --text-3: #858b94;
   --paper: #fbfaf6;
   --paper-text: #1e2227;
   --paper-2: #5b6068;
@@ -83,6 +84,14 @@ code { font-family: var(--font-mono); font-size: 0.9em; }
 .section { padding-block: clamp(88px, 12vw, 150px); position: relative; }
 /* Sections stack on their bottom padding. `~`, not `+`: a component's inline script sits between sections. */
 .section ~ .section { padding-top: 0; }
+/* A section is laid out only once it nears the screen, so loading the page doesn't shape and lay out text that
+   nobody can see yet, again with each web font that arrives: on a mid-range phone that was most of the work
+   before the first paint. Until then it counts as about as tall as sections run; `auto` keeps its real height
+   once it has been drawn. A smooth scroll aimed by those guesses would miss, so the first in-page link lays
+   every section out (.laid-out, from the layout's script), and without scripts nothing is deferred. */
+.js .section { content-visibility: auto; contain-intrinsic-size: auto 1000px; }
+@media (max-width: 760px) { .js .section { contain-intrinsic-size: auto 1500px; } }
+.js.laid-out .section { content-visibility: visible; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- type: the README images' headline style ---------- */
